@@ -287,7 +287,7 @@ function isItemOverdue(item: TodoItem): boolean {
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
-  const [language, setLanguage] = useState<Language>('ro');
+  const [language, setLanguage] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<ItemType>('task');
   const [filterModeByType, setFilterModeByType] = useState<Record<ItemType, FilterMode>>({
     task: 'all',
@@ -310,6 +310,7 @@ const App: React.FC = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [now, setNow] = useState<Date>(new Date());
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -323,6 +324,10 @@ const App: React.FC = () => {
   const t = useMemo(() => translations[language], [language]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const daysInMonth = useMemo(() => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate(), [currentDate]);
   const firstDayOfMonth = useMemo(() => {
     let day = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -365,6 +370,32 @@ const App: React.FC = () => {
       })
       .sort((a, b) => b.sortTimestamp - a.sortTimestamp);
   }, [todos, activeTab, filterModeByType, activeDateFilter]);
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, TodoItem[]>();
+    filteredItems.forEach(item => {
+      const d = new Date(item.sortTimestamp);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    });
+    const sortedGroups = Array.from(groups.entries())
+      .map(([key, items]) => {
+        items.sort((a, b) => b.sortTimestamp - a.sortTimestamp);
+        const first = items[0];
+        const date = new Date(first.sortTimestamp);
+        const dateLabel = date.toLocaleDateString(language, { day: '2-digit', month: 'long' });
+        return { key, dateLabel, items };
+      })
+      .sort((a, b) => {
+        const [aYear, aMonth, aDay] = a.key.split('-').map(Number);
+        const [bYear, bMonth, bDay] = b.key.split('-').map(Number);
+        const aTime = new Date(aYear, aMonth, aDay).getTime();
+        const bTime = new Date(bYear, bMonth, bDay).getTime();
+        return aTime - bTime;
+      });
+    return sortedGroups;
+  }, [filteredItems, language]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -672,7 +703,12 @@ const App: React.FC = () => {
               <path d="M20 12h-2" />
             </svg>
           </div>
-          <h1 className="text-xl font-black tracking-tighter text-slate-800">{t.appTitle}</h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-black tracking-tighter text-slate-800">{t.appTitle}</h1>
+            <span className="text-[11px] font-semibold text-slate-400">
+              {`${now.toLocaleDateString(language, { day: '2-digit', month: 'long' })}. ${now.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false })}`}
+            </span>
+          </div>
         </div>
         <div className="flex items-center space-x-3">
           <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
@@ -705,7 +741,11 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center shadow-sm"><i className="fas fa-bars"></i></button>
+          <div className="flex items-center space-x-1">
+            <button className="w-11 h-11 text-slate-600 flex items-center justify-center"><i className="far fa-user"></i></button>
+            <button className="w-11 h-11 text-slate-600 flex items-center justify-center"><i className="far fa-bell"></i></button>
+            <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center"><i className="fas fa-bars"></i></button>
+          </div>
         </div>
       </header>
 
@@ -825,108 +865,118 @@ const App: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {filteredItems.length === 0 ? (
+            {groupedItems.length === 0 ? (
               <div className="py-24 text-center flex flex-col items-center opacity-10">
                 <i className={`fas ${activeTab === 'task' ? 'fa-feather' : 'fa-calendar-check'} text-6xl mb-4`}></i>
                 <p className="text-lg font-bold uppercase tracking-widest">{activeTab === 'task' ? t.noTasks : t.noEvents}</p>
               </div>
-            ) : filteredItems.map(item => (
-              <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.03] ring-4 ring-blue-500/50 rounded-[32px] shadow-2xl z-10 relative' : ''}`}>
-                <div className={`flex items-start justify-between p-6 bg-white rounded-[32px] shadow-sm border border-slate-100 transition-all ${item.completed ? 'bg-slate-50 opacity-60' : 'hover:border-blue-200 hover:shadow-md'} ${highlightedTaskId === item.id ? 'border-blue-400' : ''}`}>
-                  <div className="flex items-start space-x-5 w-full">
-                    <button onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })} className={`mt-10 flex-shrink-0 w-7 h-7 rounded-xl border-2 transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200'}`}>
-                      {item.completed && <i className="fas fa-check text-xs"></i>}
-                    </button>
-                    <div className="flex flex-col flex-grow leading-tight overflow-hidden">
-                      {/* Line 1: Type Pill and Priority Pill */}
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                          {item.type.toUpperCase()} #{item.id}
-                        </span>
-                        
-                        <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-transparent transition-all ${priorityColors[item.priority]}`}>
-                          <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
-                          <select 
-                            value={item.priority}
-                            onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                            className="bg-transparent outline-none cursor-pointer"
-                          >
-                            <option value="low">{t.prioLow}</option>
-                            <option value="normal">{t.prioNormal}</option>
-                            <option value="high">{t.prioHigh}</option>
-                          </select>
-                        </div>
-
-                        {isItemOverdue(item) && (
-                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100">
-                            {t.outdated}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Line 2: Date/Time + Actions */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter text-slate-500">
-                          {item.dueDate && (
-                            <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                              <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
+            ) : groupedItems.map(group => (
+              <div key={group.key} className="space-y-3">
+                <div
+                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#F8FAFC]/90 backdrop-blur-md"
+                  style ={{ top:"138px" }}
+                  >
+                  {group.dateLabel}
+                </div>
+                {group.items.map(item => (
+                  <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.03] ring-4 ring-blue-500/50 rounded-[32px] shadow-2xl z-10 relative' : ''}`}>
+                    <div className={`flex items-start justify-between p-6 bg-white rounded-[32px] shadow-sm border border-slate-100 transition-all ${item.completed ? 'bg-slate-50 opacity-60' : 'hover:border-blue-200 hover:shadow-md'} ${highlightedTaskId === item.id ? 'border-blue-400' : ''}`}>
+                      <div className="flex items-start space-x-5 w-full">
+                        <button onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })} className={`mt-10 flex-shrink-0 w-7 h-7 rounded-xl border-2 transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200'}`}>
+                          {item.completed && <i className="fas fa-check text-xs"></i>}
+                        </button>
+                        <div className="flex flex-col flex-grow leading-tight overflow-hidden">
+                          {/* Line 1: Type Pill and Priority Pill */}
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                              {item.type.toUpperCase()} #{item.id}
                             </span>
-                          )}
-                          {item.dueTime && (
-                            <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                              <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 flex-shrink-0">
-                          <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
-                            <i className="fas fa-pen text-base"></i>
-                          </button>
-                          <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                            <i className="fas fa-trash-alt text-base"></i>
-                          </button>
-                        </div>
-                      </div>
+                            
+                            <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-transparent transition-all ${priorityColors[item.priority]}`}>
+                              <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
+                              <select 
+                                value={item.priority}
+                                onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
+                                className="bg-transparent outline-none cursor-pointer"
+                              >
+                                <option value="low">{t.prioLow}</option>
+                                <option value="normal">{t.prioNormal}</option>
+                                <option value="high">{t.prioHigh}</option>
+                              </select>
+                            </div>
 
-                      {/* Text / Editing Area */}
-                      {editingId === item.id ? (
-                        <div className="space-y-4 animate-in fade-in duration-300 bg-slate-50 p-4 rounded-2xl border border-blue-100">
-                          <input 
-                            autoFocus 
-                            className="text-base font-bold bg-white border border-slate-200 rounded-xl outline-none w-full px-4 py-2 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20"
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            placeholder="Descriere..."
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <input 
-                              type="date"
-                              className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm flex-grow"
-                              value={editingDate}
-                              onChange={(e) => setEditingDate(e.target.value)}
-                            />
-                            <input 
-                              type="time"
-                              className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm w-32"
-                              value={editingTime}
-                              onChange={(e) => setEditingTime(e.target.value)}
-                            />
-                            <button 
-                              onClick={saveEdit}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
-                            >
-                              {t.save}
-                            </button>
+                            {isItemOverdue(item) && (
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100">
+                                {t.outdated}
+                              </span>
+                            )}
                           </div>
+
+                          {/* Line 2: Date/Time + Actions */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter text-slate-500">
+                              {item.dueDate && (
+                                <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                                  <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
+                                </span>
+                              )}
+                              {item.dueTime && (
+                                <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                                  <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                              <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
+                                <i className="fas fa-pen text-base"></i>
+                              </button>
+                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                <i className="fas fa-trash-alt text-base"></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Text / Editing Area */}
+                          {editingId === item.id ? (
+                            <div className="space-y-4 animate-in fade-in duration-300 bg-slate-50 p-4 rounded-2xl border border-blue-100">
+                              <input 
+                                autoFocus 
+                                className="text-base font-bold bg-white border border-slate-200 rounded-xl outline-none w-full px-4 py-2 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
+                                placeholder="Descriere..."
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <input 
+                                  type="date"
+                                  className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm flex-grow"
+                                  value={editingDate}
+                                  onChange={(e) => setEditingDate(e.target.value)}
+                                />
+                                <input 
+                                  type="time"
+                                  className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm w-32"
+                                  value={editingTime}
+                                  onChange={(e) => setEditingTime(e.target.value)}
+                                />
+                                <button 
+                                  onClick={saveEdit}
+                                  className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+                                >
+                                  {t.save}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {item.text}
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                          {item.text}
-                        </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             ))}
           </div>
