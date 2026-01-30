@@ -6,7 +6,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
 import { generateAssistantResponse, generateTTS, todoTools } from '../services/geminiService';
 
-type FilterMode = 'all' | 'completed' | 'low' | 'normal' | 'high';
+type FilterMode = 'all' | 'completed' | 'low' | 'normal' | 'high' | 'outdated';
 
 // Translation strings for professional i18n
 const translations = {
@@ -30,12 +30,14 @@ const translations = {
     searchPlaceholder: "Search tasks or say a command...",
     filterAll: "All",
     filterCompleted: "Completed",
-    filterLow: "Low Priority",
-    filterNormal: "Normal Priority",
-    filterHigh: "High Priority",
+    filterLow: "Low priority",
+    filterNormal: "Normal priority",
+    filterHigh: "High priority",
+    filterOutdated: "Overdue",
     prioLow: "Low",
     prioNormal: "Normal",
     prioHigh: "High",
+    outdated: "Overdue",
     save: "Save",
     clearFilter: "Clear date filter",
     menuHome: "Home",
@@ -63,12 +65,14 @@ const translations = {
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
     filterAll: "Toate",
     filterCompleted: "Bifate",
-    filterLow: "Mică",
-    filterNormal: "Normală",
-    filterHigh: "Mare",
+    filterLow: "Prioritate mică",
+    filterNormal: "Prioritate normală",
+    filterHigh: "Prioritate mare",
+    filterOutdated: "Depășite",
     prioLow: "Mică",
     prioNormal: "Normală",
     prioHigh: "Mare",
+    outdated: "Depășit",
     save: "Salvează",
     clearFilter: "Resetează data",
     menuHome: "Acasă",
@@ -99,9 +103,11 @@ const translations = {
     filterLow: "Basse priorité",
     filterNormal: "Priorité normale",
     filterHigh: "Haute priorité",
+    filterOutdated: "En retard",
     prioLow: "Basse",
     prioNormal: "Normale",
     prioHigh: "Haute",
+    outdated: "En retard",
     save: "Enregistrer",
     clearFilter: "Effacer la date",
     menuHome: "Accueil",
@@ -132,9 +138,11 @@ const translations = {
     filterLow: "Niedrig",
     filterNormal: "Normal",
     filterHigh: "Hoch",
+    filterOutdated: "Überfällig",
     prioLow: "Niedrig",
     prioNormal: "Normal",
     prioHigh: "Hoch",
+    outdated: "Überfällig",
     save: "Speichern",
     clearFilter: "Datum löschen",
     menuHome: "Startseite",
@@ -165,9 +173,11 @@ const translations = {
     filterLow: "Baja",
     filterNormal: "Normal",
     filterHigh: "Alta",
+    filterOutdated: "Atrasados",
     prioLow: "Baja",
     prioNormal: "Normal",
     prioHigh: "Alta",
+    outdated: "Atrasado",
     save: "Guardar",
     clearFilter: "Borrar fecha",
     menuHome: "Inicio",
@@ -259,12 +269,30 @@ function parseTaskDate(dateStr: string | undefined): number {
   return Date.now();
 }
 
+function isItemOverdue(item: TodoItem): boolean {
+  if (item.completed) return false;
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (item.sortTimestamp < todayStart) return true;
+  if (item.sortTimestamp > todayStart) return false;
+  if (!item.dueTime) return false;
+  const [hStr, mStr] = item.dueTime.split(':');
+  const hours = Number(hStr);
+  const minutes = Number(mStr);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
+  const dueTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes).getTime();
+  return now.getTime() > dueTime;
+}
+
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
   const [language, setLanguage] = useState<Language>('ro');
   const [activeTab, setActiveTab] = useState<ItemType>('task');
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [filterModeByType, setFilterModeByType] = useState<Record<ItemType, FilterMode>>({
+    task: 'all',
+    event: 'all'
+  });
   const [isLive, setIsLive] = useState(false);
   const [isWriteMode, setIsWriteMode] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -313,6 +341,7 @@ const App: React.FC = () => {
   }, [todos]);
 
   const filteredItems = useMemo(() => {
+    const filterMode = filterModeByType[activeTab];
     let base = todos;
     
     // Apply date filter if set
@@ -331,10 +360,11 @@ const App: React.FC = () => {
         if (filterMode === 'low') return item.priority === 'low';
         if (filterMode === 'normal') return item.priority === 'normal';
         if (filterMode === 'high') return item.priority === 'high';
+        if (filterMode === 'outdated') return isItemOverdue(item);
         return true;
       })
       .sort((a, b) => b.sortTimestamp - a.sortTimestamp);
-  }, [todos, activeTab, filterMode, activeDateFilter]);
+  }, [todos, activeTab, filterModeByType, activeDateFilter]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -616,7 +646,7 @@ const App: React.FC = () => {
   const priorityColors = {
     low: 'text-slate-500 bg-slate-100',
     normal: 'text-blue-600 bg-blue-50',
-    high: 'text-rose-600 bg-rose-50'
+    high: 'text-amber-900 bg-amber-200'
   };
 
   return (
@@ -778,15 +808,16 @@ const App: React.FC = () => {
                 <div className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer">
                   <i className="fas fa-filter text-[10px] text-slate-400 mr-2"></i>
                   <select 
-                    value={filterMode} 
-                    onChange={(e) => setFilterMode(e.target.value as FilterMode)}
-                    className="bg-transparent text-[9px] font-black text-blue-500 uppercase tracking-widest outline-none cursor-pointer pr-2"
+                    value={filterModeByType[activeTab]} 
+                    onChange={(e) => setFilterModeByType(prev => ({ ...prev, [activeTab]: e.target.value as FilterMode }))}
+                    className="bg-transparent text-[9px] font-black text-blue-500 tracking-widest outline-none cursor-pointer pr-2"
                   >
                     <option value="all">{t.filterAll}</option>
                     <option value="completed">{t.filterCompleted}</option>
                     <option value="normal">{t.filterNormal}</option>
                     <option value="low">{t.filterLow}</option>
                     <option value="high">{t.filterHigh}</option>
+                    <option value="outdated">{t.filterOutdated}</option>
                   </select>
                 </div>
               </div>
@@ -825,6 +856,12 @@ const App: React.FC = () => {
                             <option value="high">{t.prioHigh}</option>
                           </select>
                         </div>
+
+                        {isItemOverdue(item) && (
+                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100">
+                            {t.outdated}
+                          </span>
+                        )}
                       </div>
 
                       {/* Line 2: Date and Time */}
@@ -873,18 +910,20 @@ const App: React.FC = () => {
                           </div>
                         </div>
                       ) : (
-                        <div 
-                          onClick={() => startEditing(item)}
-                          className={`text-lg font-bold break-words leading-relaxed cursor-text ${item.completed ? 'line-through text-slate-400' : 'text-slate-800 hover:text-blue-600'}`}
-                        >
+                        <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                           {item.text}
                         </div>
                       )}
                     </div>
                   </div>
-                  <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="mt-10 p-2 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
-                    <i className="fas fa-trash-alt text-base"></i>
-                  </button>
+                  <div className="mt-10 flex items-center space-x-2 flex-shrink-0">
+                    <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
+                      <i className="fas fa-pen text-base"></i>
+                    </button>
+                    <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                      <i className="fas fa-trash-alt text-base"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -903,7 +942,13 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCalendarOpen(false)}></div>
           <div className="relative bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 animate-in zoom-in fade-in duration-300">
-            <button onClick={() => setIsCalendarOpen(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"><i className="fas fa-times"></i></button>
+            <button
+              onClick={() => setIsCalendarOpen(false)}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"
+              style={{ marginTop:"-80px", marginRight:"-25px" }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
             <Calendar isModal />
           </div>
         </div>
