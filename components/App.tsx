@@ -864,18 +864,28 @@ const App: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Line 2: Date and Time */}
-                      <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter mb-4 text-slate-500">
-                        {item.dueDate && (
-                          <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                            <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
-                          </span>
-                        )}
-                        {item.dueTime && (
-                          <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                            <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
-                          </span>
-                        )}
+                      {/* Line 2: Date/Time + Actions */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter text-slate-500">
+                          {item.dueDate && (
+                            <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                              <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
+                            </span>
+                          )}
+                          {item.dueTime && (
+                            <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                              <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
+                            <i className="fas fa-pen text-base"></i>
+                          </button>
+                          <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                            <i className="fas fa-trash-alt text-base"></i>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Text / Editing Area */}
@@ -915,14 +925,6 @@ const App: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div className="mt-10 flex items-center space-x-2 flex-shrink-0">
-                    <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
-                      <i className="fas fa-pen text-base"></i>
-                    </button>
-                    <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                      <i className="fas fa-trash-alt text-base"></i>
-                    </button>
                   </div>
                 </div>
               </div>
