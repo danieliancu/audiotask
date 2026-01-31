@@ -46,8 +46,8 @@ const translations = {
     menuPricing: "Pricing"
   },
   ro: {
-    tasks: "Sarcini",
-    events: "Evenimente",
+    tasks: "Tasks",
+    events: "Events",
     clear: "Curăță",
     listening: "Se ascultă...",
     placeholder: "Scrie o comandă...",
@@ -306,6 +306,7 @@ const App: React.FC = () => {
   const [editingText, setEditingText] = useState('');
   const [editingDate, setEditingDate] = useState('');
   const [editingTime, setEditingTime] = useState('');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -402,6 +403,11 @@ const App: React.FC = () => {
       });
     return sortedGroups;
   }, [filteredItems, language]);
+
+  const editingItem = useMemo(() => {
+    if (!editingId) return null;
+    return todos.find(item => item.id === editingId) || null;
+  }, [editingId, todos]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -667,6 +673,12 @@ const App: React.FC = () => {
     const dateObj = new Date(item.sortTimestamp);
     setEditingDate(dateObj.toISOString().split('T')[0]);
     setEditingTime(item.dueTime || '');
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingId(null);
   };
 
   const saveEdit = () => {
@@ -677,6 +689,7 @@ const App: React.FC = () => {
       date: editingDate,
       time: editingTime || null
     });
+    setIsEditModalOpen(false);
     setEditingId(null);
   };
 
@@ -838,7 +851,7 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
           <div className="flex items-center justify-between border-b-2 border-slate-100 pb-0 overflow-x-auto no-scrollbar">
-            <div className="flex space-x-2 md:space-x-8">
+            <div className="flex space-x-8">
               <button onClick={() => setActiveTab('task')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
@@ -856,7 +869,7 @@ const App: React.FC = () => {
                   <select 
                     value={filterModeByType[activeTab]} 
                     onChange={(e) => setFilterModeByType(prev => ({ ...prev, [activeTab]: e.target.value as FilterMode }))}
-                    className="bg-transparent text-[9px] font-black text-blue-500 tracking-widest outline-none cursor-pointer pr-2"
+                    className="bg-transparent text-[10px] font-black text-blue-500 tracking-widest outline-none cursor-pointer pr-2"
                   >
                     <option value="all">{t.filterAll}</option>
                     <option value="completed">{t.filterCompleted}</option>
@@ -879,10 +892,18 @@ const App: React.FC = () => {
             ) : groupedItems.map(group => (
               <div key={group.key} className="space-y-3">
                 <div
-                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md"
-                  style ={{ top:"138px" }}
+                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
+                  style ={{ top:"138px", zIndex:0 }}
                   >
-                  {group.dateLabel}
+                  <span>{group.dateLabel}</span>
+                  {activeDateFilter && (
+                    <button
+                      onClick={() => setActiveDateFilter(null)}
+                      className="ml-3 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
+                    >
+                      Vezi toate zilele
+                    </button>
+                  )}
                 </div>
                 {group.items.map(item => (
                   <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.03] ring-4 ring-blue-500/50 rounded-[32px] shadow-2xl z-10 relative' : ''}`}>
@@ -892,45 +913,42 @@ const App: React.FC = () => {
                           {item.completed && <i className="fas fa-check text-xs"></i>}
                         </button>
                         <div className="flex flex-col flex-grow leading-tight overflow-hidden">
-                          {/* Line 1: Type Pill and Priority Pill */}
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                              {item.type.toUpperCase()} #{item.id}
-                            </span>
-                            
-                            <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-transparent transition-all ${priorityColors[item.priority]}`}>
-                              <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
-                              <select 
-                                value={item.priority}
-                                onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                                className="bg-transparent outline-none cursor-pointer"
-                              >
-                                <option value="low">{t.prioLow}</option>
-                                <option value="normal">{t.prioNormal}</option>
-                                <option value="high">{t.prioHigh}</option>
-                              </select>
-                            </div>
-
-                            {isItemOverdue(item) && (
-                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100">
-                                {t.outdated}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Line 2: Date/Time + Actions */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter text-slate-500">
-                            {item.dueDate && item.type !== 'event' && (
-                              <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                                <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
-                              </span>
-                            )}
-                            {item.dueTime && (
-                              <span className={`flex items-center bg-slate-50 rounded-lg border border-slate-100 ${item.type === 'event' ? 'px-3 py-1 text-[13px] font-black' : 'px-2 py-0.5'}`}>
-                                <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
-                              </span>
-                            )}
+                          {/* Line 1: Time + Type + Priority */}
+                          <div className="flex items-center justify-between mb-4 max-[450px]:flex-col max-[450px]:items-start max-[450px]:gap-3">
+                            <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:gap-2 max-[450px]:w-full">
+                              <div className={`flex items-center px-3 py-1 rounded-lg w-fit max-[450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                                <span className="mr-1">#{item.id}</span>
+                                <select
+                                  value={item.type}
+                                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, type: e.target.value as ItemType })}
+                                  className="bg-transparent outline-none cursor-pointer pr-1"
+                                >
+                                  <option value="task">{t.tasks}</option>
+                                  <option value="event">{t.events}</option>
+                                </select>
+                              </div>
+                              {item.dueTime && (
+                                <span className="flex items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[450px]:w-full">
+                                  <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
+                                </span>
+                              )}
+                              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
+                                <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
+                                <select 
+                                  value={item.priority}
+                                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
+                                  className="bg-transparent outline-none cursor-pointer"
+                                >
+                                  <option value="low">{t.prioLow}</option>
+                                  <option value="normal">{t.prioNormal}</option>
+                                  <option value="high">{t.prioHigh}</option>
+                                </select>
+                              </div>
+                              {isItemOverdue(item) && (
+                                <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[450px]:w-full">
+                                  {t.outdated}
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center space-x-2 flex-shrink-0">
                               <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
@@ -942,42 +960,11 @@ const App: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Text / Editing Area */}
-                          {editingId === item.id ? (
-                            <div className="space-y-4 animate-in fade-in duration-300 bg-slate-50 p-4 rounded-2xl border border-blue-100">
-                              <input 
-                                autoFocus 
-                                className="text-base font-bold bg-white border border-slate-200 rounded-xl outline-none w-full px-4 py-2 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20"
-                                value={editingText}
-                                onChange={(e) => setEditingText(e.target.value)}
-                                placeholder="Descriere..."
-                              />
-                              <div className="flex flex-wrap gap-2">
-                                <input 
-                                  type="date"
-                                  className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm flex-grow"
-                                  value={editingDate}
-                                  onChange={(e) => setEditingDate(e.target.value)}
-                                />
-                                <input 
-                                  type="time"
-                                  className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm w-32"
-                                  value={editingTime}
-                                  onChange={(e) => setEditingTime(e.target.value)}
-                                />
-                                <button 
-                                  onClick={saveEdit}
-                                  className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
-                                >
-                                  {t.save}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {item.text}
-                            </div>
-                          )}
+
+                          {/* Text */}
+                          <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                            {item.text}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -988,12 +975,89 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        <section className="hidden md:block sticky top-32 h-fit">
+        <section className="hidden md:block sticky h-fit" style={{ top:"165px" }}>
           <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl p-10">
             <Calendar />
           </div>
         </section>
       </main>
+
+      {/* Edit Modal */}
+      {isEditModalOpen && editingItem && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeEditModal}></div>
+          <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[85vh]">
+            <button
+              onClick={closeEditModal}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"
+              style={{ marginTop:"-80px", marginRight:"-20px" }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter ${editingItem.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                <span className="mr-1">#{editingItem.id}</span>
+                <select
+                  value={editingItem.type}
+                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, type: e.target.value as ItemType })}
+                  className="bg-transparent outline-none cursor-pointer pr-1"
+                >
+                  <option value="task">{t.tasks}</option>
+                  <option value="event">{t.events}</option>
+                </select>
+              </div>
+              <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-transparent ${priorityColors[editingItem.priority]}`}>
+                <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
+                <select
+                  value={editingItem.priority}
+                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, priority: e.target.value as Priority })}
+                  className="bg-transparent outline-none cursor-pointer"
+                >
+                  <option value="low">{t.prioLow}</option>
+                  <option value="normal">{t.prioNormal}</option>
+                  <option value="high">{t.prioHigh}</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <textarea
+                autoFocus
+                className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[140px] resize-none"
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                placeholder="Descriere..."
+              />
+              <div className="flex flex-wrap gap-3">
+                <input
+                  type="date"
+                  className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm flex-grow"
+                  value={editingDate}
+                  onChange={(e) => setEditingDate(e.target.value)}
+                />
+                <input
+                  type="time"
+                  className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm w-32"
+                  value={editingTime}
+                  onChange={(e) => setEditingTime(e.target.value)}
+                />
+                <button
+                  onClick={saveEdit}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+                >
+                  {t.save}
+                </button>
+                <button
+                  onClick={closeEditModal}
+                  className="bg-slate-100 text-slate-500 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                >
+                  {t.close}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Calendar Modal */}
       {isCalendarOpen && (
