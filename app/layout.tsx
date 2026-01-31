@@ -2,7 +2,7 @@ import './globals.css';
 import { Nunito, Fira_Code } from 'next/font/google';
 
 export const metadata = {
-  title: 'VoiceTask',
+  title: 'AudioTask',
   description: 'Voice-driven tasks and events manager.'
 };
 
@@ -33,7 +33,7 @@ export default function RootLayout({
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         />
       </head>
-      <body className="bg-slate-50 text-slate-900 transition-colors duration-300 overflow-x-hidden">
+      <body className="text-slate-900 transition-colors duration-300 overflow-x-hidden">
         {children}
       </body>
     </html>

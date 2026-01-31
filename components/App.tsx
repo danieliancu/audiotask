@@ -23,7 +23,7 @@ const translations = {
     languages: "Languages",
     close: "Close",
     menuTitle: "Menu",
-    appTitle: "VoiceTask",
+    appTitle: "AudioTask",
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Time",
@@ -58,7 +58,7 @@ const translations = {
     languages: "Limbi",
     close: "Închide",
     menuTitle: "Meniu",
-    appTitle: "VoiceTask",
+    appTitle: "AudioTask",
     idLabel: "ID",
     dateLabel: "Data",
     timeLabel: "Ora",
@@ -93,7 +93,7 @@ const translations = {
     languages: "Langues",
     close: "Fermer",
     menuTitle: "Menu",
-    appTitle: "VoiceTask",
+    appTitle: "AudioTask",
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Heure",
@@ -128,7 +128,7 @@ const translations = {
     languages: "Sprachen",
     close: "Schließen",
     menuTitle: "Menü",
-    appTitle: "VoiceTask",
+    appTitle: "AudioTask",
     idLabel: "ID",
     dateLabel: "Datum",
     timeLabel: "Uhrzeit",
@@ -163,7 +163,7 @@ const translations = {
     languages: "Idiomas",
     close: "Cerrar",
     menuTitle: "Menú",
-    appTitle: "VoiceTask",
+    appTitle: "AudioTask",
     idLabel: "ID",
     dateLabel: "Fecha",
     timeLabel: "Hora",
@@ -310,7 +310,7 @@ const App: React.FC = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
-  const [now, setNow] = useState<Date>(new Date());
+  const [nowLabel, setNowLabel] = useState<string>('');
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -325,9 +325,15 @@ const App: React.FC = () => {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000);
+    const formatNow = (d: Date) => (
+      `${d.toLocaleDateString(language, { day: '2-digit', month: 'long' })}. ${d.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}`
+    );
+    setNowLabel(formatNow(new Date()));
+    const timer = setInterval(() => {
+      setNowLabel(formatNow(new Date()));
+    }, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [language]);
   const daysInMonth = useMemo(() => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate(), [currentDate]);
   const firstDayOfMonth = useMemo(() => {
     let day = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -384,7 +390,7 @@ const App: React.FC = () => {
         items.sort((a, b) => b.sortTimestamp - a.sortTimestamp);
         const first = items[0];
         const date = new Date(first.sortTimestamp);
-        const dateLabel = date.toLocaleDateString(language, { day: '2-digit', month: 'long' });
+        const dateLabel = date.toLocaleDateString(language, { weekday: 'long', day: '2-digit', month: 'long' });
         return { key, dateLabel, items };
       })
       .sort((a, b) => {
@@ -681,7 +687,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-blue-100 pb-20">
+    <div className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
       <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between bg-transparent relative z-50">
         <div className="flex items-center space-x-3">
           <div className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
@@ -705,8 +711,8 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <h1 className="text-xl font-black tracking-tighter text-slate-800">{t.appTitle}</h1>
-            <span className="text-[11px] font-semibold text-slate-400">
-              {`${now.toLocaleDateString(language, { day: '2-digit', month: 'long' })}. ${now.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false })}`}
+            <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning>
+              {nowLabel}
             </span>
           </div>
         </div>
@@ -749,7 +755,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#F8FAFC]/90 backdrop-blur-xl px-6 py-6 mb-8 border-b border-slate-200/50">
+      <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#FDF5E6] backdrop-blur-xl px-6 py-6 mb-8 border-b border-slate-200/50">
         <div>
           {/* Desktop Interaction Bar */}
           <div className="hidden md:flex items-center space-x-4 bg-white p-4 rounded-[32px] shadow-sm border border-slate-200 transition-all hover:shadow-lg focus-within:ring-2 focus-within:ring-blue-500/10">
@@ -832,7 +838,7 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
           <div className="flex items-center justify-between border-b-2 border-slate-100 pb-0 overflow-x-auto no-scrollbar">
-            <div className="flex space-x-8">
+            <div className="flex space-x-2 md:space-x-8">
               <button onClick={() => setActiveTab('task')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
@@ -873,7 +879,7 @@ const App: React.FC = () => {
             ) : groupedItems.map(group => (
               <div key={group.key} className="space-y-3">
                 <div
-                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#F8FAFC]/90 backdrop-blur-md"
+                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md"
                   style ={{ top:"138px" }}
                   >
                   {group.dateLabel}
@@ -915,16 +921,16 @@ const App: React.FC = () => {
                           {/* Line 2: Date/Time + Actions */}
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-black uppercase tracking-tighter text-slate-500">
-                              {item.dueDate && (
-                                <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                                  <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
-                                </span>
-                              )}
-                              {item.dueTime && (
-                                <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                                  <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
-                                </span>
-                              )}
+                            {item.dueDate && item.type !== 'event' && (
+                              <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                                <i className="far fa-calendar-alt mr-1.5 opacity-60"></i> {item.dueDate}
+                              </span>
+                            )}
+                            {item.dueTime && (
+                              <span className={`flex items-center bg-slate-50 rounded-lg border border-slate-100 ${item.type === 'event' ? 'px-3 py-1 text-[13px] font-black' : 'px-2 py-0.5'}`}>
+                                <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
+                              </span>
+                            )}
                             </div>
                             <div className="flex items-center space-x-2 flex-shrink-0">
                               <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
