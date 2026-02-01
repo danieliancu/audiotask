@@ -2,7 +2,7 @@ import './globals.css';
 import { Nunito, Fira_Code } from 'next/font/google';
 
 export const metadata = {
-  title: 'AudioTask',
+  title: 'VoiceTask',
   description: 'Voice-driven tasks and events manager.'
 };
 

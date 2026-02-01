@@ -1,6 +1,6 @@
 {
-  "name": "AudioTask.net",
-  "description": "An intelligent TODO application powered by Gemini Function Calling and Text-to-Speech, supporting English and Romanian.",
+  "name": "VoiceTask.net",
+  "description": "An intelligent TODO application powered by AI Function Calling and Text-to-Speech, supporting English, Romanian and more languages.",
   "requestFramePermissions": [
     "microphone"
   ]

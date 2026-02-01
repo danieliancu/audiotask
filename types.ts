@@ -11,6 +11,7 @@ export interface TodoItem {
   createdAt: number;
   dueDate?: string; 
   dueTime?: string; 
+  location?: string;
   sortTimestamp: number; 
   type: ItemType;
   priority: Priority;

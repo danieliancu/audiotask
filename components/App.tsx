@@ -23,7 +23,7 @@ const translations = {
     languages: "Languages",
     close: "Close",
     menuTitle: "Menu",
-    appTitle: "AudioTask",
+    appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Time",
@@ -58,7 +58,7 @@ const translations = {
     languages: "Limbi",
     close: "Închide",
     menuTitle: "Meniu",
-    appTitle: "AudioTask",
+    appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Data",
     timeLabel: "Ora",
@@ -93,7 +93,7 @@ const translations = {
     languages: "Langues",
     close: "Fermer",
     menuTitle: "Menu",
-    appTitle: "AudioTask",
+    appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Heure",
@@ -128,7 +128,7 @@ const translations = {
     languages: "Sprachen",
     close: "Schließen",
     menuTitle: "Menü",
-    appTitle: "AudioTask",
+    appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Datum",
     timeLabel: "Uhrzeit",
@@ -163,7 +163,7 @@ const translations = {
     languages: "Idiomas",
     close: "Cerrar",
     menuTitle: "Menú",
-    appTitle: "AudioTask",
+    appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Fecha",
     timeLabel: "Hora",
@@ -452,6 +452,7 @@ const App: React.FC = () => {
           createdAt: Date.now(),
           dueDate: new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
           dueTime: args.time || undefined,
+          location: args.location || undefined,
           sortTimestamp: ts,
           priority: (args.priority as Priority) || 'normal'
         };
@@ -468,12 +469,14 @@ const App: React.FC = () => {
             const newTs = args.date ? parseTaskDate(args.date) : todo.sortTimestamp;
             const newType = (args.type as ItemType) || todo.type;
             if (newType !== activeTab) setActiveTab(newType);
+            const newLocation = args.location !== undefined ? (args.location || undefined) : todo.location;
             return {
               ...todo,
               text: args.text ? capitalize(args.text) : todo.text,
               type: newType,
               dueDate: args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : todo.dueDate,
               dueTime: args.time !== undefined ? (args.time || undefined) : todo.dueTime,
+              location: newLocation,
               priority: (args.priority as Priority) || todo.priority,
               sortTimestamp: newTs
             };
@@ -965,6 +968,22 @@ const App: React.FC = () => {
                           <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                             {item.text}
                           </div>
+                          {item.location && (
+                            <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
+                              <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
+                              <span className="truncate">{item.location}</span>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                aria-label="Open in Google Maps"
+                                title="Open in Google Maps"
+                              >
+                                <i className="fas fa-external-link-alt text-[10px]"></i>
+                              </a>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
