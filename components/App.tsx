@@ -869,7 +869,7 @@ const App: React.FC = () => {
                   <select 
                     value={filterModeByType[activeTab]} 
                     onChange={(e) => setFilterModeByType(prev => ({ ...prev, [activeTab]: e.target.value as FilterMode }))}
-                    className="bg-transparent text-[10px] font-black text-blue-500 tracking-widest outline-none cursor-pointer pr-2"
+                    className="bg-transparent text-[10px] font-black text-blue-500 tracking-widest appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-2 py-0.5"
                   >
                     <option value="all">{t.filterAll}</option>
                     <option value="completed">{t.filterCompleted}</option>
@@ -893,7 +893,7 @@ const App: React.FC = () => {
               <div key={group.key} className="space-y-3">
                 <div
                   className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
-                  style ={{ top:"138px", zIndex:0 }}
+                  style ={{ top:"138px", zIndex:1 }}
                   >
                   <span>{group.dateLabel}</span>
                   {activeDateFilter && (
@@ -921,7 +921,7 @@ const App: React.FC = () => {
                                 <select
                                   value={item.type}
                                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, type: e.target.value as ItemType })}
-                                  className="bg-transparent outline-none cursor-pointer pr-1"
+                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                                 >
                                   <option value="task">{t.tasks}</option>
                                   <option value="event">{t.events}</option>
@@ -937,7 +937,7 @@ const App: React.FC = () => {
                                 <select 
                                   value={item.priority}
                                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                                  className="bg-transparent outline-none cursor-pointer"
+                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                                 >
                                   <option value="low">{t.prioLow}</option>
                                   <option value="normal">{t.prioNormal}</option>
@@ -994,24 +994,24 @@ const App: React.FC = () => {
             >
               <i className="fas fa-times"></i>
             </button>
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter ${editingItem.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+            <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
+              <div className={`flex items-center px-3 py-1 rounded-lg ${editingItem.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                 <span className="mr-1">#{editingItem.id}</span>
                 <select
                   value={editingItem.type}
                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, type: e.target.value as ItemType })}
-                  className="bg-transparent outline-none cursor-pointer pr-1"
+                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                 >
                   <option value="task">{t.tasks}</option>
                   <option value="event">{t.events}</option>
                 </select>
               </div>
-              <div className={`flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-transparent ${priorityColors[editingItem.priority]}`}>
+              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[editingItem.priority]}`}>
                 <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
                 <select
                   value={editingItem.priority}
                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, priority: e.target.value as Priority })}
-                  className="bg-transparent outline-none cursor-pointer"
+                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                 >
                   <option value="low">{t.prioLow}</option>
                   <option value="normal">{t.prioNormal}</option>
