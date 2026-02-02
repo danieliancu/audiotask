@@ -15,7 +15,7 @@ export interface TodoItem {
   sortTimestamp: number; 
   type: ItemType;
   priority: Priority;
-  subtasks?: TodoItem[];
+  subtasks?: string[];
 }
 
 export interface ToolCall {

@@ -40,6 +40,9 @@ const translations = {
     outdated: "Overdue",
     save: "Save",
     clearFilter: "Clear date filter",
+    subtasks: "Subtasks",
+    subevents: "Subevents",
+    subitemsPlaceholder: "One per line",
     menuHome: "Home",
     menuBlog: "Blog",
     menuFeatures: "Features",
@@ -75,6 +78,9 @@ const translations = {
     outdated: "Depășit",
     save: "Salvează",
     clearFilter: "Resetează data",
+    subtasks: "Subtask-uri",
+    subevents: "Subevenimente",
+    subitemsPlaceholder: "Câte unul pe linie",
     menuHome: "Acasă",
     menuBlog: "Blog",
     menuFeatures: "Funcționalități",
@@ -110,6 +116,9 @@ const translations = {
     outdated: "En retard",
     save: "Enregistrer",
     clearFilter: "Effacer la date",
+    subtasks: "Sous-tâches",
+    subevents: "Sous-événements",
+    subitemsPlaceholder: "Une par ligne",
     menuHome: "Accueil",
     menuBlog: "Blog",
     menuFeatures: "Fonctionnalités",
@@ -145,6 +154,9 @@ const translations = {
     outdated: "Überfällig",
     save: "Speichern",
     clearFilter: "Datum löschen",
+    subtasks: "Unteraufgaben",
+    subevents: "Untertermine",
+    subitemsPlaceholder: "Eine pro Zeile",
     menuHome: "Startseite",
     menuBlog: "Blog",
     menuFeatures: "Funktionen",
@@ -180,6 +192,9 @@ const translations = {
     outdated: "Atrasado",
     save: "Guardar",
     clearFilter: "Borrar fecha",
+    subtasks: "Subtareas",
+    subevents: "Subeventos",
+    subitemsPlaceholder: "Una por línea",
     menuHome: "Inicio",
     menuBlog: "Blog",
     menuFeatures: "Funcionalidades",
@@ -245,6 +260,66 @@ function createBlob(data: Float32Array): Blob {
 }
 
 const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+const localeByLanguage: Record<Language, string> = {
+  en: 'en-US',
+  ro: 'ro-RO',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  es: 'es-ES'
+};
+const smallWordsByLanguage: Record<Language, Set<string>> = {
+  en: new Set(['a', 'an', 'and', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to']),
+  ro: new Set(['a', 'al', 'ale', 'ai', 'cu', 'de', 'din', 'fara', 'fără', 'in', 'în', 'la', 'pe', 'pentru', 'si', 'și', 'spre', 'sau', 'ori']),
+  fr: new Set(['a', 'à', 'au', 'aux', 'd', 'de', 'des', 'du', 'en', 'et', 'l', 'la', 'le', 'les', 'ou']),
+  de: new Set(['am', 'an', 'auf', 'bei', 'das', 'der', 'die', 'im', 'in', 'mit', 'oder', 'und', 'von', 'zu', 'für']),
+  es: new Set(['a', 'al', 'con', 'de', 'del', 'el', 'en', 'la', 'las', 'los', 'o', 'por', 'para', 'y'])
+};
+const titleCaseWithLocale = (value: string, language: Language) => {
+  const locale = localeByLanguage[language];
+  const lower = value.toLocaleLowerCase(locale);
+  const smallWords = smallWordsByLanguage[language];
+  const words = lower.split(' ');
+  let nextIsFirst = true;
+
+  return words.map((word) => {
+    if (!word) return word;
+    const isFirst = nextIsFirst;
+    nextIsFirst = /[,;:]$/.test(word);
+    const base = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+    if (!isFirst && base && smallWords.has(base)) {
+      return word;
+    }
+    return word.replace(/(^|[-'’])(\p{L})/gu, (m, sep, ch) => `${sep}${ch.toLocaleUpperCase(locale)}`);
+  }).join(' ');
+};
+const normalizeLocation = (value: string, language: Language) => {
+  let cleaned = value.trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ');
+  if (language === 'ro') {
+    cleaned = cleaned.replace(/\b(num[ăa]r(ul|u)?|nr\.?)\s+(\d+)\b/gi, '$3');
+    const match = cleaned.match(/^(.*?)(?:\s+)(în|in)(?:\s+)(.+)$/i);
+    if (match) {
+      const left = match[1].trim();
+      const right = match[3].trim();
+      if (left && right) {
+        return `${titleCaseWithLocale(left, language)}, ${titleCaseWithLocale(right, language)}`;
+      }
+    }
+  }
+  return titleCaseWithLocale(cleaned, language);
+};
+const normalizeSubitems = (value: unknown) => {
+  if (!value) return undefined;
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/\r?\n/)
+      : [];
+  const cleaned = items
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .map((item) => capitalize(item));
+  return cleaned.length ? cleaned : undefined;
+};
 
 function parseTaskDate(dateStr: string | undefined): number {
   if (!dateStr) return Date.now();
@@ -306,12 +381,14 @@ const App: React.FC = () => {
   const [editingText, setEditingText] = useState('');
   const [editingDate, setEditingDate] = useState('');
   const [editingTime, setEditingTime] = useState('');
+  const [editingSubtasks, setEditingSubtasks] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
+  const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -421,6 +498,15 @@ const App: React.FC = () => {
     if (!isLive) setTimeout(() => setHighlightedTaskId(prev => prev === id ? null : prev), 5000);
   }, [isLive]);
 
+  const toggleSubitems = useCallback((id: string) => {
+    setExpandedSubitems(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   const handleDateClick = useCallback((dateKey: string) => {
     setActiveDateFilter(prev => prev === dateKey ? null : dateKey);
     setIsCalendarOpen(false);
@@ -452,7 +538,8 @@ const App: React.FC = () => {
           createdAt: Date.now(),
           dueDate: new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
           dueTime: args.time || undefined,
-          location: args.location || undefined,
+          location: args.location ? normalizeLocation(args.location, language) : undefined,
+          subtasks: normalizeSubitems(args.subtasks),
           sortTimestamp: ts,
           priority: (args.priority as Priority) || 'normal'
         };
@@ -460,16 +547,32 @@ const App: React.FC = () => {
         setActiveTab(newItem.type);
         setHighlightedTaskId(id);
         setActiveDateFilter(null);
+        if (newItem.subtasks?.length) {
+          setExpandedSubitems(prev => new Set(prev).add(id));
+        }
         break;
       case ToolNames.EDIT_TODO:
         const editId = String(args.id);
         setHighlightedTaskId(editId);
+        if (typeof args.showSubtasks === 'boolean') {
+          setExpandedSubitems(prev => {
+            const next = new Set(prev);
+            if (args.showSubtasks) next.add(editId);
+            else next.delete(editId);
+            return next;
+          });
+        }
         setTodos(prev => prev.map(todo => {
           if (todo.id === editId) {
             const newTs = args.date ? parseTaskDate(args.date) : todo.sortTimestamp;
             const newType = (args.type as ItemType) || todo.type;
             if (newType !== activeTab) setActiveTab(newType);
-            const newLocation = args.location !== undefined ? (args.location || undefined) : todo.location;
+            const newLocation = args.location !== undefined
+              ? (args.location ? normalizeLocation(args.location, language) : undefined)
+              : todo.location;
+            const newSubtasks = args.subtasks !== undefined
+              ? normalizeSubitems(args.subtasks)
+              : todo.subtasks;
             return {
               ...todo,
               text: args.text ? capitalize(args.text) : todo.text,
@@ -477,12 +580,24 @@ const App: React.FC = () => {
               dueDate: args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : todo.dueDate,
               dueTime: args.time !== undefined ? (args.time || undefined) : todo.dueTime,
               location: newLocation,
+              subtasks: newSubtasks,
               priority: (args.priority as Priority) || todo.priority,
               sortTimestamp: newTs
             };
           }
           return todo;
         }));
+        break;
+      case ToolNames.ADD_SUBTASK:
+        const parentId = String(args.id);
+        const addItems = normalizeSubitems(args.subtasks ?? args.text ?? args.subtask);
+        if (!addItems?.length) break;
+        setTodos(prev => prev.map(todo => {
+          if (todo.id !== parentId) return todo;
+          const existing = todo.subtasks || [];
+          return { ...todo, subtasks: [...existing, ...addItems] };
+        }));
+        setExpandedSubitems(prev => new Set(prev).add(parentId));
         break;
       case ToolNames.DELETE_TODO:
         setTodos(prev => prev.filter(t => t.id !== String(args.id)));
@@ -676,12 +791,14 @@ const App: React.FC = () => {
     const dateObj = new Date(item.sortTimestamp);
     setEditingDate(dateObj.toISOString().split('T')[0]);
     setEditingTime(item.dueTime || '');
+    setEditingSubtasks((item.subtasks || []).join('\n'));
     setIsEditModalOpen(true);
   };
 
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingId(null);
+    setEditingSubtasks('');
   };
 
   const saveEdit = () => {
@@ -690,7 +807,8 @@ const App: React.FC = () => {
       id: editingId,
       text: editingText,
       date: editingDate,
-      time: editingTime || null
+      time: editingTime || null,
+      subtasks: editingSubtasks
     });
     setIsEditModalOpen(false);
     setEditingId(null);
@@ -965,9 +1083,32 @@ const App: React.FC = () => {
 
 
                           {/* Text */}
-                          <div className={`text-lg font-bold break-words leading-relaxed ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                            {item.text}
+                          <div
+                            className={`text-lg font-bold break-words leading-relaxed flex items-center gap-2 ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'} ${item.subtasks?.length ? 'cursor-pointer' : ''}`}
+                            onClick={() => item.subtasks?.length && toggleSubitems(item.id)}
+                          >
+                            <span className="flex-1">{item.text}</span>
+                            {item.subtasks?.length ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleSubitems(item.id); }}
+                                className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                aria-label="Toggle subtasks"
+                              >
+                                <i className={`fas fa-chevron-down text-[10px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
+                              </button>
+                            ) : null}
                           </div>
+                          {item.subtasks?.length && expandedSubitems.has(item.id) && (
+                            <ul className="mt-3 space-y-2 pl-4 text-sm font-semibold text-slate-600">
+                              {item.subtasks.map((subtask, index) => (
+                                <li key={`${item.id}-subtask-${index}`} className="relative">
+                                  <span className="absolute -left-3 top-2 h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                                  {subtask}
+                                </li>
+                              ))}
+                            </ul>
+                          )}                          
                           {item.location && (
                             <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
                               <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
@@ -1047,6 +1188,17 @@ const App: React.FC = () => {
                 onChange={(e) => setEditingText(e.target.value)}
                 placeholder="Descriere..."
               />
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                  {editingItem.type === 'event' ? t.subevents : t.subtasks}
+                </label>
+                <textarea
+                  className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[90px] resize-none"
+                  value={editingSubtasks}
+                  onChange={(e) => setEditingSubtasks(e.target.value)}
+                  placeholder={t.subitemsPlaceholder}
+                />
+              </div>
               <div className="flex flex-wrap gap-3">
                 <input
                   type="date"
