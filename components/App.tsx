@@ -728,14 +728,14 @@ const App: React.FC = () => {
 
   const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
-          {currentDate.toLocaleString(language, { month: 'long', year: 'numeric' })}
-        </h2>
+      <div className="flex items-center justify-start gap-3 mb-8">
         <div className="flex space-x-2">
           <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-all"><i className="fas fa-chevron-left text-[10px]"></i></button>
           <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-all"><i className="fas fa-chevron-right text-[10px]"></i></button>
         </div>
+        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
+          {currentDate.toLocaleString(language, { month: 'long', year: 'numeric' })}
+        </h2>
       </div>
       
       <div className="grid grid-cols-7 gap-2 mb-6">
@@ -934,20 +934,30 @@ const App: React.FC = () => {
             >
               <i className={`fas ${isLive ? 'fa-stop text-lg' : 'fa-microphone text-xl'}`}></i>
             </button>
-            <div className="flex-grow bg-slate-50 rounded-[24px] px-6 py-4 border border-slate-100 min-h-[56px] flex items-center relative">
+            <div className="flex-grow bg-slate-50 rounded-[24px] px-4 py-3 border border-slate-100 min-h-[56px] flex items-center relative gap-2">
               {isLive ? (
                 <div className="text-sm font-bold text-blue-600 italic leading-relaxed break-words line-clamp-2">
                   {transcription || t.listening}
                 </div>
               ) : (
-                <input 
-                  type="text" 
-                  value={inputValue} 
-                  onChange={e => setInputValue(e.target.value)} 
-                  onKeyDown={e => e.key === 'Enter' && handleSendPrompt()} 
-                  placeholder={t.placeholder} 
-                  className="w-full bg-transparent text-sm font-bold focus:outline-none placeholder:text-slate-300 block" 
-                />
+                <>
+                  <input 
+                    type="text" 
+                    value={inputValue} 
+                    onChange={e => setInputValue(e.target.value)} 
+                    onKeyDown={e => e.key === 'Enter' && handleSendPrompt()} 
+                    placeholder={t.placeholder} 
+                    className="w-full bg-transparent text-sm font-bold focus:outline-none placeholder:text-slate-300 block" 
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendPrompt}
+                    className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all"
+                    aria-label="Send"
+                  >
+                    <i className="fas fa-paper-plane text-[12px]"></i>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1033,6 +1043,7 @@ const App: React.FC = () => {
                     <option value="high">{t.filterHigh}</option>
                     <option value="outdated">{t.filterOutdated}</option>
                   </select>
+                  <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                 </div>
               </div>
             </div>
@@ -1071,7 +1082,7 @@ const App: React.FC = () => {
                           {/* Line 1: Time + Type + Priority */}
                           <div className="flex items-center justify-between mb-4 max-[450px]:flex-col max-[450px]:items-start max-[450px]:gap-3">
                             <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:gap-2 max-[450px]:w-full">
-                              <div className={`flex items-center px-3 py-1 rounded-lg w-fit max-[450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg w-fit max-[450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                                 <span className="mr-1">#{item.id}</span>
                                 <select
                                   value={item.type}
@@ -1081,13 +1092,14 @@ const App: React.FC = () => {
                                   <option value="task">{t.tasks}</option>
                                   <option value="event">{t.events}</option>
                                 </select>
+                                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
                               </div>
                               {item.dueTime && (
                                 <span className="flex items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[450px]:w-full">
                                   <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
                                 </span>
                               )}
-                              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
+                              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
                                 <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
                                 <select 
                                   value={item.priority}
@@ -1098,6 +1110,7 @@ const App: React.FC = () => {
                                   <option value="normal">{t.prioNormal}</option>
                                   <option value="high">{t.prioHigh}</option>
                                 </select>
+                                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
                               </div>
                               {isItemOverdue(item) && (
                                 <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[450px]:w-full">
@@ -1134,7 +1147,7 @@ const App: React.FC = () => {
                             ) : null}
                           </div>
                           {item.subtasks?.length && expandedSubitems.has(item.id) && (
-                            <ul className="mt-3 space-y-2 pl-4 text-sm font-semibold text-slate-600">
+                            <ul className="mt-1 mb-3 space-y-2 pl-4 text-sm font-semibold text-slate-600">
                               {item.subtasks.map((subtask, index) => (
                                 <li key={`${item.id}-subtask-${index}`} className="relative">
                                   <span className="absolute -left-3 top-2 h-1.5 w-1.5 rounded-full bg-slate-300"></span>
@@ -1183,13 +1196,12 @@ const App: React.FC = () => {
           <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
-              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"
-              style={{ marginTop:"-80px", marginRight:"-20px" }}
+              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
             >
               <i className="fas fa-times"></i>
             </button>
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
-              <div className={`flex items-center px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                 {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
                 <select
                   value={formType}
@@ -1199,6 +1211,7 @@ const App: React.FC = () => {
                   <option value="task">{t.tasks}</option>
                   <option value="event">{t.events}</option>
                 </select>
+                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
               </div>
               <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
                 <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
@@ -1211,6 +1224,7 @@ const App: React.FC = () => {
                   <option value="normal">{t.prioNormal}</option>
                   <option value="high">{t.prioHigh}</option>
                 </select>
+                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
               </div>
             </div>
 
@@ -1264,12 +1278,6 @@ const App: React.FC = () => {
                 >
                   {t.save}
                 </button>
-                <button
-                  onClick={closeModal}
-                  className="bg-slate-100 text-slate-500 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
-                >
-                  {t.close}
-                </button>
               </div>
             </div>
           </div>
@@ -1278,13 +1286,12 @@ const App: React.FC = () => {
 
       {/* Calendar Modal */}
       {isCalendarOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCalendarOpen(false)}></div>
           <div className="relative bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 animate-in zoom-in fade-in duration-300">
             <button
               onClick={() => setIsCalendarOpen(false)}
-              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"
-              style={{ marginTop:"-80px", marginRight:"-25px" }}
+              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
             >
               <i className="fas fa-times"></i>
             </button>
