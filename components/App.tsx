@@ -40,6 +40,7 @@ const translations = {
     outdated: "Overdue",
     save: "Save",
     clearFilter: "Clear date filter",
+    selectDates: "Select these dates",
     location: "Location",
     subtasks: "Subtasks",
     subevents: "Subevents",
@@ -79,6 +80,7 @@ const translations = {
     outdated: "Depășit",
     save: "Salvează",
     clearFilter: "Resetează data",
+    selectDates: "Selectează aceste date",
     location: "Locație",
     subtasks: "Subtask-uri",
     subevents: "Subevenimente",
@@ -118,6 +120,7 @@ const translations = {
     outdated: "En retard",
     save: "Enregistrer",
     clearFilter: "Effacer la date",
+    selectDates: "Sélectionner ces dates",
     location: "Lieu",
     subtasks: "Sous-tâches",
     subevents: "Sous-événements",
@@ -157,6 +160,7 @@ const translations = {
     outdated: "Überfällig",
     save: "Speichern",
     clearFilter: "Datum löschen",
+    selectDates: "Diese Daten auswählen",
     location: "Ort",
     subtasks: "Unteraufgaben",
     subevents: "Untertermine",
@@ -196,6 +200,7 @@ const translations = {
     outdated: "Atrasado",
     save: "Guardar",
     clearFilter: "Borrar fecha",
+    selectDates: "Seleccionar estas fechas",
     location: "Ubicación",
     subtasks: "Subtareas",
     subevents: "Subeventos",
@@ -297,10 +302,67 @@ const titleCaseWithLocale = (value: string, language: Language) => {
     return word.replace(/(^|[-'’])(\p{L})/gu, (m, sep, ch) => `${sep}${ch.toLocaleUpperCase(locale)}`);
   }).join(' ');
 };
+const formatShortDateLabel = (dateKey: string, language: Language) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month, day);
+  const locale = localeByLanguage[language];
+  const parts = new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'numeric'
+  }).formatToParts(date);
+  const weekday = (parts.find(p => p.type === 'weekday')?.value || '').replace(/[.,]$/u, '');
+  const dayPart = parts.find(p => p.type === 'day')?.value || '';
+  const monthPart = parts.find(p => p.type === 'month')?.value || '';
+  const weekdayLabel = weekday ? weekday.charAt(0).toLocaleUpperCase(locale) + weekday.slice(1) : '';
+  return `${weekdayLabel} ${dayPart}/${monthPart}`.trim();
+};
+const dateKeyToDate = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month, day);
+};
+const buildDateKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+const getDateRangeKeys = (startKey: string, endKey: string) => {
+  const start = dateKeyToDate(startKey);
+  const end = dateKeyToDate(endKey);
+  const from = start.getTime() <= end.getTime() ? start : end;
+  const to = start.getTime() <= end.getTime() ? end : start;
+  const keys: string[] = [];
+  const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  while (cursor.getTime() <= to.getTime()) {
+    keys.push(buildDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+};
+const normalizeRomanianNumberWord = (word: string) => word
+  .toLocaleLowerCase('ro-RO')
+  .normalize('NFD')
+  .replace(/\p{M}/gu, '');
 const normalizeLocation = (value: string, language: Language) => {
   let cleaned = value.trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ');
   if (language === 'ro') {
+    cleaned = cleaned.replace(/^\s*(aleea|alea)\s+/i, '');
+    cleaned = cleaned.replace(/^\s*(strada|str\.?)\s+/i, '');
     cleaned = cleaned.replace(/\b(num[ăa]r(ul|u)?|nr\.?)\s+(\d+)\b/gi, '$3');
+    cleaned = cleaned.replace(/\b(num[ăa]r(ul|u)?|nr\.?)\s+([^\d\W]+)\b/gi, (match, _label, _suffix, rawWord) => {
+      const key = normalizeRomanianNumberWord(rawWord);
+      const map: Record<string, string> = {
+        un: '1',
+        unu: '1',
+        doi: '2',
+        doua: '2',
+        trei: '3',
+        patru: '4',
+        cinci: '5',
+        sase: '6',
+        sapte: '7',
+        opt: '8',
+        noua: '9',
+        zece: '10'
+      };
+      return map[key] ?? rawWord;
+    });
     const match = cleaned.match(/^(.*?)(?:\s+)(în|in)(?:\s+)(.+)$/i);
     if (match) {
       const left = match[1].trim();
@@ -380,7 +442,9 @@ const App: React.FC = () => {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   
   // Date filter from calendar
-  const [activeDateFilter, setActiveDateFilter] = useState<string | null>(null);
+  const [activeDateFilters, setActiveDateFilters] = useState<string[]>([]);
+  const [pendingDateStart, setPendingDateStart] = useState<string | null>(null);
+  const [pendingDateEnd, setPendingDateEnd] = useState<string | null>(null);
 
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
@@ -437,16 +501,37 @@ const App: React.FC = () => {
     return map;
   }, [todos]);
 
+  const activeDateFilterSet = useMemo(() => new Set(activeDateFilters), [activeDateFilters]);
+  const selectedDateLabel = useMemo(() => {
+    if (!activeDateFilters.length) return '';
+    const sorted = [...activeDateFilters].sort((a, b) => {
+      const [aYear, aMonth, aDay] = a.split('-').map(Number);
+      const [bYear, bMonth, bDay] = b.split('-').map(Number);
+      return new Date(aYear, aMonth, aDay).getTime() - new Date(bYear, bMonth, bDay).getTime();
+    });
+    if (sorted.length === 1) return formatShortDateLabel(sorted[0], language);
+    return `${formatShortDateLabel(sorted[0], language)} - ${formatShortDateLabel(sorted[sorted.length - 1], language)}`;
+  }, [activeDateFilters, language]);
+  const activeDateBounds = useMemo(() => {
+    if (!activeDateFilters.length) return { start: null, end: null };
+    const sorted = [...activeDateFilters].sort((a, b) => {
+      const [aYear, aMonth, aDay] = a.split('-').map(Number);
+      const [bYear, bMonth, bDay] = b.split('-').map(Number);
+      return new Date(aYear, aMonth, aDay).getTime() - new Date(bYear, bMonth, bDay).getTime();
+    });
+    return { start: sorted[0], end: sorted[sorted.length - 1] };
+  }, [activeDateFilters]);
+
   const filteredItems = useMemo(() => {
     const filterMode = filterModeByType[activeTab];
     let base = todos;
     
     // Apply date filter if set
-    if (activeDateFilter) {
+    if (activeDateFilters.length) {
       base = base.filter(item => {
         const d = new Date(item.sortTimestamp);
         const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        return key === activeDateFilter;
+        return activeDateFilterSet.has(key);
       });
     }
 
@@ -461,7 +546,7 @@ const App: React.FC = () => {
         return true;
       })
       .sort((a, b) => b.sortTimestamp - a.sortTimestamp);
-  }, [todos, activeTab, filterModeByType, activeDateFilter]);
+  }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet]);
 
   const groupedItems = useMemo(() => {
     const groups = new Map<string, TodoItem[]>();
@@ -491,9 +576,10 @@ const App: React.FC = () => {
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
-    setIsCalendarOpen(false);
     setHighlightedTaskId(id);
-    setActiveDateFilter(null); // Clear date filter when jumping to a specific task
+    setActiveDateFilters([]); // Clear date filter when jumping to a specific task
+    setPendingDateStart(null);
+    setPendingDateEnd(null);
     setTimeout(() => {
       const el = document.getElementById(`todo-${id}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -511,22 +597,38 @@ const App: React.FC = () => {
   }, []);
 
   const handleDateClick = useCallback((dateKey: string) => {
-    setActiveDateFilter(prev => prev === dateKey ? null : dateKey);
-    setIsCalendarOpen(false);
+    setPendingDateStart(prevStart => {
+      if (!prevStart || (prevStart && pendingDateEnd)) {
+        if (activeDateFilters.length) setActiveDateFilters([]);
+        setPendingDateEnd(null);
+        return dateKey;
+      }
+      setPendingDateEnd(dateKey);
+      return prevStart;
+    });
+  }, [pendingDateEnd, activeDateFilters.length]);
 
-    // Auto-switch tab if the selected date has items in the other category but not current
-    const dayItems = tasksByDate[dateKey] || [];
+  const applyPendingDates = useCallback(() => {
+    if (!pendingDateStart) return;
+    const nextKeys = pendingDateEnd
+      ? getDateRangeKeys(pendingDateStart, pendingDateEnd)
+      : [pendingDateStart];
+    setActiveDateFilters(nextKeys);
+    setPendingDateStart(null);
+    setPendingDateEnd(null);
+
+    const firstKey = nextKeys[0];
+    const dayItems = firstKey ? (tasksByDate[firstKey] || []) : [];
     if (dayItems.length > 0) {
       const hasTasks = dayItems.some(i => i.type === 'task');
       const hasEvents = dayItems.some(i => i.type === 'event');
-      
       if (activeTab === 'task' && !hasTasks && hasEvents) {
         setActiveTab('event');
       } else if (activeTab === 'event' && !hasEvents && hasTasks) {
         setActiveTab('task');
       }
     }
-  }, [tasksByDate, activeTab]);
+  }, [pendingDateStart, pendingDateEnd, tasksByDate, activeTab]);
 
   const executeTool = useCallback((name: string, args: any) => {
     switch (name) {
@@ -549,7 +651,7 @@ const App: React.FC = () => {
         setTodos(prev => [newItem, ...prev]);
         setActiveTab(newItem.type);
         setHighlightedTaskId(id);
-        setActiveDateFilter(null);
+        setActiveDateFilters([]);
         if (newItem.subtasks?.length) {
           setExpandedSubitems(prev => new Set(prev).add(id));
         }
@@ -752,13 +854,21 @@ const App: React.FC = () => {
           const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${day}`;
           const dayItems = tasksByDate[dateKey] || [];
           const isToday = new Date().getDate() === day && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
-          const isSelected = activeDateFilter === dateKey;
+          const isSelected = activeDateFilterSet.has(dateKey);
+          const isSelectedEdge = isSelected && (dateKey === activeDateBounds.start || dateKey === activeDateBounds.end);
+          const pendingStart = pendingDateStart === dateKey;
+          const pendingEnd = pendingDateEnd === dateKey;
+          let isPendingRange = false;
+          if (pendingDateStart && pendingDateEnd) {
+            const rangeKeys = getDateRangeKeys(pendingDateStart, pendingDateEnd);
+            isPendingRange = rangeKeys.includes(dateKey);
+          }
 
           return (
             <div key={day} className="flex flex-col items-center">
               <button 
                 onClick={() => handleDateClick(dateKey)}
-                className={`relative w-full aspect-square rounded-[16px] flex items-center justify-center text-sm font-black transition-all ${isSelected ? 'bg-blue-600 text-white shadow-xl scale-110 z-10' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}
+                className={`relative w-full aspect-square rounded-[16px] flex items-center justify-center text-sm font-black transition-all ${isSelected ? `bg-blue-600 text-white ${isSelectedEdge ? 'shadow-xl scale-110 z-10' : ''}` : pendingStart || pendingEnd ? 'bg-blue-500 text-white shadow-lg scale-105 z-10' : isPendingRange ? 'bg-blue-200 text-blue-800' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}
               >
                 {day}
               </button>
@@ -775,6 +885,17 @@ const App: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-8 flex items-center justify-center">
+        <button
+          type="button"
+          onClick={() => { applyPendingDates(); if (isModal) setIsCalendarOpen(false); }}
+          disabled={!pendingDateStart}
+          className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${pendingDateStart ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+        >
+          {t.selectDates}
+        </button>
       </div>
     </div>
   );
@@ -1049,25 +1170,28 @@ const App: React.FC = () => {
             </div>
           </div>
 
+
           <div className="space-y-4">
             {groupedItems.length === 0 ? (
               <div className="py-24 text-center flex flex-col items-center opacity-10">
                 <i className={`fas ${activeTab === 'task' ? 'fa-feather' : 'fa-calendar-check'} text-6xl mb-4`}></i>
                 <p className="text-lg font-bold uppercase tracking-widest">{activeTab === 'task' ? t.noTasks : t.noEvents}</p>
               </div>
-            ) : groupedItems.map(group => (
+            ) : groupedItems.map((group, index) => (
               <div key={group.key} className="space-y-3">
                 <div
                   className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
                   style ={{ top:"138px", zIndex:1 }}
                   >
                   <span>{group.dateLabel}</span>
-                  {activeDateFilter && (
+                  {index === 0 && activeDateFilters.length > 0 && (
                     <button
-                      onClick={() => setActiveDateFilter(null)}
-                      className="ml-3 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
+                      onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
+                      className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all inline-flex items-center"
+                      title={t.clearFilter}
                     >
-                      Vezi toate zilele
+                      <span className="mr-2 text-[9px] leading-none">×</span>
+                      <span className="whitespace-nowrap">{selectedDateLabel}</span>
                     </button>
                   )}
                 </div>
