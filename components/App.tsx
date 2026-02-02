@@ -40,6 +40,7 @@ const translations = {
     outdated: "Overdue",
     save: "Save",
     clearFilter: "Clear date filter",
+    location: "Location",
     subtasks: "Subtasks",
     subevents: "Subevents",
     subitemsPlaceholder: "One per line",
@@ -78,6 +79,7 @@ const translations = {
     outdated: "Depășit",
     save: "Salvează",
     clearFilter: "Resetează data",
+    location: "Locație",
     subtasks: "Subtask-uri",
     subevents: "Subevenimente",
     subitemsPlaceholder: "Câte unul pe linie",
@@ -116,6 +118,7 @@ const translations = {
     outdated: "En retard",
     save: "Enregistrer",
     clearFilter: "Effacer la date",
+    location: "Lieu",
     subtasks: "Sous-tâches",
     subevents: "Sous-événements",
     subitemsPlaceholder: "Une par ligne",
@@ -154,6 +157,7 @@ const translations = {
     outdated: "Überfällig",
     save: "Speichern",
     clearFilter: "Datum löschen",
+    location: "Ort",
     subtasks: "Unteraufgaben",
     subevents: "Untertermine",
     subitemsPlaceholder: "Eine pro Zeile",
@@ -192,6 +196,7 @@ const translations = {
     outdated: "Atrasado",
     save: "Guardar",
     clearFilter: "Borrar fecha",
+    location: "Ubicación",
     subtasks: "Subtareas",
     subevents: "Subeventos",
     subitemsPlaceholder: "Una por línea",
@@ -377,12 +382,15 @@ const App: React.FC = () => {
   // Date filter from calendar
   const [activeDateFilter, setActiveDateFilter] = useState<string | null>(null);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const [editingDate, setEditingDate] = useState('');
-  const [editingTime, setEditingTime] = useState('');
-  const [editingSubtasks, setEditingSubtasks] = useState('');
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
+  const [modalItemId, setModalItemId] = useState<string | null>(null);
+  const [formType, setFormType] = useState<ItemType>('task');
+  const [formPriority, setFormPriority] = useState<Priority>('normal');
+  const [formText, setFormText] = useState('');
+  const [formDate, setFormDate] = useState('');
+  const [formTime, setFormTime] = useState('');
+  const [formLocation, setFormLocation] = useState('');
+  const [formSubtasks, setFormSubtasks] = useState('');
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -480,11 +488,6 @@ const App: React.FC = () => {
       });
     return sortedGroups;
   }, [filteredItems, language]);
-
-  const editingItem = useMemo(() => {
-    if (!editingId) return null;
-    return todos.find(item => item.id === editingId) || null;
-  }, [editingId, todos]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -784,34 +787,65 @@ const App: React.FC = () => {
     setIsWriteMode(false);
   };
 
-  const startEditing = (item: TodoItem) => {
-    setEditingId(item.id);
-    setEditingText(item.text);
-    // Convert format back for ISO input if possible
+  const openAddModal = () => {
+    const today = new Date();
+    setModalMode('add');
+    setModalItemId(null);
+    setFormType(activeTab);
+    setFormPriority('normal');
+    setFormText('');
+    setFormDate(today.toISOString().split('T')[0]);
+    setFormTime('');
+    setFormLocation('');
+    setFormSubtasks('');
+  };
+
+  const openEditModal = (item: TodoItem) => {
+    setModalMode('edit');
+    setModalItemId(item.id);
+    setFormType(item.type);
+    setFormPriority(item.priority);
+    setFormText(item.text);
     const dateObj = new Date(item.sortTimestamp);
-    setEditingDate(dateObj.toISOString().split('T')[0]);
-    setEditingTime(item.dueTime || '');
-    setEditingSubtasks((item.subtasks || []).join('\n'));
-    setIsEditModalOpen(true);
+    setFormDate(dateObj.toISOString().split('T')[0]);
+    setFormTime(item.dueTime || '');
+    setFormLocation(item.location || '');
+    setFormSubtasks((item.subtasks || []).join('\n'));
   };
 
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setEditingId(null);
-    setEditingSubtasks('');
+  const closeModal = () => {
+    setModalMode(null);
+    setModalItemId(null);
+    setFormSubtasks('');
   };
 
-  const saveEdit = () => {
-    if (!editingId) return;
-    executeTool(ToolNames.EDIT_TODO, {
-      id: editingId,
-      text: editingText,
-      date: editingDate,
-      time: editingTime || null,
-      subtasks: editingSubtasks
-    });
-    setIsEditModalOpen(false);
-    setEditingId(null);
+  const saveModal = () => {
+    if (!modalMode) return;
+    if (!formText.trim()) return;
+    if (modalMode === 'edit') {
+      if (!modalItemId) return;
+      executeTool(ToolNames.EDIT_TODO, {
+        id: modalItemId,
+        text: formText,
+        date: formDate,
+        time: formTime || null,
+        location: formLocation || null,
+        priority: formPriority,
+        type: formType,
+        subtasks: formSubtasks
+      });
+    } else {
+      executeTool(ToolNames.ADD_TODO, {
+        text: formText,
+        type: formType,
+        date: formDate,
+        time: formTime || null,
+        location: formLocation || null,
+        priority: formPriority,
+        subtasks: formSubtasks
+      });
+    }
+    closeModal();
   };
 
   const priorityColors = {
@@ -938,7 +972,7 @@ const App: React.FC = () => {
                 </button>
 
                 <button 
-                  onClick={() => setIsWriteMode(true)} 
+                  onClick={() => { setIsWriteMode(false); openAddModal(); }} 
                   className="flex-1 max-w-[80px] h-14 rounded-[20px] bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm active:scale-95 transition-all"
                 >
                   <i className="fas fa-pen text-lg"></i>
@@ -1072,9 +1106,9 @@ const App: React.FC = () => {
                               )}
                             </div>
                             <div className="flex items-center space-x-2 flex-shrink-0">
-                              <button onClick={() => startEditing(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
-                                <i className="fas fa-pen text-base"></i>
-                              </button>
+                  <button onClick={() => openEditModal(item)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
+                    <i className="fas fa-pen text-base"></i>
+                  </button>
                               <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                                 <i className="fas fa-trash-alt text-base"></i>
                               </button>
@@ -1142,35 +1176,35 @@ const App: React.FC = () => {
         </section>
       </main>
 
-      {/* Edit Modal */}
-      {isEditModalOpen && editingItem && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeEditModal}></div>
-          <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[85vh]">
+      {/* Add/Edit Modal */}
+      {modalMode && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeModal}></div>
+          <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
-              onClick={closeEditModal}
+              onClick={closeModal}
               className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600"
               style={{ marginTop:"-80px", marginRight:"-20px" }}
             >
               <i className="fas fa-times"></i>
             </button>
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
-              <div className={`flex items-center px-3 py-1 rounded-lg ${editingItem.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                <span className="mr-1">#{editingItem.id}</span>
+              <div className={`flex items-center px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
                 <select
-                  value={editingItem.type}
-                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, type: e.target.value as ItemType })}
+                  value={formType}
+                  onChange={(e) => setFormType(e.target.value as ItemType)}
                   className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                 >
                   <option value="task">{t.tasks}</option>
                   <option value="event">{t.events}</option>
                 </select>
               </div>
-              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[editingItem.priority]}`}>
+              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
                 <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
                 <select
-                  value={editingItem.priority}
-                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: editingItem.id, priority: e.target.value as Priority })}
+                  value={formPriority}
+                  onChange={(e) => setFormPriority(e.target.value as Priority)}
                   className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
                 >
                   <option value="low">{t.prioLow}</option>
@@ -1184,42 +1218,54 @@ const App: React.FC = () => {
               <textarea
                 autoFocus
                 className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[140px] resize-none"
-                value={editingText}
-                onChange={(e) => setEditingText(e.target.value)}
+                value={formText}
+                onChange={(e) => setFormText(e.target.value)}
                 placeholder="Descriere..."
               />
               <div className="space-y-2">
                 <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
-                  {editingItem.type === 'event' ? t.subevents : t.subtasks}
+                  {formType === 'event' ? t.subevents : t.subtasks}
                 </label>
                 <textarea
                   className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[90px] resize-none"
-                  value={editingSubtasks}
-                  onChange={(e) => setEditingSubtasks(e.target.value)}
+                  value={formSubtasks}
+                  onChange={(e) => setFormSubtasks(e.target.value)}
                   placeholder={t.subitemsPlaceholder}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                  {t.location}
+                </label>
+                <input
+                  type="text"
+                  className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                  value={formLocation}
+                  onChange={(e) => setFormLocation(e.target.value)}
+                  placeholder="Ex: Splaiul Unirii 45"
                 />
               </div>
               <div className="flex flex-wrap gap-3">
                 <input
                   type="date"
                   className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm flex-grow"
-                  value={editingDate}
-                  onChange={(e) => setEditingDate(e.target.value)}
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
                 />
                 <input
                   type="time"
                   className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm w-32"
-                  value={editingTime}
-                  onChange={(e) => setEditingTime(e.target.value)}
+                  value={formTime}
+                  onChange={(e) => setFormTime(e.target.value)}
                 />
                 <button
-                  onClick={saveEdit}
+                  onClick={saveModal}
                   className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
                 >
                   {t.save}
                 </button>
                 <button
-                  onClick={closeEditModal}
+                  onClick={closeModal}
                   className="bg-slate-100 text-slate-500 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
                 >
                   {t.close}
