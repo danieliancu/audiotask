@@ -436,6 +436,7 @@ const App: React.FC = () => {
     event: 'all'
   });
   const [isLive, setIsLive] = useState(false);
+  const isLiveRef = useRef(false);
   const [isWriteMode, setIsWriteMode] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [transcription, setTranscription] = useState('');
@@ -470,6 +471,7 @@ const App: React.FC = () => {
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isConnectingRef = useRef(false);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const t = useMemo(() => translations[language], [language]);
 
@@ -651,7 +653,6 @@ const App: React.FC = () => {
         setTodos(prev => [newItem, ...prev]);
         setActiveTab(newItem.type);
         setHighlightedTaskId(id);
-        setActiveDateFilters([]);
         if (newItem.subtasks?.length) {
           setExpandedSubitems(prev => new Set(prev).add(id));
         }
@@ -718,9 +719,14 @@ const App: React.FC = () => {
   }, [language, activeTab]);
 
   const stopLiveSession = useCallback(() => {
+    isLiveRef.current = false;
     if (liveSessionRef.current) { try { liveSessionRef.current.close(); } catch(e) {} liveSessionRef.current = null; }
     if (scriptProcessorRef.current) { scriptProcessorRef.current.disconnect(); scriptProcessorRef.current = null; }
     if (inputAudioContextRef.current) { try { inputAudioContextRef.current.close(); } catch(e) {} inputAudioContextRef.current = null; }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
     if (inactivityTimerRef.current) { clearTimeout(inactivityTimerRef.current); inactivityTimerRef.current = null; }
     audioSourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
     audioSourcesRef.current.clear();
@@ -744,6 +750,7 @@ const App: React.FC = () => {
     if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
     if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
     
+    isLiveRef.current = true;
     setIsLive(true);
     setTranscription('');
     resetInactivityTimer();
@@ -754,6 +761,7 @@ const App: React.FC = () => {
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
@@ -768,7 +776,11 @@ const App: React.FC = () => {
               for(let i=0; i<inputData.length; i++) sum += inputData[i]*inputData[i];
               const rms = Math.sqrt(sum / inputData.length);
               if (rms > 0.015) resetInactivityTimer();
-              sessionPromise.then(s => { if (s) s.sendRealtimeInput({ media: createBlob(inputData) }); });
+              if (!isLiveRef.current) return;
+              sessionPromise.then(s => {
+                if (!isLiveRef.current || !s) return;
+                s.sendRealtimeInput({ media: createBlob(inputData) });
+              });
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputCtx.destination);
@@ -805,7 +817,11 @@ const App: React.FC = () => {
             if (m.toolCall) {
               for (const fc of m.toolCall.functionCalls) {
                 const res = executeTool(fc.name, fc.args);
-                sessionPromise.then(s => { if (s) s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: res } } }); });
+                if (!isLiveRef.current) continue;
+                sessionPromise.then(s => {
+                  if (!isLiveRef.current || !s) return;
+                  s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: res } } });
+                });
               }
             }
             if (m.serverContent?.interrupted) {
@@ -825,7 +841,7 @@ const App: React.FC = () => {
         }
       });
       liveSessionRef.current = await sessionPromise;
-    } catch (err) { isConnectingRef.current = false; setIsLive(false); }
+    } catch (err) { isConnectingRef.current = false; isLiveRef.current = false; setIsLive(false); }
   };
 
   const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
@@ -1173,9 +1189,21 @@ const App: React.FC = () => {
 
           <div className="space-y-4">
             {groupedItems.length === 0 ? (
-              <div className="py-24 text-center flex flex-col items-center opacity-10">
-                <i className={`fas ${activeTab === 'task' ? 'fa-feather' : 'fa-calendar-check'} text-6xl mb-4`}></i>
-                <p className="text-lg font-bold uppercase tracking-widest">{activeTab === 'task' ? t.noTasks : t.noEvents}</p>
+              <div className="py-10 flex flex-col items-center">
+                {activeDateFilters.length > 0 && (
+                  <button
+                    onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
+                    className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-blue-600 text-white transition-all inline-flex items-center"
+                    title={t.clearFilter}
+                  >
+                    <span className="mr-2 text-[9px] leading-none">×</span>
+                    <span className="whitespace-nowrap">{selectedDateLabel}</span>
+                  </button>
+                )}
+                <div className="py-24 text-center flex flex-col items-center opacity-10">
+                  <i className={`fas ${activeTab === 'task' ? 'fa-feather' : 'fa-calendar-check'} text-6xl mb-4`}></i>
+                  <p className="text-lg font-bold uppercase tracking-widest">{activeTab === 'task' ? t.noTasks : t.noEvents}</p>
+                </div>
               </div>
             ) : groupedItems.map((group, index) => (
               <div key={group.key} className="space-y-3">
@@ -1187,7 +1215,7 @@ const App: React.FC = () => {
                   {index === 0 && activeDateFilters.length > 0 && (
                     <button
                       onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
-                      className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all inline-flex items-center"
+                      className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200  bg-blue-600 text-white transition-all inline-flex items-center"
                       title={t.clearFilter}
                     >
                       <span className="mr-2 text-[9px] leading-none">×</span>
