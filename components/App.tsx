@@ -22,7 +22,6 @@ const translations = {
     language: "Language",
     languages: "Languages",
     close: "Close",
-    menuTitle: "Menu",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Date",
@@ -62,7 +61,6 @@ const translations = {
     language: "Limbă",
     languages: "Limbi",
     close: "Închide",
-    menuTitle: "Meniu",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Data",
@@ -102,7 +100,6 @@ const translations = {
     language: "Langue",
     languages: "Langues",
     close: "Fermer",
-    menuTitle: "Menu",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Date",
@@ -142,7 +139,6 @@ const translations = {
     language: "Sprache",
     languages: "Sprachen",
     close: "Schließen",
-    menuTitle: "Menü",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Datum",
@@ -182,7 +178,6 @@ const translations = {
     language: "Idioma",
     languages: "Idiomas",
     close: "Cerrar",
-    menuTitle: "Menú",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Fecha",
@@ -426,6 +421,22 @@ function isItemOverdue(item: TodoItem): boolean {
   return now.getTime() > dueTime;
 }
 
+function getItemDateTime(item: TodoItem): number {
+  const base = new Date(item.sortTimestamp);
+  let hours = 0;
+  let minutes = 0;
+  if (item.dueTime) {
+    const [hStr, mStr] = item.dueTime.split(':');
+    const parsedHours = Number(hStr);
+    const parsedMinutes = Number(mStr);
+    if (!Number.isNaN(parsedHours) && !Number.isNaN(parsedMinutes)) {
+      hours = parsedHours;
+      minutes = parsedMinutes;
+    }
+  }
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes).getTime();
+}
+
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
@@ -503,6 +514,10 @@ const App: React.FC = () => {
     return map;
   }, [todos]);
 
+  const taskCount = useMemo(() => todos.filter(item => item.type === 'task').length, [todos]);
+  const eventCount = useMemo(() => todos.filter(item => item.type === 'event').length, [todos]);
+  const totalCount = useMemo(() => taskCount + eventCount, [taskCount, eventCount]);
+
   const activeDateFilterSet = useMemo(() => new Set(activeDateFilters), [activeDateFilters]);
   const selectedDateLabel = useMemo(() => {
     if (!activeDateFilters.length) return '';
@@ -547,7 +562,12 @@ const App: React.FC = () => {
         if (filterMode === 'outdated') return isItemOverdue(item);
         return true;
       })
-      .sort((a, b) => b.sortTimestamp - a.sortTimestamp);
+      .sort((a, b) => {
+        const aTime = getItemDateTime(a);
+        const bTime = getItemDateTime(b);
+        if (aTime !== bTime) return aTime - bTime;
+        return String(a.id).localeCompare(String(b.id));
+      });
   }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet]);
 
   const groupedItems = useMemo(() => {
@@ -560,7 +580,12 @@ const App: React.FC = () => {
     });
     const sortedGroups = Array.from(groups.entries())
       .map(([key, items]) => {
-        items.sort((a, b) => b.sortTimestamp - a.sortTimestamp);
+        items.sort((a, b) => {
+          const aTime = getItemDateTime(a);
+          const bTime = getItemDateTime(b);
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.id).localeCompare(String(b.id));
+        });
         const first = items[0];
         const date = new Date(first.sortTimestamp);
         const dateLabel = date.toLocaleDateString(language, { weekday: 'long', day: '2-digit', month: 'long' });
@@ -1054,7 +1079,15 @@ const App: React.FC = () => {
 
           <div className="flex items-center space-x-1">
             <button className="w-11 h-11 text-slate-600 flex items-center justify-center"><i className="far fa-user"></i></button>
-            <button className="w-11 h-11 text-slate-600 flex items-center justify-center"><i className="far fa-bell"></i></button>
+            <button className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
+              <i className="far fa-bell"></i>
+              <span
+                className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
+                style={{ top:"5px", right:"5px" }}
+              >
+                0
+              </span>
+            </button>
             <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center"><i className="fas fa-bars"></i></button>
           </div>
         </div>
@@ -1156,10 +1189,16 @@ const App: React.FC = () => {
             <div className="flex space-x-8">
               <button onClick={() => setActiveTab('task')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
+                <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                  {taskCount}
+                </span>
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
               <button onClick={() => setActiveTab('event')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.events}
+                <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                  {eventCount}
+                </span>
                 {activeTab === 'event' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
             </div>
@@ -1440,7 +1479,7 @@ const App: React.FC = () => {
       {isCalendarOpen && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCalendarOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 animate-in zoom-in fade-in duration-300">
+          <div className="relative bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setIsCalendarOpen(false)}
               className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
@@ -1454,23 +1493,27 @@ const App: React.FC = () => {
 
       {/* Menu Modal */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-10 animate-in slide-in-from-bottom-8 fade-in duration-300">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-8 text-center">{t.menuTitle}</h3>
+          <div className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-10 animate-in slide-in-from-bottom-8 fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
+            <button
+              onClick={() => setIsMenuOpen(false)}
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+            >
+              <i className="fas fa-times"></i>
+            </button>
             <div className="flex flex-col space-y-4">
-              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-col space-y-3">
-                <a href={externalLinks.home} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300">{t.menuHome}</a>
-                <a href={externalLinks.features} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300">{t.menuFeatures}</a>
-                <a href={externalLinks.pricing} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300">{t.menuPricing}</a>
-                <a href={externalLinks.blog} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300">{t.menuBlog}</a>
+              <div className="flex flex-col space-y-3">
+                <a href={externalLinks.home} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuHome}</a>
+                <a href={externalLinks.features} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuFeatures}</a>
+                <a href={externalLinks.pricing} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuPricing}</a>
+                <a href={externalLinks.blog} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuBlog}</a>
               </div>
 
-              <details className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                <summary className="cursor-pointer list-none text-xs font-bold text-slate-500 flex items-center justify-between">
-                  <span className="flex items-center"><i className="fas fa-globe mr-2"></i> {t.languages}</span>
-                  <i className="fas fa-chevron-down text-[10px] text-slate-400"></i>
-                </summary>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center">{t.languages}</span>
+                </div>
                 <div className="mt-3 flex flex-col space-y-2">
                   {Object.entries(languageNames).map(([code, name]) => (
                     <button 
@@ -1483,11 +1526,8 @@ const App: React.FC = () => {
                     </button>
                   ))}
                 </div>
-              </details>
+              </div>
             </div>
-            <button onClick={() => setIsMenuOpen(false)} className="mt-10 w-full py-4 bg-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-200">
-              {t.close}
-            </button>
           </div>
         </div>
       )}
