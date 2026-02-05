@@ -1,5 +1,6 @@
 import './globals.css';
 import { Nunito, Fira_Code } from 'next/font/google';
+import AppSessionProvider from '@/components/SessionProvider';
 
 export const metadata = {
   title: 'VoiceTask',
@@ -34,7 +35,7 @@ export default function RootLayout({
         />
       </head>
       <body className="text-slate-900 transition-colors duration-300 overflow-x-hidden">
-        {children}
+        <AppSessionProvider>{children}</AppSessionProvider>
       </body>
     </html>
   );

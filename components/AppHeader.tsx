@@ -1,0 +1,180 @@
+"use client";
+
+import { useState } from 'react';
+import Link from 'next/link';
+
+type HeaderTranslations = {
+  appTitle: string;
+  menuHome: string;
+  menuFeatures: string;
+  menuPricing: string;
+  menuBlog: string;
+  languages: string;
+  // menuTitle: string;
+  close: string;
+};
+
+type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
+
+type Props = {
+  t: HeaderTranslations;
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  languageNames: Record<Language, string>;
+  languageFlags: Record<Language, string>;
+  nowLabel?: string;
+  userId?: string;
+  userEmail?: string | null;
+  bellCount?: number;
+};
+
+const externalLinks = {
+  home: "#",
+  blog: "#",
+  features: "#",
+  pricing: "#"
+};
+
+export default function AppHeader({
+  t,
+  language,
+  setLanguage,
+  languageNames,
+  languageFlags,
+  nowLabel,
+  userId,
+  userEmail,
+  bellCount = 0
+}: Props) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+
+  return (
+    <>
+      <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between bg-transparent relative z-50">
+        <div className="flex items-center space-x-3">
+          <div className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h2" />
+              <path d="M8 8v8" />
+              <path d="M12 5v14" />
+              <path d="M16 8v8" />
+              <path d="M20 12h-2" />
+            </svg>
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-black tracking-tighter text-slate-800">{t.appTitle}</h1>
+            {nowLabel && (
+              <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning>
+                {nowLabel}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center space-x-3">
+          <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
+            <a href={externalLinks.home} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuHome}</a>
+            <a href={externalLinks.features} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuFeatures}</a>
+            <a href={externalLinks.pricing} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuPricing}</a>
+            <a href={externalLinks.blog} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuBlog}</a>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsLanguageMenuOpen(prev => !prev)}
+                className="flex items-center space-x-2 hover:text-blue-600 transition-colors"
+              >
+                <span>{t.languages}</span>
+                <i className="fas fa-chevron-down text-[10px] text-slate-400"></i>
+              </button>
+              {isLanguageMenuOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50">
+                  {Object.entries(languageNames).map(([code, name]) => (
+                    <button
+                      key={code}
+                      onClick={() => { setLanguage(code as Language); setIsLanguageMenuOpen(false); }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${language === code ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            <Link
+              href={userId ? '/settings' : '/auth'}
+              className={`w-11 h-11 flex items-center justify-center ${userId ? 'text-emerald-600' : 'text-slate-600'}`}
+              title={userId ? (userEmail || 'Logged in') : 'Login'}
+            >
+              <i className={`${userId ? 'fas fa-user-check' : 'far fa-user'}`}></i>
+            </Link>
+            <button className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
+              <i className="far fa-bell"></i>
+              <span
+                className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
+                style={{ top: "5px", right: "5px" }}
+              >
+                0
+              </span>
+            </button>
+            <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center">
+              <i className="fas fa-bars"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-10 animate-in slide-in-from-bottom-8 fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
+            <button
+              onClick={() => setIsMenuOpen(false)}
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            <div className="flex flex-col space-y-4">
+              <div className="flex flex-col space-y-3">
+                <a href={externalLinks.home} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuHome}</a>
+                <a href={externalLinks.features} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuFeatures}</a>
+                <a href={externalLinks.pricing} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuPricing}</a>
+                <a href={externalLinks.blog} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuBlog}</a>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold text-slate-500 flex items-center justify-between">
+                  <span className="flex items-center"><i className="fas fa-globe mr-2"></i> {t.languages}</span>
+                </div>
+                <div className="mt-3 flex flex-col space-y-2">
+                  {Object.entries(languageNames).map(([code, name]) => (
+                    <button 
+                      key={code} 
+                      onClick={() => { setLanguage(code as Language); setIsMenuOpen(false); }}
+                      className={`flex items-center justify-between px-4 py-2 rounded-2xl border transition-all font-bold text-xs ${language === code ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}
+                    >
+                      <span>{name}</span>
+                      <span>{languageFlags[code as Language]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

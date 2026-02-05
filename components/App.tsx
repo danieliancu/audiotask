@@ -2,9 +2,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import AppHeader from './AppHeader';
+import { useSession } from 'next-auth/react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
-import { generateAssistantResponse, generateTTS, todoTools } from '../services/geminiService';
+import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 
 type FilterMode = 'all' | 'completed' | 'low' | 'normal' | 'high' | 'outdated';
 
@@ -223,13 +225,6 @@ const languageNames: Record<Language, string> = {
   es: "Español"
 };
 
-const externalLinks = {
-  home: "#",
-  blog: "#",
-  features: "#",
-  pricing: "#"
-};
-
 // Encoding/Decoding Utilities
 function encode(bytes: Uint8Array) {
   let binary = '';
@@ -437,11 +432,35 @@ function getItemDateTime(item: TodoItem): number {
   return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes).getTime();
 }
 
+function normalizeDueTime(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const raw = value.trim().toLowerCase();
+  if (!raw) return undefined;
+
+  const exact = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (exact) return `${exact[1].padStart(2, '0')}:${exact[2]}`;
+
+  const onlyHour = raw.match(/\b([01]?\d|2[0-3])\b/);
+  if (onlyHour) return `${onlyHour[1].padStart(2, '0')}:00`;
+
+  return undefined;
+}
+
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const settingsLoadedRef = useRef(false);
+  const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const todosRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canceledTempIdsRef = useRef<Set<string>>(new Set());
+  const pendingTempUpdatesRef = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const requestQueueByIdRef = useRef<Map<string, Promise<void>>>(new Map());
+  const todosRef = useRef<TodoItem[]>([]);
   const [language, setLanguage] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<ItemType>('task');
+  const [showSubtasksDefault, setShowSubtasksDefault] = useState(false);
   const [filterModeByType, setFilterModeByType] = useState<Record<ItemType, FilterMode>>({
     task: 'all',
     event: 'all'
@@ -469,8 +488,6 @@ const App: React.FC = () => {
   const [formSubtasks, setFormSubtasks] = useState('');
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
   const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
 
@@ -488,6 +505,10 @@ const App: React.FC = () => {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
+  useEffect(() => {
     const formatNow = (d: Date) => (
       `${d.toLocaleDateString(language, { day: '2-digit', month: 'long' })}. ${d.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}`
     );
@@ -497,6 +518,83 @@ const App: React.FC = () => {
     }, 60000);
     return () => clearInterval(timer);
   }, [language]);
+
+  useEffect(() => {
+    if (!userId) {
+      setTodos([]);
+      settingsLoadedRef.current = false;
+      return;
+    }
+    let active = true;
+    fetch('/api/todos', { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => {
+        if (!active) return;
+        setTodos(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    fetch('/api/settings')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!active || !data) return;
+        const defaultLanguage = ['en', 'ro', 'fr', 'de', 'es'].includes(data.defaultLanguage) ? data.defaultLanguage : '';
+        const defaultActiveTab = data.defaultActiveTab === 'event' ? 'event' : data.defaultActiveTab === 'task' ? 'task' : '';
+        const nextLanguage = defaultLanguage || (['en', 'ro', 'fr', 'de', 'es'].includes(data.language) ? data.language : 'en');
+        const nextActiveTab = (defaultActiveTab || (data.activeTab === 'event' ? 'event' : 'task')) as ItemType;
+        const nextDates = Array.isArray(data.activeDateFilters) ? data.activeDateFilters : [];
+        const nextFilterTask = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(data.filterTask) ? data.filterTask : 'all';
+        const nextFilterEvent = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(data.filterEvent) ? data.filterEvent : 'all';
+        const monthStr = typeof data.calendarMonth === 'string' ? data.calendarMonth : '';
+        const monthMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
+        const nextMonth = monthMatch
+          ? new Date(Number(monthMatch[1]), Number(monthMatch[2]) - 1, 1)
+          : new Date();
+        const nextShowSubtasksDefault = Boolean(data.defaultShowSubtasks);
+        setLanguage(nextLanguage as Language);
+        setActiveTab(nextActiveTab as ItemType);
+        setActiveDateFilters(nextDates);
+        setFilterModeByType({ task: nextFilterTask as FilterMode, event: nextFilterEvent as FilterMode });
+        setCurrentDate(nextMonth);
+        setShowSubtasksDefault(nextShowSubtasksDefault);
+        settingsLoadedRef.current = true;
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !settingsLoadedRef.current) return;
+    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
+    settingsSaveTimerRef.current = setTimeout(() => {
+      void fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activeTab,
+          language,
+          activeDateFilters,
+          filterTask: filterModeByType.task,
+          filterEvent: filterModeByType.event,
+          calendarMonth: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+        })
+      }).catch(() => {});
+    }, 500);
+  }, [userId, activeTab, language, activeDateFilters, filterModeByType, currentDate]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (!showSubtasksDefault) {
+      setExpandedSubitems(new Set());
+      return;
+    }
+    setExpandedSubitems(new Set(todos.filter(t => t.subtasks?.length).map(t => t.id)));
+  }, [userId, showSubtasksDefault, todos]);
   const daysInMonth = useMemo(() => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate(), [currentDate]);
   const firstDayOfMonth = useMemo(() => {
     let day = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -658,31 +756,131 @@ const App: React.FC = () => {
   }, [pendingDateStart, pendingDateEnd, tasksByDate, activeTab]);
 
   const executeTool = useCallback((name: string, args: any) => {
+    if (!args || typeof args !== 'object') args = {};
+    const isLoggedIn = Boolean(userId);
+    const updateTodo = (id: string, updater: (todo: TodoItem) => TodoItem) => {
+      setTodos(prev => prev.map(todo => (todo.id === id ? updater(todo) : todo)));
+    };
+
+    const refreshTodos = () => {
+      if (!userId) return;
+      void fetch('/api/todos', { credentials: 'include', cache: 'no-store' })
+        .then(res => (res.ok ? res.json() : []))
+        .then(data => setTodos(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    };
+    const scheduleRefreshTodos = () => {
+      if (todosRefreshTimerRef.current) clearTimeout(todosRefreshTimerRef.current);
+      todosRefreshTimerRef.current = setTimeout(() => {
+        refreshTodos();
+      }, 120);
+    };
+
+    const enqueueById = (id: string, job: () => Promise<void>) => {
+      const prev = requestQueueByIdRef.current.get(id) ?? Promise.resolve();
+      const next = prev
+        .then(job)
+        .catch(() => {})
+        .finally(() => {
+          if (requestQueueByIdRef.current.get(id) === next) {
+            requestQueueByIdRef.current.delete(id);
+          }
+        });
+      requestQueueByIdRef.current.set(id, next);
+    };
+
+    const syncUpdate = (id: string, payload: Record<string, unknown>) => {
+      if (!isLoggedIn) return;
+      enqueueById(id, async () => {
+        const res = await fetch(`/api/todos/${id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) refreshTodos();
+        else scheduleRefreshTodos();
+      });
+    };
+
+    const syncDelete = (id: string) => {
+      if (!isLoggedIn) return;
+      enqueueById(id, async () => {
+        const res = await fetch(`/api/todos/${id}`, { method: 'DELETE', credentials: 'include' });
+        if (!res.ok) refreshTodos();
+        else scheduleRefreshTodos();
+      });
+    };
+
+    const syncCreate = (tempId: string, item: Omit<TodoItem, 'id'>) => {
+      if (!isLoggedIn) return;
+      void fetch('/api/todos', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(serverItem => {
+          if (!serverItem) return;
+          if (canceledTempIdsRef.current.has(tempId)) {
+            canceledTempIdsRef.current.delete(tempId);
+            syncDelete(serverItem.id);
+            return;
+          }
+          const pending = pendingTempUpdatesRef.current.get(tempId);
+          if (pending) {
+            pendingTempUpdatesRef.current.delete(tempId);
+            syncUpdate(serverItem.id, pending);
+          }
+          setTodos(prev => prev.map(todo => (todo.id === tempId ? serverItem : todo)));
+          scheduleRefreshTodos();
+        })
+        .catch(() => {
+          setTodos(prev => prev.filter(todo => todo.id !== tempId));
+        });
+    };
+
     switch (name) {
-      case ToolNames.ADD_TODO:
-        const id = String(nextIdRef.current++);
+      case ToolNames.ADD_TODO: {
         const ts = parseTaskDate(args.date);
-        const newItem: TodoItem = {
-          id,
+        const normalizedTime = normalizeDueTime(args.time);
+        const baseItem: Omit<TodoItem, 'id'> = {
           text: capitalize(args.text),
           type: (args.type as ItemType) || 'task',
           completed: false,
           createdAt: Date.now(),
           dueDate: new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
-          dueTime: args.time || undefined,
+          dueTime: normalizedTime,
           location: args.location ? normalizeLocation(args.location, language) : undefined,
           subtasks: normalizeSubitems(args.subtasks),
           sortTimestamp: ts,
           priority: (args.priority as Priority) || 'normal'
         };
-        setTodos(prev => [newItem, ...prev]);
-        setActiveTab(newItem.type);
-        setHighlightedTaskId(id);
-        if (newItem.subtasks?.length) {
-          setExpandedSubitems(prev => new Set(prev).add(id));
+
+        if (!isLoggedIn) {
+          const id = String(nextIdRef.current++);
+          const newItem: TodoItem = { id, ...baseItem };
+          setTodos(prev => [newItem, ...prev]);
+          setActiveTab(newItem.type);
+          setHighlightedTaskId(id);
+          if (newItem.subtasks?.length) {
+            setExpandedSubitems(prev => new Set(prev).add(id));
+          }
+          break;
         }
+
+        const tempId = `tmp-${Date.now()}`;
+        setTodos(prev => [{ id: tempId, ...baseItem }, ...prev]);
+        setActiveTab(baseItem.type);
+        setHighlightedTaskId(tempId);
+        if (baseItem.subtasks?.length) {
+          setExpandedSubitems(prev => new Set(prev).add(tempId));
+        }
+        syncCreate(tempId, baseItem);
         break;
-      case ToolNames.EDIT_TODO:
+      }
+      case ToolNames.EDIT_TODO: {
         const editId = String(args.id);
         setHighlightedTaskId(editId);
         if (typeof args.showSubtasks === 'boolean') {
@@ -693,55 +891,99 @@ const App: React.FC = () => {
             return next;
           });
         }
-        setTodos(prev => prev.map(todo => {
-          if (todo.id === editId) {
-            const newTs = args.date ? parseTaskDate(args.date) : todo.sortTimestamp;
-            const newType = (args.type as ItemType) || todo.type;
-            if (newType !== activeTab) setActiveTab(newType);
-            const newLocation = args.location !== undefined
-              ? (args.location ? normalizeLocation(args.location, language) : undefined)
-              : todo.location;
-            const newSubtasks = args.subtasks !== undefined
-              ? normalizeSubitems(args.subtasks)
-              : todo.subtasks;
-            return {
-              ...todo,
-              text: args.text ? capitalize(args.text) : todo.text,
-              type: newType,
-              dueDate: args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : todo.dueDate,
-              dueTime: args.time !== undefined ? (args.time || undefined) : todo.dueTime,
-              location: newLocation,
-              subtasks: newSubtasks,
-              priority: (args.priority as Priority) || todo.priority,
-              sortTimestamp: newTs
-            };
-          }
-          return todo;
-        }));
+
+        const existing = todosRef.current.find(todo => todo.id === editId);
+        if (!existing) {
+          refreshTodos();
+          break;
+        }
+        const newTs = args.date ? parseTaskDate(args.date) : existing.sortTimestamp;
+        const newType = (args.type as ItemType) || existing.type;
+        if (newType !== activeTab) setActiveTab(newType);
+        const newLocation = args.location !== undefined
+          ? (args.location ? normalizeLocation(args.location, language) : undefined)
+          : existing.location;
+        const newSubtasks = args.subtasks !== undefined
+          ? normalizeSubitems(args.subtasks)
+          : existing.subtasks;
+        const normalizedTime = args.time !== undefined ? normalizeDueTime(args.time) : existing.dueTime;
+        const nextTodo: TodoItem = {
+          ...existing,
+          text: args.text ? capitalize(args.text) : existing.text,
+          type: newType,
+          dueDate: args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate,
+          dueTime: normalizedTime,
+          location: newLocation,
+          subtasks: newSubtasks,
+          priority: (args.priority as Priority) || existing.priority,
+          sortTimestamp: newTs
+        };
+        const payload: Record<string, unknown> = {};
+        if (args.text !== undefined) payload.text = nextTodo.text;
+        if (args.type !== undefined) payload.type = nextTodo.type;
+        if (args.date !== undefined) {
+          payload.sortTimestamp = nextTodo.sortTimestamp;
+          payload.dueDate = nextTodo.dueDate ?? null;
+        }
+        if (args.time !== undefined) payload.dueTime = nextTodo.dueTime ?? null;
+        if (args.location !== undefined) payload.location = nextTodo.location ?? null;
+        if (args.subtasks !== undefined) payload.subtasks = nextTodo.subtasks ?? null;
+        if (args.priority !== undefined) payload.priority = nextTodo.priority;
+        setTodos(prev => prev.map(todo => (todo.id === editId ? nextTodo : todo)));
+        if (!isLoggedIn) {
+          break;
+        }
+        if (editId.startsWith('tmp-')) {
+          const existing = pendingTempUpdatesRef.current.get(editId) || {};
+          pendingTempUpdatesRef.current.set(editId, { ...existing, ...payload });
+          break;
+        }
+        syncUpdate(editId, payload);
         break;
-      case ToolNames.ADD_SUBTASK:
+      }
+      case ToolNames.ADD_SUBTASK: {
         const parentId = String(args.id);
         const addItems = normalizeSubitems(args.subtasks ?? args.text ?? args.subtask);
         if (!addItems?.length) break;
-        setTodos(prev => prev.map(todo => {
-          if (todo.id !== parentId) return todo;
+        updateTodo(parentId, (todo) => {
           const existing = todo.subtasks || [];
-          return { ...todo, subtasks: [...existing, ...addItems] };
-        }));
+          const updated = [...existing, ...addItems];
+          if (isLoggedIn) syncUpdate(parentId, { subtasks: updated });
+          return { ...todo, subtasks: updated };
+        });
         setExpandedSubitems(prev => new Set(prev).add(parentId));
         break;
-      case ToolNames.DELETE_TODO:
-        setTodos(prev => prev.filter(t => t.id !== String(args.id)));
+      }
+      case ToolNames.DELETE_TODO: {
+        const id = String(args.id);
+        if (id.startsWith('tmp-')) {
+          canceledTempIdsRef.current.add(id);
+          setTodos(prev => prev.filter(t => t.id !== id));
+          break;
+        }
+        setTodos(prev => prev.filter(t => t.id !== id));
+        if (isLoggedIn) syncDelete(id);
         break;
-      case ToolNames.TOGGLE_TODO:
-        setTodos(prev => prev.map(t => t.id === String(args.id) ? { ...t, completed: !t.completed } : t));
+      }
+      case ToolNames.TOGGLE_TODO: {
+        const id = String(args.id);
+        updateTodo(id, (todo) => {
+          const next = { ...todo, completed: !todo.completed };
+          if (isLoggedIn) syncUpdate(id, { completed: next.completed });
+          return next;
+        });
         break;
-      case ToolNames.CLEAR_COMPLETED:
-        setTodos(prev => prev.filter(t => !t.completed));
+      }
+      case ToolNames.CLEAR_COMPLETED: {
+        setTodos(prev => {
+          if (isLoggedIn) prev.filter(t => !t.completed).forEach(t => syncDelete(t.id));
+          return prev.filter(t => !t.completed);
+        });
         break;
+      }
     }
     return "OK";
-  }, [language, activeTab]);
+  }, [language, activeTab, userId]);
 
   const stopLiveSession = useCallback(() => {
     isLiveRef.current = false;
@@ -840,12 +1082,21 @@ const App: React.FC = () => {
             });
 
             if (m.toolCall) {
-              for (const fc of m.toolCall.functionCalls) {
-                const res = executeTool(fc.name, fc.args);
+              for (const fc of m.toolCall.functionCalls ?? []) {
+                const functionName = fc.name || 'unknown_tool';
+                const functionArgs = fc.args && typeof fc.args === 'object' ? fc.args : {};
+                let toolResponse: Record<string, unknown>;
+                try {
+                  const res = executeTool(functionName, functionArgs);
+                  toolResponse = { ok: true, result: res };
+                } catch (error) {
+                  console.error('Tool execution failed:', functionName, error);
+                  toolResponse = { ok: false, error: 'Tool execution failed' };
+                }
                 if (!isLiveRef.current) continue;
                 sessionPromise.then(s => {
                   if (!isLiveRef.current || !s) return;
-                  s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: res } } });
+                  s.sendToolResponse({ functionResponses: { id: fc.id, name: functionName, response: toolResponse } });
                 });
               }
             }
@@ -861,6 +1112,7 @@ const App: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
+          systemInstruction: systemInstructions[language],
           tools: [{ functionDeclarations: todoTools }],
           inputAudioTranscription: {},
         }
@@ -1018,80 +1270,26 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
-      <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between bg-transparent relative z-50">
-        <div className="flex items-center space-x-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M4 12h2" />
-              <path d="M8 8v8" />
-              <path d="M12 5v14" />
-              <path d="M16 8v8" />
-              <path d="M20 12h-2" />
-            </svg>
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-xl font-black tracking-tighter text-slate-800">{t.appTitle}</h1>
-            <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning>
-              {nowLabel}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center space-x-3">
-          <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
-            <a href={externalLinks.home} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuHome}</a>
-            <a href={externalLinks.features} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuFeatures}</a>
-            <a href={externalLinks.pricing} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuPricing}</a>
-            <a href={externalLinks.blog} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuBlog}</a>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsLanguageMenuOpen(prev => !prev)}
-                className="flex items-center space-x-2 hover:text-blue-600 transition-colors"
-              >
-                <span>{t.languages}</span>
-                <i className="fas fa-chevron-down text-[10px] text-slate-400"></i>
-              </button>
-              {isLanguageMenuOpen && (
-                <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50">
-                  {Object.entries(languageNames).map(([code, name]) => (
-                    <button
-                      key={code}
-                      onClick={() => { setLanguage(code as Language); setIsLanguageMenuOpen(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${language === code ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-1">
-            <button className="w-11 h-11 text-slate-600 flex items-center justify-center"><i className="far fa-user"></i></button>
-            <button className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
-              <i className="far fa-bell"></i>
-              <span
-                className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
-                style={{ top:"5px", right:"5px" }}
-              >
-                0
-              </span>
-            </button>
-            <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center"><i className="fas fa-bars"></i></button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        t={{
+          appTitle: t.appTitle,
+          menuHome: t.menuHome,
+          menuFeatures: t.menuFeatures,
+          menuPricing: t.menuPricing,
+          menuBlog: t.menuBlog,
+          languages: t.languages,
+          // menuTitle: t.menuTitle,
+          close: t.close
+        }}
+        language={language}
+        setLanguage={setLanguage}
+        languageNames={languageNames}
+        languageFlags={languageFlags}
+        nowLabel={nowLabel}
+        userId={userId}
+        userEmail={session?.user?.email}
+        bellCount={totalCount}
+      />
 
       <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#FDF5E6] backdrop-blur-xl px-6 py-6 mb-8 border-b border-slate-200/50">
         <div>
@@ -1491,46 +1689,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Menu Modal */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-10 animate-in slide-in-from-bottom-8 fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
-            <button
-              onClick={() => setIsMenuOpen(false)}
-              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
-            >
-              <i className="fas fa-times"></i>
-            </button>
-            <div className="flex flex-col space-y-4">
-              <div className="flex flex-col space-y-3">
-                <a href={externalLinks.home} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuHome}</a>
-                <a href={externalLinks.features} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuFeatures}</a>
-                <a href={externalLinks.pricing} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuPricing}</a>
-                <a href={externalLinks.blog} target="_blank" rel="noreferrer" className="hover:border-blue-300 pb-2">{t.menuBlog}</a>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center">{t.languages}</span>
-                </div>
-                <div className="mt-3 flex flex-col space-y-2">
-                  {Object.entries(languageNames).map(([code, name]) => (
-                    <button 
-                      key={code} 
-                      onClick={() => { setLanguage(code as Language); setIsMenuOpen(false); }}
-                      className={`flex items-center justify-between px-4 py-2 rounded-2xl border transition-all font-bold text-xs ${language === code ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}
-                    >
-                      <span>{name}</span>
-                      <span>{languageFlags[code as Language]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
