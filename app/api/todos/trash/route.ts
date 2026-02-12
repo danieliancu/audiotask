@@ -8,6 +8,7 @@ type DbTodoRow = {
   id: number;
   title: string | null;
   text: string;
+  label_id: number | null;
   completed: number | boolean;
   created_at: number;
   due_date: string | null;
@@ -24,6 +25,7 @@ const mapRow = (row: DbTodoRow) => ({
   id: String(row.id),
   title: row.title ?? undefined,
   text: row.text,
+  labelId: row.label_id ? String(row.label_id) : undefined,
   completed: Boolean(row.completed),
   createdAt: Number(row.created_at),
   dueDate: row.due_date ?? undefined,
@@ -63,4 +65,14 @@ export async function GET(request: Request) {
     [userId]
   );
   return NextResponse.json((rows as DbTodoRow[]).map(mapRow));
+}
+
+export async function DELETE() {
+  await ensureTodoTrashSchema();
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  await pool.query('DELETE FROM todos WHERE user_id = ? AND deleted_at IS NOT NULL', [userId]);
+  return NextResponse.json({ ok: true });
 }

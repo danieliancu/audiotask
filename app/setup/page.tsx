@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS todos (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   title VARCHAR(255),
+  label_id BIGINT NULL,
   text TEXT NOT NULL,
   completed BOOLEAN NOT NULL DEFAULT false,
   created_at BIGINT NOT NULL,
@@ -42,8 +43,20 @@ CREATE TABLE IF NOT EXISTS todos (
   deleted_at BIGINT NULL DEFAULT NULL,
   subtasks JSON,
   INDEX idx_todos_user_deleted (user_id, deleted_at),
+  INDEX idx_todos_label (label_id),
   CONSTRAINT fk_todos_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS labels (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  created_at BIGINT NOT NULL,
+  UNIQUE KEY uniq_user_label_name (user_id, name),
+  INDEX idx_labels_user (user_id),
+  CONSTRAINT fk_labels_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id BIGINT PRIMARY KEY,

@@ -4,17 +4,17 @@ import { ToolNames, Language } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
 
 export const systemInstructions: Record<Language, string> = {
-  en: "Minimalist voice assistant. There are two types: task means Note, event means Task. For notes use title and optional text, no time/location/subtasks/completion. For tasks keep date, time, location and subtasks. Use tool calls for all actions. For dates, ALWAYS use YYYY-MM-DD format. Support priorities: low, normal, high. For subtask edit or delete, always use id plus subtaskIndex (1-based). Speak ONLY after tool execution.",
-  ro: "Asistent vocal minimalist. Exista doua tipuri: task inseamna Nota, event inseamna Task. Pentru note foloseste title si optional text, fara ora/locatie/subtask/completare. Pentru task-uri pastreaza data, ora, locatie si subtask-uri. Foloseste uneltele pentru orice actiune. Pentru date, foloseste intotdeauna formatul YYYY-MM-DD. Suporta prioritati: low, normal, high. Pentru editare sau stergere subtask, foloseste mereu id plus subtaskIndex (1-based). Vorbeste doar dupa executie.",
-  fr: "Assistant vocal minimaliste. Identifiez tache vs evenement. Utilisez les outils pour toutes les actions. Pour les dates, utilisez toujours YYYY-MM-DD. Priorites: low, normal, high. Extrayez la localisation et les sous-taches. Pour editer ou supprimer un sous-element, utilisez id et subtaskIndex (1-based).",
-  de: "Minimalistischer Sprachassistent. Unterscheiden Sie Aufgabe vs Termin. Nutzen Sie Tools fuer alle Aktionen. Fuer Datumswerte immer YYYY-MM-DD. Prioritaeten: low, normal, high. Ort und Unteraufgaben extrahieren. Fuer Bearbeiten oder Loeschen einer Unteraufgabe immer id und subtaskIndex (1-based) verwenden.",
-  es: "Asistente de voz minimalista. Identifica tarea vs evento. Usa herramientas para todas las acciones. Para fechas, usa siempre YYYY-MM-DD. Prioridades: low, normal, high. Extrae ubicacion y subtareas. Para editar o borrar subtarea, usa id y subtaskIndex (1-based)."
+  en: "Minimalist voice assistant. There are two internal types: task means Note, event means Task. Use this mapping consistently. For notes use title and optional text, no time/location/subtasks/completion. For tasks keep date, time, location and subtasks. Use tool calls for all actions. For dates, ALWAYS use YYYY-MM-DD format. Support priorities: low, normal, high. For subtask edit or delete, always use id plus subtaskIndex (1-based). For status filtering, Open means not completed and Closed means completed. Labels: use label name via the label field, and remove label using clearLabel=true. Speak ONLY after tool execution.",
+  ro: "Asistent vocal minimalist. Exista doua tipuri interne: task inseamna Nota, event inseamna Task. Pastreaza aceasta mapare mereu. Cand utilizatorul spune nota/notite, foloseste tipul task. Cand spune task/taskuri/eveniment/evenimente, foloseste tipul event. Pentru note foloseste title si optional text, fara ora, locatie, subtask sau completare. Pentru task-uri foloseste data, ora, locatie, subtask-uri si completare. Foloseste tool calls pentru orice actiune. Pentru date foloseste intotdeauna formatul YYYY-MM-DD. Prioritati suportate: low, normal, high. Pentru editare/stergere subtask foloseste id + subtaskIndex (1-based). La filtre de status: Open = nefinalizat, Closed = finalizat. Pentru labels: foloseste numele label-ului in campul label, iar pentru scoatere din label foloseste clearLabel=true. Vorbeste doar dupa executie.",
+  fr: "Assistant vocal minimaliste. Il existe deux types internes: task signifie Note, event signifie Tâche. Conservez toujours ce mapping. Si l'utilisateur dit note/notes, utilisez type=task. S'il dit tâche/tâches/événement/événements, utilisez type=event. Pour les notes: title et texte optionnel, sans heure/lieu/sous-tâches/completion. Pour les tâches: date, heure, lieu, sous-tâches et completion. Utilisez les tool calls pour toutes les actions. Pour les dates, utilisez toujours YYYY-MM-DD. Priorités: low, normal, high. Pour éditer/supprimer une sous-tâche, utilisez id + subtaskIndex (1-based). Filtres de statut: Open = non terminé, Closed = terminé. Labels: utilisez le nom via label, et clearLabel=true pour retirer.",
+  de: "Minimalistischer Sprachassistent. Es gibt zwei interne Typen: task bedeutet Notiz, event bedeutet Aufgabe. Behalten Sie dieses Mapping immer bei. Wenn der Nutzer Notiz/Notizen sagt, verwenden Sie type=task. Bei Aufgabe/Aufgaben/Ereignis/Ereignisse verwenden Sie type=event. Fuer Notizen: title und optionaler Text, ohne Uhrzeit/Ort/Unteraufgaben/Abschluss. Fuer Aufgaben: Datum, Uhrzeit, Ort, Unteraufgaben und Abschluss. Nutzen Sie Tool Calls fuer alle Aktionen. Datumsformat immer YYYY-MM-DD. Prioritaeten: low, normal, high. Zum Bearbeiten/Loeschen einer Unteraufgabe immer id + subtaskIndex (1-based). Statusfilter: Open = nicht erledigt, Closed = erledigt. Labels: Namen ueber label setzen, mit clearLabel=true entfernen.",
+  es: "Asistente de voz minimalista. Hay dos tipos internos: task significa Nota, event significa Tarea. Mantén siempre este mapeo. Si el usuario dice nota/notas, usa type=task. Si dice tarea/tareas/evento/eventos, usa type=event. Para notas: title y texto opcional, sin hora/ubicacion/subtareas/completado. Para tareas: fecha, hora, ubicacion, subtareas y completado. Usa tool calls para todas las acciones. Para fechas usa siempre YYYY-MM-DD. Prioridades: low, normal, high. Para editar/eliminar subtarea usa id + subtaskIndex (1-based). Filtros de estado: Open = no completada, Closed = completada. Labels: usa nombre en label y clearLabel=true para quitar."
 };
 
 export const todoTools: FunctionDeclaration[] = [
   {
     name: ToolNames.ADD_TODO,
-    description: "Adds a new item. type=task means Note (title + optional text). type=event means Task (date/time/location/subtasks).",
+    description: "Adds a new item. IMPORTANT mapping: type=task means Note (title + optional text), type=event means Task (date/time/location/subtasks).",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -24,6 +24,8 @@ export const todoTools: FunctionDeclaration[] = [
         date: { type: Type.STRING, description: "Target date in YYYY-MM-DD format." },
         time: { type: Type.STRING, description: "Time string." },
         priority: { type: Type.STRING, enum: ['low', 'normal', 'high'], description: "Priority level." },
+        label: { type: Type.STRING, description: "Label name for tasks." },
+        clearLabel: { type: Type.BOOLEAN, description: "Set true to remove current label from task." },
         location: { type: Type.STRING, description: "Location string." },
         subtasks: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Subtasks or subevents list." }
       },
@@ -32,7 +34,7 @@ export const todoTools: FunctionDeclaration[] = [
   },
   {
     name: ToolNames.EDIT_TODO,
-    description: "Edits an existing item by id. Notes (type=task): title/text/priority only. Tasks (type=event): text/date/time/location/priority/subtasks.",
+    description: "Edits an existing item by id. Keep mapping strict: Notes are type=task (title/text/priority), Tasks are type=event (text/date/time/location/priority/subtasks/completion).",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -43,6 +45,8 @@ export const todoTools: FunctionDeclaration[] = [
         date: { type: Type.STRING, description: "Updated date in YYYY-MM-DD format." },
         time: { type: Type.STRING },
         priority: { type: Type.STRING, enum: ['low', 'normal', 'high'] },
+        label: { type: Type.STRING, description: "Label name for tasks." },
+        clearLabel: { type: Type.BOOLEAN, description: "Set true to remove current label from task." },
         location: { type: Type.STRING },
         subtasks: { type: Type.ARRAY, items: { type: Type.STRING } },
         showSubtasks: { type: Type.BOOLEAN }

@@ -9,6 +9,8 @@ import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 
 type FilterMode = 'all' | 'low' | 'normal' | 'high' | 'closed' | 'open' | 'outdated' | 'in_time';
+type LabelFilter = 'all' | `label:${string}`;
+type ItemLabel = { id: string; name: string };
 
 // Translation strings for professional i18n
 const translations = {
@@ -392,6 +394,14 @@ const normalizeSubitems = (value: unknown) => {
     .map((item) => capitalize(item));
   return cleaned.length ? cleaned : undefined;
 };
+const normalizeLabelName = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const firstWord = trimmed.split(/\s+/)[0];
+  if (!firstWord) return '';
+  const lower = firstWord.toLocaleLowerCase();
+  return `${lower.charAt(0).toLocaleUpperCase()}${lower.slice(1)}`;
+};
 
 function parseTaskDate(dateStr: string | undefined): number {
   if (!dateStr) return Date.now();
@@ -502,6 +512,16 @@ const App: React.FC = () => {
   const [formTime, setFormTime] = useState('');
   const [formLocation, setFormLocation] = useState('');
   const [formSubtasks, setFormSubtasks] = useState('');
+  const [labels, setLabels] = useState<ItemLabel[]>([]);
+  const labelsRef = useRef<ItemLabel[]>([]);
+  const [labelFilter, setLabelFilter] = useState<LabelFilter>('all');
+  const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const labelMenuRef = useRef<HTMLDivElement | null>(null);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelName, setEditingLabelName] = useState('');
+  const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
@@ -538,6 +558,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!userId) {
       setTodos([]);
+      setLabels([]);
       settingsLoadedRef.current = false;
       return;
     }
@@ -551,6 +572,35 @@ const App: React.FC = () => {
       .catch(() => {});
     return () => { active = false; };
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    fetch('/api/labels', { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => {
+        if (!active) return;
+        setLabels(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    labelsRef.current = labels;
+  }, [labels]);
+
+  useEffect(() => {
+    if (!isLabelMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (labelMenuRef.current && !labelMenuRef.current.contains(target)) {
+        setIsLabelMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [isLabelMenuOpen]);
 
   useEffect(() => {
     if (!userId) return;
@@ -676,6 +726,12 @@ const App: React.FC = () => {
 
     return base
       .filter(item => {
+        if (activeTab !== 'event') return true;
+        if (labelFilter === 'all') return true;
+        if (labelFilter.startsWith('label:')) return item.labelId === labelFilter.slice(6);
+        return true;
+      })
+      .filter(item => {
         if (activeTab === 'event') {
           if (filterMode === 'closed') return item.completed;
           if (filterMode === 'open') return !item.completed;
@@ -696,7 +752,7 @@ const App: React.FC = () => {
         if (aTime !== bTime) return aTime - bTime;
         return String(a.id).localeCompare(String(b.id));
       });
-  }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet]);
+  }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet, labelFilter]);
 
   const groupedItems = useMemo(() => {
     if (activeTab === 'task') {
@@ -734,6 +790,78 @@ const App: React.FC = () => {
       });
     return sortedGroups;
   }, [activeTab, filteredItems, language, t.tasks]);
+
+  const labelNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    labels.forEach(label => map.set(label.id, label.name));
+    return map;
+  }, [labels]);
+  const labelsPromptContext = useMemo(() => {
+    if (!labels.length) return 'Available labels: none.';
+    return `Available labels: ${labels.map(label => label.name).join(', ')}.`;
+  }, [labels]);
+
+  const createLabel = useCallback(async () => {
+    const name = normalizeLabelName(newLabelName);
+    if (!name || !userId) return;
+    setLabelBusyId('create');
+    const res = await fetch('/api/labels', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    setLabelBusyId(null);
+    if (!res.ok) return;
+    const label = await res.json();
+    setLabels(prev => {
+      const existing = prev.find(l => l.id === label.id);
+      if (existing) return prev;
+      return [...prev, label].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    setLabelFilter(`label:${label.id}`);
+    setNewLabelName('');
+    setIsLabelMenuOpen(false);
+  }, [newLabelName, userId]);
+
+  const startEditLabel = useCallback((label: ItemLabel) => {
+    setEditingLabelId(label.id);
+    setEditingLabelName(label.name);
+  }, []);
+
+  const saveEditLabel = useCallback(async () => {
+    if (!editingLabelId || !userId) return;
+    const name = normalizeLabelName(editingLabelName);
+    if (!name) return;
+    setLabelBusyId(editingLabelId);
+    const res = await fetch(`/api/labels/${editingLabelId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    setLabelBusyId(null);
+    if (!res.ok) return;
+    const updated = await res.json();
+    setLabels(prev => prev.map(label => (label.id === updated.id ? updated : label)).sort((a, b) => a.name.localeCompare(b.name)));
+    setEditingLabelId(null);
+    setEditingLabelName('');
+  }, [editingLabelId, editingLabelName, userId]);
+
+  const deleteLabel = useCallback(async (id: string) => {
+    if (!userId) return;
+    setLabelBusyId(id);
+    const res = await fetch(`/api/labels/${id}`, { method: 'DELETE', credentials: 'include' });
+    setLabelBusyId(null);
+    if (!res.ok) return;
+    setLabels(prev => prev.filter(label => label.id !== id));
+    if (labelFilter === `label:${id}`) setLabelFilter('all');
+    setTodos(prev => prev.map(item => (item.labelId === id ? { ...item, labelId: undefined } : item)));
+    if (editingLabelId === id) {
+      setEditingLabelId(null);
+      setEditingLabelName('');
+    }
+  }, [userId, labelFilter, editingLabelId]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -794,6 +922,23 @@ const App: React.FC = () => {
   const executeTool = useCallback((name: string, args: any) => {
     if (!args || typeof args !== 'object') args = {};
     const isLoggedIn = Boolean(userId);
+    const resolveLabelIdFromArgs = () => {
+      const labelIdFromArgs = args.labelId;
+      const labelFromArgs = typeof args.label === 'string' ? normalizeLabelName(args.label) : '';
+      const clearLabel = Boolean(args.clearLabel);
+      if (clearLabel) return null;
+      if (labelIdFromArgs !== undefined) {
+        const value = String(labelIdFromArgs || '').trim();
+        return value ? value : null;
+      }
+      if (labelFromArgs) {
+        const found = labelsRef.current.find(label => label.name.toLocaleLowerCase() === labelFromArgs.toLocaleLowerCase());
+        if (found) return found.id;
+        if (/^(no|none|nolabel|fara|fara-label|without)$/i.test(labelFromArgs)) return null;
+      }
+      if (args.label !== undefined && !labelFromArgs) return null;
+      return undefined;
+    };
     const updateTodo = (id: string, updater: (todo: TodoItem) => TodoItem) => {
       setTodos(prev => prev.map(todo => (todo.id === id ? updater(todo) : todo)));
     };
@@ -884,9 +1029,11 @@ const App: React.FC = () => {
         const isNote = ((args.type as ItemType) || 'task') === 'task';
         const noteTitle = isNote ? capitalize(String(args.title || args.text || '').trim()) : undefined;
         const normalizedSubtasks = isNote ? undefined : normalizeSubitems(args.subtasks);
+        const resolvedLabelId = resolveLabelIdFromArgs();
         const baseItem: Omit<TodoItem, 'id'> = {
           title: noteTitle,
           text: isNote ? String(args.text || '').trim() : capitalize(args.text),
+          labelId: !isNote && resolvedLabelId ? String(resolvedLabelId) : undefined,
           type: (args.type as ItemType) || 'task',
           completed: false,
           createdAt: Date.now(),
@@ -951,10 +1098,16 @@ const App: React.FC = () => {
         const newTitle = args.title !== undefined
           ? (args.title ? capitalize(String(args.title)) : undefined)
           : existing.title;
+        const resolvedLabelId = resolveLabelIdFromArgs();
+        const labelWasSpecified = args.labelId !== undefined || args.label !== undefined || args.clearLabel !== undefined;
+        const newLabelId = resolvedLabelId !== undefined
+          ? (resolvedLabelId ? String(resolvedLabelId) : undefined)
+          : existing.labelId;
         const nextTodo: TodoItem = {
           ...existing,
           title: newTitle,
           text: args.text !== undefined ? (isNote ? String(args.text) : capitalize(args.text)) : existing.text,
+          labelId: isNote ? undefined : newLabelId,
           type: newType,
           completed: isNote ? false : existing.completed,
           dueDate: isNote ? undefined : (args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate),
@@ -966,6 +1119,7 @@ const App: React.FC = () => {
         };
         const payload: Record<string, unknown> = {};
         if (args.title !== undefined) payload.title = nextTodo.title ?? null;
+        if (labelWasSpecified) payload.labelId = isNote ? null : nextTodo.labelId ?? null;
         if (args.text !== undefined) payload.text = nextTodo.text;
         if (args.type !== undefined) payload.type = nextTodo.type;
         if (args.date !== undefined && !isNote) {
@@ -1210,7 +1364,7 @@ const App: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: systemInstructions[language],
+          systemInstruction: `${systemInstructions[language]} ${labelsPromptContext}`,
           tools: [{ functionDeclarations: todoTools }],
           inputAudioTranscription: {},
         }
@@ -1293,7 +1447,7 @@ const App: React.FC = () => {
 
   const handleSendPrompt = async () => {
     if (!inputValue.trim()) return;
-    const response = await generateAssistantResponse(inputValue, [], language);
+    const response = await generateAssistantResponse(`${inputValue}\n${labelsPromptContext}`, [], language);
     response.functionCalls?.forEach(c => executeTool(c.name, c.args));
     setInputValue('');
     setIsWriteMode(false);
@@ -1492,16 +1646,16 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
-          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-0 overflow-x-auto no-scrollbar">
-            <div className="flex space-x-8">
-              <button onClick={() => setActiveTab('task')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <div className="flex items-end justify-between gap-4 border-b-2 border-slate-100 pb-0 max-[1100px]:flex-wrap">
+            <div className="flex items-center gap-6 flex-shrink-0">
+              <button onClick={() => setActiveTab('task')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {taskCount}
                 </span>
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('event')} className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
+              <button onClick={() => setActiveTab('event')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.events}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {eventCount}
@@ -1509,8 +1663,17 @@ const App: React.FC = () => {
                 {activeTab === 'event' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
             </div>
-            
-            <div className="mb-4 flex items-center space-x-2">
+
+            <button
+              type="button"
+              onClick={() => setIsFilterPanelOpen(true)}
+              className="hidden max-[500px]:flex mb-4 h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600"
+              aria-label="Open filters"
+            >
+              <i className="fas fa-sliders-h text-xs"></i>
+            </button>
+
+            <div className="mb-4 flex items-center space-x-2 max-[500px]:hidden flex-wrap justify-end max-[1100px]:w-full max-[1100px]:justify-start">
               <div className="relative group">
                 <div className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer">
                   <i className="fas fa-filter text-[10px] text-slate-400 mr-2"></i>
@@ -1531,7 +1694,240 @@ const App: React.FC = () => {
                   <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                 </div>
               </div>
+              {activeTab === 'event' && (
+                <div className="relative" ref={labelMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelMenuOpen(prev => !prev)}
+                    className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
+                  >
+                    <i className="fas fa-tags text-[10px] text-slate-400 mr-2"></i>
+                    <span className="text-[10px] font-black text-blue-500 tracking-widest px-2 py-0.5">
+                      {labelFilter === 'all'
+                        ? 'All labels'
+                        : labelNameById.get(labelFilter.slice(6)) || 'All labels'}
+                    </span>
+                    <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
+                  </button>
+                  {isLabelMenuOpen && (
+                    <div className="absolute mt-2 right-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+                      <button
+                        onClick={() => { setLabelFilter('all'); setIsLabelMenuOpen(false); }}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        All labels
+                      </button>
+                      {labels.map(label => (
+                        <div
+                          key={label.id}
+                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === `label:${label.id}` ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <div
+                            onClick={() => {
+                              if (editingLabelId === label.id) return;
+                              setLabelFilter(`label:${label.id}`);
+                              setIsLabelMenuOpen(false);
+                            }}
+                            className="flex-1 text-left truncate cursor-pointer"
+                          >
+                            {editingLabelId === label.id ? (
+                              <input
+                                value={editingLabelName}
+                                onChange={(e) => setEditingLabelName(e.target.value)}
+                                className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black uppercase tracking-widest text-slate-700"
+                              />
+                            ) : (
+                              label.name
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void deleteLabel(label.id)}
+                            disabled={labelBusyId === label.id}
+                            className="h-5 w-5 inline-flex items-center justify-center"
+                            title="Delete label"
+                          >
+                            <i className="fas fa-trash text-[10px]"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEditLabel(label)}
+                            disabled={labelBusyId === label.id}
+                            className="h-5 w-5 inline-flex items-center justify-center"
+                            title="Edit label"
+                          >
+                            <i className="fas fa-pen text-[10px]"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void saveEditLabel()}
+                            disabled={editingLabelId !== label.id || labelBusyId === label.id}
+                            className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
+                            title="Confirm label"
+                          >
+                            <i className="fas fa-check text-[10px]"></i>
+                          </button>
+                        </div>
+                      ))}
+                      <div className="mt-2 pt-2 border-t border-slate-200">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Add label...</div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={newLabelName}
+                            onChange={(e) => setNewLabelName(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                            placeholder="Label name"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void createLabel()}
+                            disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
+                            className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
+                            title="Add label"
+                          >
+                            <i className="fas fa-check text-xs"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+          </div>
+
+          <div style={{ marginTop:0 }} className={`fixed inset-0 z-[80] min-[501px]:hidden transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <div className="absolute inset-0 bg-slate-900/35" onClick={() => setIsFilterPanelOpen(false)}></div>
+            <aside className={`absolute right-0 top-0 bottom-0 w-[88%] max-w-[360px] bg-white shadow-2xl overflow-y-auto transition-transform duration-300 ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(false)}
+                className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+              <div className="p-5 pt-14">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-700">Filters</h3>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Filter</div>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'all', label: t.filterAll },
+                        ...(activeTab === 'event' ? [
+                          { value: 'closed', label: t.filterResolved },
+                          { value: 'open', label: t.filterUnresolved },
+                          { value: 'outdated', label: t.filterOverdue },
+                          { value: 'in_time', label: t.filterInTime }
+                        ] : []),
+                        { value: 'normal', label: t.filterNormal },
+                        { value: 'low', label: t.filterLow },
+                        { value: 'high', label: t.filterHigh }
+                      ].map(opt => (
+                        <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="radio"
+                            name="mobile-filter-mode"
+                            checked={filterModeByType[activeTab] === (opt.value as FilterMode)}
+                            onChange={() => setFilterModeByType(prev => ({ ...prev, [activeTab]: opt.value as FilterMode }))}
+                            className="h-4 w-4"
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {activeTab === 'event' && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Labels</div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="radio"
+                            name="mobile-label-filter"
+                            checked={labelFilter === 'all'}
+                            onChange={() => setLabelFilter('all')}
+                            className="h-4 w-4"
+                          />
+                          <span>All labels</span>
+                        </label>
+                        {labels.map(label => (
+                          <div key={label.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="radio"
+                              name="mobile-label-filter"
+                              checked={labelFilter === `label:${label.id}`}
+                              onChange={() => setLabelFilter(`label:${label.id}`)}
+                              className="h-4 w-4"
+                            />
+                            {editingLabelId === label.id ? (
+                              <input
+                                value={editingLabelName}
+                                onChange={(e) => setEditingLabelName(e.target.value)}
+                                className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700"
+                              />
+                            ) : (
+                              <span className="flex-1">{label.name}</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void deleteLabel(label.id)}
+                              disabled={labelBusyId === label.id}
+                              className="h-7 w-7 inline-flex items-center justify-center text-slate-500"
+                              title="Delete label"
+                            >
+                              <i className="fas fa-trash text-[11px]"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditLabel(label)}
+                              disabled={labelBusyId === label.id}
+                              className="h-7 w-7 inline-flex items-center justify-center text-slate-500"
+                              title="Edit label"
+                            >
+                              <i className="fas fa-pen text-[11px]"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditLabel()}
+                              disabled={editingLabelId !== label.id || labelBusyId === label.id}
+                              className="h-7 w-7 inline-flex items-center justify-center text-blue-600 disabled:opacity-40"
+                              title="Confirm label"
+                            >
+                              <i className="fas fa-check text-[11px]"></i>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4">
+                        <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Add label...</div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={newLabelName}
+                            onChange={(e) => setNewLabelName(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                            placeholder="Label name"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void createLabel()}
+                            disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
+                            className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
+                            title="Add label"
+                          >
+                            <i className="fas fa-check text-xs"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </aside>
           </div>
 
 
@@ -1609,6 +2005,24 @@ const App: React.FC = () => {
                                 </select>
                                 <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
                               </div>
+                              {item.type === 'event' && (
+                                <div className="flex items-center gap-2 px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full">
+                                  <i className="fas fa-tag text-[10px] opacity-60"></i>
+                                  <select
+                                    value={item.labelId || ''}
+                                    onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 text-[12px]"
+                                  >
+                                    <option value="">No label</option>
+                                    {labels.map(label => (
+                                      <option key={label.id} value={label.id}>
+                                        {label.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
+                                </div>
+                              )}
                               {item.type === 'event' && isItemOverdue(item) && (
                                 <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[450px]:w-full">
                                   {t.outdated}
@@ -1792,7 +2206,7 @@ const App: React.FC = () => {
                 )}
                 <button
                   onClick={saveModal}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+                  className="text-blue-600 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
                 >
                   {t.save}
                 </button>

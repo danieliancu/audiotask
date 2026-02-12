@@ -9,6 +9,7 @@ type DbTodoRow = {
   user_id: number;
   title: string | null;
   text: string;
+  label_id: number | null;
   completed: number | boolean;
   created_at: number;
   due_date: string | null;
@@ -25,6 +26,7 @@ const mapRow = (row: DbTodoRow) => ({
   id: String(row.id),
   title: row.title ?? undefined,
   text: row.text,
+  labelId: row.label_id ? String(row.label_id) : undefined,
   completed: Boolean(row.completed),
   createdAt: Number(row.created_at),
   dueDate: row.due_date ?? undefined,
@@ -62,6 +64,14 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
+  let labelId: number | null = null;
+  if (body.labelId !== undefined && body.labelId !== null && String(body.labelId).trim() !== '') {
+    const parsed = Number(body.labelId);
+    if (!Number.isNaN(parsed)) {
+      const [labelRows] = await pool.query('SELECT id FROM labels WHERE id = ? AND user_id = ? LIMIT 1', [parsed, userId]);
+      if ((labelRows as Array<{ id: number }>).length > 0) labelId = parsed;
+    }
+  }
   const payload = {
     title: body.title ? String(body.title).trim() : null,
     text: String(body.text || '').trim(),
@@ -73,7 +83,8 @@ export async function POST(request: Request) {
     sortTimestamp: Number(body.sortTimestamp) || Date.now(),
     type: body.type === 'event' ? 'event' : 'task',
     priority: body.priority === 'high' ? 'high' : body.priority === 'low' ? 'low' : 'normal',
-    subtasks: Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null
+    subtasks: Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null,
+    labelId
   };
 
   const type = body.type === 'event' ? 'event' : 'task';
@@ -85,11 +96,12 @@ export async function POST(request: Request) {
   }
 
   const [result] = await pool.query(
-    'INSERT INTO todos (user_id, title, text, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO todos (user_id, title, text, label_id, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       userId,
       payload.title,
       payload.text,
+      payload.labelId,
       payload.completed,
       payload.createdAt,
       payload.dueDate,

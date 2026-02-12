@@ -32,6 +32,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (body.location !== undefined) pushField('location', body.location ?? null);
   if (body.sortTimestamp !== undefined) pushField('sort_timestamp', Number(body.sortTimestamp));
   if (body.type !== undefined) pushField('type', body.type === 'event' ? 'event' : 'task');
+  if (body.labelId !== undefined) {
+    let labelId: number | null = null;
+    if (body.labelId !== null && String(body.labelId).trim() !== '') {
+      const parsed = Number(body.labelId);
+      if (!Number.isNaN(parsed)) {
+        const [rows] = await pool.query('SELECT id FROM labels WHERE id = ? AND user_id = ? LIMIT 1', [parsed, userId]);
+        if ((rows as Array<{ id: number }>).length > 0) labelId = parsed;
+      }
+    }
+    pushField('label_id', labelId);
+  }
   if (body.priority !== undefined) {
     const priority = body.priority === 'high' ? 'high' : body.priority === 'low' ? 'low' : 'normal';
     pushField('priority', priority);
@@ -60,6 +71,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     id: String(item.id),
     title: item.title ?? undefined,
     text: item.text,
+    labelId: item.label_id ? String(item.label_id) : undefined,
     completed: Boolean(item.completed),
     createdAt: Number(item.created_at),
     dueDate: item.due_date ?? undefined,

@@ -18,6 +18,8 @@ type TrashCopy = {
   title: string;
   notes: string;
   tasks: string;
+  all: string;
+  deleteAll: string;
   loginRequired: string;
   login: string;
   empty: string;
@@ -25,6 +27,7 @@ type TrashCopy = {
   deleteForever: string;
   deletedAt: string;
   confirmDelete: string;
+  confirmDeleteAll: string;
 };
 
 const translations: Record<Language, TrashCopy> = {
@@ -40,53 +43,62 @@ const translations: Record<Language, TrashCopy> = {
     title: 'Trash',
     notes: 'Notes',
     tasks: 'Tasks',
+    all: 'All',
+    deleteAll: 'Delete all',
     loginRequired: 'You need to log in.',
     login: 'Login',
     empty: 'Trash is empty.',
     restore: 'Restore',
     deleteForever: 'Delete forever',
     deletedAt: 'Deleted',
-    confirmDelete: 'Delete this item permanently?'
+    confirmDelete: 'Delete this item permanently?',
+    confirmDeleteAll: 'Delete all items permanently from trash?'
   },
   ro: {
     appTitle: 'VoiceTask',
-    menuHome: 'Acasă',
-    menuFeatures: 'Funcționalități',
-    menuPricing: 'Prețuri',
+    menuHome: 'Acasa',
+    menuFeatures: 'Functionalitati',
+    menuPricing: 'Preturi',
     menuBlog: 'Blog',
-    menuTrash: 'Coș',
+    menuTrash: 'Cos',
     languages: 'Limbi',
-    close: 'Închide',
-    title: 'Coș de gunoi',
-    notes: 'Notite',
-    tasks: 'Taskuri',
-    loginRequired: 'Trebuie să te loghezi.',
+    close: 'Inchide',
+    title: 'Trash',
+    notes: 'Notes',
+    tasks: 'Tasks',
+    all: 'All',
+    deleteAll: 'Delete all',
+    loginRequired: 'Trebuie sa te loghezi.',
     login: 'Login',
-    empty: 'Coșul este gol.',
+    empty: 'Cosul este gol.',
     restore: 'Restore',
-    deleteForever: 'Șterge definitiv',
-    deletedAt: 'Șters la',
-    confirmDelete: 'Ștergi definitiv acest element?'
+    deleteForever: 'Delete forever',
+    deletedAt: 'Deleted',
+    confirmDelete: 'Stergi definitiv acest element?',
+    confirmDeleteAll: 'Stergi definitiv toate elementele din cos?'
   },
   fr: {
     appTitle: 'VoiceTask',
     menuHome: 'Accueil',
-    menuFeatures: 'Fonctionnalités',
+    menuFeatures: 'Fonctionnalites',
     menuPricing: 'Tarifs',
     menuBlog: 'Blog',
     menuTrash: 'Corbeille',
     languages: 'Langues',
     close: 'Fermer',
-    title: 'Corbeille',
+    title: 'Trash',
     notes: 'Notes',
-    tasks: 'Tâches',
+    tasks: 'Tasks',
+    all: 'All',
+    deleteAll: 'Delete all',
     loginRequired: 'Vous devez vous connecter.',
     login: 'Connexion',
     empty: 'La corbeille est vide.',
-    restore: 'Restaurer',
-    deleteForever: 'Supprimer définitivement',
-    deletedAt: 'Supprimé',
-    confirmDelete: 'Supprimer définitivement cet élément ?'
+    restore: 'Restore',
+    deleteForever: 'Delete forever',
+    deletedAt: 'Deleted',
+    confirmDelete: 'Supprimer definitivement cet element ?',
+    confirmDeleteAll: 'Supprimer definitivement tous les elements de la corbeille ?'
   },
   de: {
     appTitle: 'VoiceTask',
@@ -96,17 +108,20 @@ const translations: Record<Language, TrashCopy> = {
     menuBlog: 'Blog',
     menuTrash: 'Papierkorb',
     languages: 'Sprachen',
-    close: 'Schließen',
-    title: 'Papierkorb',
-    notes: 'Notizen',
-    tasks: 'Aufgaben',
+    close: 'Schliessen',
+    title: 'Trash',
+    notes: 'Notes',
+    tasks: 'Tasks',
+    all: 'All',
+    deleteAll: 'Delete all',
     loginRequired: 'Bitte einloggen.',
     login: 'Login',
     empty: 'Papierkorb ist leer.',
-    restore: 'Wiederherstellen',
-    deleteForever: 'Endgültig löschen',
-    deletedAt: 'Gelöscht',
-    confirmDelete: 'Dieses Element dauerhaft löschen?'
+    restore: 'Restore',
+    deleteForever: 'Delete forever',
+    deletedAt: 'Deleted',
+    confirmDelete: 'Dieses Element dauerhaft loeschen?',
+    confirmDeleteAll: 'Alle Elemente im Papierkorb dauerhaft loeschen?'
   },
   es: {
     appTitle: 'VoiceTask',
@@ -117,33 +132,36 @@ const translations: Record<Language, TrashCopy> = {
     menuTrash: 'Papelera',
     languages: 'Idiomas',
     close: 'Cerrar',
-    title: 'Papelera',
-    notes: 'Notas',
-    tasks: 'Tareas',
-    loginRequired: 'Necesitas iniciar sesión.',
+    title: 'Trash',
+    notes: 'Notes',
+    tasks: 'Tasks',
+    all: 'All',
+    deleteAll: 'Delete all',
+    loginRequired: 'Necesitas iniciar sesion.',
     login: 'Login',
-    empty: 'La papelera está vacía.',
-    restore: 'Restaurar',
-    deleteForever: 'Eliminar definitivamente',
-    deletedAt: 'Eliminado',
-    confirmDelete: '¿Eliminar este elemento definitivamente?'
+    empty: 'La papelera esta vacia.',
+    restore: 'Restore',
+    deleteForever: 'Delete forever',
+    deletedAt: 'Deleted',
+    confirmDelete: 'Eliminar este elemento definitivamente?',
+    confirmDeleteAll: 'Eliminar definitivamente todos los elementos de la papelera?'
   }
 };
 
 const languageNames: Record<Language, string> = {
   en: 'English',
-  ro: 'Română',
-  fr: 'Français',
+  ro: 'Romana',
+  fr: 'Francais',
   de: 'Deutsch',
-  es: 'Español'
+  es: 'Espanol'
 };
 
 const languageFlags: Record<Language, string> = {
-  en: '🇺🇸',
-  ro: '🇷🇴',
-  fr: '🇫🇷',
-  de: '🇩🇪',
-  es: '🇪🇸'
+  en: 'US',
+  ro: 'RO',
+  fr: 'FR',
+  de: 'DE',
+  es: 'ES'
 };
 
 export default function TrashPage() {
@@ -154,15 +172,9 @@ export default function TrashPage() {
   const [filterType, setFilterType] = useState<'all' | 'task' | 'event'>('all');
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const t = useMemo(() => translations[pageLanguage], [pageLanguage]);
   const getTypeLabel = (type: TodoItem['type']) => (type === 'task' ? t.notes : t.tasks);
-  const allLabel = useMemo(() => {
-    if (pageLanguage === 'ro') return 'Toate';
-    if (pageLanguage === 'fr') return 'Tout';
-    if (pageLanguage === 'de') return 'Alle';
-    if (pageLanguage === 'es') return 'Todo';
-    return 'All';
-  }, [pageLanguage]);
   const filteredItems = useMemo(
     () => (filterType === 'all' ? items : items.filter(item => item.type === filterType)),
     [items, filterType]
@@ -230,6 +242,17 @@ export default function TrashPage() {
     }
   };
 
+  const deleteAll = async () => {
+    if (!confirm(t.confirmDeleteAll)) return;
+    setIsDeletingAll(true);
+    const res = await fetch('/api/todos/trash', { method: 'DELETE', credentials: 'include' });
+    setIsDeletingAll(false);
+    if (res.ok) {
+      loadTrash();
+      window.dispatchEvent(new Event('trash-count-refresh'));
+    }
+  };
+
   if (!session?.user?.id) {
     return (
       <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
@@ -270,43 +293,52 @@ export default function TrashPage() {
       />
 
       <div className="mx-auto max-w-4xl px-6 space-y-5">
-        <h1 className="text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
-        <div className="flex items-center gap-2">
+        <h1 className="text-[32px] md:text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setFilterType('all')}
-            className={`rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
-            {allLabel}
+            {t.all}
           </button>
           <button
             onClick={() => setFilterType('task')}
-            className={`rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${filterType === 'task' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'task' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
             {t.notes}
           </button>
           <button
             onClick={() => setFilterType('event')}
-            className={`rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${filterType === 'event' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'event' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
             {t.tasks}
           </button>
+          <button
+            onClick={deleteAll}
+            disabled={isDeletingAll || items.length === 0}
+            className="rounded-full bg-red-600 px-5 py-2.5 text-[13px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+          >
+            {t.deleteAll}
+          </button>
         </div>
+
         {loading ? (
           <p className="text-sm font-semibold text-slate-500">...</p>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-sm font-semibold text-slate-500 shadow-sm">
+          <div className="rounded-[28px] border border-slate-300 bg-slate-100 p-8 text-sm font-semibold text-slate-500 shadow-sm">
             {t.empty}
           </div>
         ) : (
           <div className="space-y-3">
             {filteredItems.map(item => (
-              <div key={item.id} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
+              <div key={item.id} className="rounded-[28px] border border-slate-300 bg-slate-100 p-6 shadow-sm">
+                <div className="flex flex-col gap-4">
                   <div className="space-y-2">
                     <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
                       #{item.id} • {getTypeLabel(item.type)}
                     </div>
-                    <p className="text-base font-bold text-slate-800">{item.title || item.text}</p>
+                    <p className="text-base font-bold text-slate-800 leading-tight">{item.title || item.text}</p>
                     {item.title && item.text && (
                       <p className="text-sm font-semibold text-slate-600 whitespace-pre-wrap">{item.text}</p>
                     )}
@@ -318,14 +350,14 @@ export default function TrashPage() {
                     <button
                       onClick={() => restoreItem(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[14px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                     >
                       {t.restore}
                     </button>
                     <button
                       onClick={() => deleteForever(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-xl bg-red-600 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-xl bg-red-600 px-4 py-2.5 text-[14px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                     >
                       {t.deleteForever}
                     </button>
