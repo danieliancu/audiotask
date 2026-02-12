@@ -63,17 +63,17 @@ const translations: Record<Language, TrashCopy> = {
     menuTrash: 'Cos',
     languages: 'Limbi',
     close: 'Inchide',
-    title: 'Trash',
-    notes: 'Notes',
-    tasks: 'Tasks',
-    all: 'All',
-    deleteAll: 'Delete all',
+    title: 'Cos',
+    notes: 'Notite',
+    tasks: 'Taskuri',
+    all: 'Toate',
+    deleteAll: 'Sterge tot',
     loginRequired: 'Trebuie sa te loghezi.',
     login: 'Login',
     empty: 'Cosul este gol.',
-    restore: 'Restore',
-    deleteForever: 'Delete forever',
-    deletedAt: 'Deleted',
+    restore: 'Restaureaza',
+    deleteForever: 'Sterge definitiv',
+    deletedAt: 'Sters',
     confirmDelete: 'Stergi definitiv acest element?',
     confirmDeleteAll: 'Stergi definitiv toate elementele din cos?'
   },
@@ -86,17 +86,17 @@ const translations: Record<Language, TrashCopy> = {
     menuTrash: 'Corbeille',
     languages: 'Langues',
     close: 'Fermer',
-    title: 'Trash',
+    title: 'Corbeille',
     notes: 'Notes',
-    tasks: 'Tasks',
-    all: 'All',
-    deleteAll: 'Delete all',
+    tasks: 'Taches',
+    all: 'Tout',
+    deleteAll: 'Tout supprimer',
     loginRequired: 'Vous devez vous connecter.',
     login: 'Connexion',
     empty: 'La corbeille est vide.',
-    restore: 'Restore',
-    deleteForever: 'Delete forever',
-    deletedAt: 'Deleted',
+    restore: 'Restaurer',
+    deleteForever: 'Supprimer definitivement',
+    deletedAt: 'Supprime',
     confirmDelete: 'Supprimer definitivement cet element ?',
     confirmDeleteAll: 'Supprimer definitivement tous les elements de la corbeille ?'
   },
@@ -109,17 +109,17 @@ const translations: Record<Language, TrashCopy> = {
     menuTrash: 'Papierkorb',
     languages: 'Sprachen',
     close: 'Schliessen',
-    title: 'Trash',
-    notes: 'Notes',
-    tasks: 'Tasks',
-    all: 'All',
-    deleteAll: 'Delete all',
+    title: 'Papierkorb',
+    notes: 'Notizen',
+    tasks: 'Aufgaben',
+    all: 'Alle',
+    deleteAll: 'Alles loeschen',
     loginRequired: 'Bitte einloggen.',
     login: 'Login',
     empty: 'Papierkorb ist leer.',
-    restore: 'Restore',
-    deleteForever: 'Delete forever',
-    deletedAt: 'Deleted',
+    restore: 'Wiederherstellen',
+    deleteForever: 'Endgueltig loeschen',
+    deletedAt: 'Geloescht',
     confirmDelete: 'Dieses Element dauerhaft loeschen?',
     confirmDeleteAll: 'Alle Elemente im Papierkorb dauerhaft loeschen?'
   },
@@ -132,17 +132,17 @@ const translations: Record<Language, TrashCopy> = {
     menuTrash: 'Papelera',
     languages: 'Idiomas',
     close: 'Cerrar',
-    title: 'Trash',
-    notes: 'Notes',
-    tasks: 'Tasks',
-    all: 'All',
-    deleteAll: 'Delete all',
+    title: 'Papelera',
+    notes: 'Notas',
+    tasks: 'Tareas',
+    all: 'Todo',
+    deleteAll: 'Eliminar todo',
     loginRequired: 'Necesitas iniciar sesion.',
     login: 'Login',
     empty: 'La papelera esta vacia.',
-    restore: 'Restore',
-    deleteForever: 'Delete forever',
-    deletedAt: 'Deleted',
+    restore: 'Restaurar',
+    deleteForever: 'Eliminar definitivamente',
+    deletedAt: 'Eliminado',
     confirmDelete: 'Eliminar este elemento definitivamente?',
     confirmDeleteAll: 'Eliminar definitivamente todos los elementos de la papelera?'
   }
@@ -287,7 +287,7 @@ export default function TrashPage() {
         <div className="mx-auto max-w-lg px-6 text-center space-y-4">
           <h1 className="text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
           <p className="text-sm font-semibold text-slate-500">{t.loginRequired}</p>
-          <Link href="/auth" className="inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
+          <Link href="/auth" className="inline-flex rounded-full bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
             {t.login}
           </Link>
         </div>
@@ -315,26 +315,26 @@ export default function TrashPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setFilterType('all')}
-            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
             {t.all}
           </button>
           <button
             onClick={() => setFilterType('task')}
-            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'task' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'task' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
             {t.notes}
           </button>
           <button
             onClick={() => setFilterType('event')}
-            className={`rounded-full px-5 py-2.5 text-[13px] font-black uppercase tracking-widest ${filterType === 'event' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'event' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
           >
             {t.tasks}
           </button>
           <button
             onClick={deleteAll}
             disabled={isDeletingAll || items.length === 0}
-            className="rounded-full bg-red-600 px-5 py-2.5 text-[13px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+            className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
           >
             {t.deleteAll}
           </button>
@@ -367,14 +367,14 @@ export default function TrashPage() {
                     <button
                       onClick={() => restoreItem(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[14px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-full bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                     >
                       {t.restore}
                     </button>
                     <button
                       onClick={() => deleteForever(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-xl bg-red-600 px-4 py-2.5 text-[14px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                     >
                       {t.deleteForever}
                     </button>

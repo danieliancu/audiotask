@@ -8,7 +8,8 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 
-type FilterMode = 'all' | 'low' | 'normal' | 'high' | 'closed' | 'open' | 'outdated' | 'in_time';
+type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
+type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
 type LabelFilter = 'all' | `label:${string}`;
 type ItemLabel = { id: string; name: string };
 
@@ -32,6 +33,7 @@ const translations = {
     timeLabel: "Time",
     searchPlaceholder: "Search tasks or say a command...",
     filterAll: "All tasks",
+    filterAllPriorities: "All priorities",
     filterResolved: "Checked",
     filterUnresolved: "Active",
     filterOverdue: "Overdue",
@@ -39,6 +41,10 @@ const translations = {
     filterLow: "Low priority",
     filterNormal: "Normal priority",
     filterHigh: "High priority",
+    labelsTitle: "Labels",
+    allLabels: "All labels",
+    addLabel: "Add label...",
+    labelNamePlaceholder: "Label name",
     prioLow: "Low",
     prioNormal: "Normal",
     prioHigh: "High",
@@ -74,6 +80,7 @@ const translations = {
     timeLabel: "Ora",
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
     filterAll: "Toate taskurile",
+    filterAllPriorities: "Toate prioritatile",
     filterResolved: "Bifate",
     filterUnresolved: "Active",
     filterOverdue: "Depășite",
@@ -81,6 +88,10 @@ const translations = {
     filterLow: "Prioritate mică",
     filterNormal: "Prioritate normală",
     filterHigh: "Prioritate mare",
+    labelsTitle: "Etichete",
+    allLabels: "Toate etichetele",
+    addLabel: "Adaugă etichetă...",
+    labelNamePlaceholder: "Nume etichetă",
     prioLow: "Mică",
     prioNormal: "Normală",
     prioHigh: "Mare",
@@ -116,6 +127,7 @@ const translations = {
     timeLabel: "Heure",
     searchPlaceholder: "Rechercher ou parler...",
     filterAll: "Toutes les tâches",
+    filterAllPriorities: "Toutes les priorités",
     filterResolved: "Cochées",
     filterUnresolved: "Actives",
     filterOverdue: "En retard",
@@ -123,6 +135,10 @@ const translations = {
     filterLow: "Basse priorité",
     filterNormal: "Priorité normale",
     filterHigh: "Haute priorité",
+    labelsTitle: "Étiquettes",
+    allLabels: "Toutes les étiquettes",
+    addLabel: "Ajouter une étiquette...",
+    labelNamePlaceholder: "Nom de l'étiquette",
     prioLow: "Basse",
     prioNormal: "Normale",
     prioHigh: "Haute",
@@ -158,6 +174,7 @@ const translations = {
     timeLabel: "Uhrzeit",
     searchPlaceholder: "Suchen oder Befehl sagen...",
     filterAll: "Alle Aufgaben",
+    filterAllPriorities: "Alle Prioritäten",
     filterResolved: "Abgehakt",
     filterUnresolved: "Aktiv",
     filterOverdue: "Überfällig",
@@ -165,6 +182,10 @@ const translations = {
     filterLow: "Niedrig",
     filterNormal: "Normal",
     filterHigh: "Hoch",
+    labelsTitle: "Labels",
+    allLabels: "Alle Labels",
+    addLabel: "Label hinzufügen...",
+    labelNamePlaceholder: "Labelname",
     prioLow: "Niedrig",
     prioNormal: "Normal",
     prioHigh: "Hoch",
@@ -200,6 +221,7 @@ const translations = {
     timeLabel: "Hora",
     searchPlaceholder: "Buscar tareas o decir un comando...",
     filterAll: "Todas las tareas",
+    filterAllPriorities: "Todas las prioridades",
     filterResolved: "Marcadas",
     filterUnresolved: "Activas",
     filterOverdue: "Vencidas",
@@ -207,6 +229,10 @@ const translations = {
     filterLow: "Baja",
     filterNormal: "Normal",
     filterHigh: "Alta",
+    labelsTitle: "Etiquetas",
+    allLabels: "Todas las etiquetas",
+    addLabel: "Añadir etiqueta...",
+    labelNamePlaceholder: "Nombre de etiqueta",
     prioLow: "Baja",
     prioNormal: "Normal",
     prioHigh: "Alta",
@@ -471,6 +497,38 @@ function normalizeDueTime(value: unknown): string | undefined {
   return undefined;
 }
 
+const isStatusFilter = (value: string): value is StatusFilter => (
+  ['all', 'closed', 'open', 'outdated', 'in_time'].includes(value)
+);
+
+const isPriorityFilterMode = (value: string): value is PriorityFilterMode => (
+  ['all', 'low', 'normal', 'high'].includes(value)
+);
+
+const parseCombinedFilter = (
+  rawValue: unknown,
+  isEvent: boolean
+): { status: StatusFilter; priority: PriorityFilterMode } => {
+  const raw = String(rawValue || 'all').trim().toLowerCase();
+  if (raw.includes('|')) {
+    const [rawStatus, rawPriority] = raw.split('|');
+    const status = isStatusFilter(rawStatus) ? rawStatus : 'all';
+    const priority = isPriorityFilterMode(rawPriority) ? rawPriority : 'all';
+    return {
+      status: isEvent ? status : 'all',
+      priority
+    };
+  }
+
+  if (raw === 'resolved') return { status: isEvent ? 'closed' : 'all', priority: 'all' as PriorityFilterMode };
+  if (raw === 'unresolved') return { status: isEvent ? 'open' : 'all', priority: 'all' as PriorityFilterMode };
+  if (isStatusFilter(raw)) return { status: isEvent ? raw : 'all', priority: 'all' as PriorityFilterMode };
+  if (isPriorityFilterMode(raw)) return { status: 'all' as StatusFilter, priority: raw };
+  return { status: 'all' as StatusFilter, priority: 'all' as PriorityFilterMode };
+};
+
+const buildCombinedFilter = (status: StatusFilter, priority: PriorityFilterMode) => `${status}|${priority}`;
+
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
@@ -486,7 +544,11 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<ItemType>('task');
   const [showSubtasksDefault, setShowSubtasksDefault] = useState(false);
-  const [filterModeByType, setFilterModeByType] = useState<Record<ItemType, FilterMode>>({
+  const [statusFilterByType, setStatusFilterByType] = useState<Record<ItemType, StatusFilter>>({
+    task: 'all',
+    event: 'all'
+  });
+  const [priorityFilterByType, setPriorityFilterByType] = useState<Record<ItemType, PriorityFilterMode>>({
     task: 'all',
     event: 'all'
   });
@@ -516,8 +578,10 @@ const App: React.FC = () => {
   const labelsRef = useRef<ItemLabel[]>([]);
   const [labelFilter, setLabelFilter] = useState<LabelFilter>('all');
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const labelMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelName, setEditingLabelName] = useState('');
@@ -608,16 +672,19 @@ const App: React.FC = () => {
   }, [labels]);
 
   useEffect(() => {
-    if (!isLabelMenuOpen) return;
+    if (!isLabelMenuOpen && !isFilterMenuOpen) return;
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (labelMenuRef.current && !labelMenuRef.current.contains(target)) {
         setIsLabelMenuOpen(false);
       }
+      if (filterMenuRef.current && !filterMenuRef.current.contains(target)) {
+        setIsFilterMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [isLabelMenuOpen]);
+  }, [isLabelMenuOpen, isFilterMenuOpen]);
 
   useEffect(() => {
     if (!userId) return;
@@ -632,15 +699,8 @@ const App: React.FC = () => {
         const nextLanguage = persistedLanguage || defaultLanguage || 'en';
         const nextActiveTab = (defaultActiveTab || (data.activeTab === 'event' ? 'event' : 'task')) as ItemType;
         const nextDates = Array.isArray(data.activeDateFilters) ? data.activeDateFilters : [];
-        const nextFilterTask = ['all', 'low', 'normal', 'high'].includes(data.filterTask) ? data.filterTask : 'all';
-        const nextFilterEventRaw = String(data.filterEvent || 'all');
-        const nextFilterEvent = nextFilterEventRaw === 'resolved'
-          ? 'closed'
-          : nextFilterEventRaw === 'unresolved'
-            ? 'open'
-            : ['all', 'low', 'normal', 'high', 'closed', 'open', 'outdated', 'in_time'].includes(nextFilterEventRaw)
-              ? nextFilterEventRaw
-              : 'all';
+        const nextTaskFilters = parseCombinedFilter(data.filterTask, false);
+        const nextEventFilters = parseCombinedFilter(data.filterEvent, true);
         const monthStr = typeof data.calendarMonth === 'string' ? data.calendarMonth : '';
         const monthMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
         const nextMonth = monthMatch
@@ -650,7 +710,8 @@ const App: React.FC = () => {
         setLanguage(nextLanguage as Language);
         setActiveTab(nextActiveTab as ItemType);
         setActiveDateFilters(nextDates);
-        setFilterModeByType({ task: nextFilterTask as FilterMode, event: nextFilterEvent as FilterMode });
+        setStatusFilterByType({ task: nextTaskFilters.status, event: nextEventFilters.status });
+        setPriorityFilterByType({ task: nextTaskFilters.priority, event: nextEventFilters.priority });
         setCurrentDate(nextMonth);
         setShowSubtasksDefault(nextShowSubtasksDefault);
         settingsLoadedRef.current = true;
@@ -670,13 +731,13 @@ const App: React.FC = () => {
           activeTab,
           language,
           activeDateFilters,
-          filterTask: filterModeByType.task,
-          filterEvent: filterModeByType.event,
+          filterTask: buildCombinedFilter(statusFilterByType.task, priorityFilterByType.task),
+          filterEvent: buildCombinedFilter(statusFilterByType.event, priorityFilterByType.event),
           calendarMonth: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
         })
       }).catch(() => {});
     }, 500);
-  }, [userId, activeTab, language, activeDateFilters, filterModeByType, currentDate]);
+  }, [userId, activeTab, language, activeDateFilters, statusFilterByType, priorityFilterByType, currentDate]);
 
   useEffect(() => {
     if (!userId) return;
@@ -705,6 +766,38 @@ const App: React.FC = () => {
 
   const taskCount = useMemo(() => todos.filter(item => item.type === 'task').length, [todos]);
   const eventCount = useMemo(() => todos.filter(item => item.type === 'event').length, [todos]);
+  const filteredEventCount = useMemo(() => {
+    const statusFilter = statusFilterByType.event;
+    const priorityFilter = priorityFilterByType.event;
+    const dateFilterSet = new Set(activeDateFilters);
+    return todos
+      .filter(item => item.type === 'event')
+      .filter(item => {
+        if (!activeDateFilters.length) return true;
+        const d = new Date(item.sortTimestamp);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        return dateFilterSet.has(key);
+      })
+      .filter(item => {
+        if (labelFilter === 'all') return true;
+        if (labelFilter.startsWith('label:')) return item.labelId === labelFilter.slice(6);
+        return true;
+      })
+      .filter(item => {
+        if (statusFilter === 'closed') return item.completed;
+        if (statusFilter === 'open') return !item.completed;
+        if (statusFilter === 'outdated') return isItemOverdue(item);
+        if (statusFilter === 'in_time') return !item.completed && !isItemOverdue(item);
+        return true;
+      })
+      .filter(item => {
+        if (priorityFilter === 'low') return item.priority === 'low';
+        if (priorityFilter === 'normal') return item.priority === 'normal';
+        if (priorityFilter === 'high') return item.priority === 'high';
+        return true;
+      })
+      .length;
+  }, [todos, statusFilterByType.event, priorityFilterByType.event, activeDateFilters, labelFilter]);
   const totalCount = useMemo(() => taskCount + eventCount, [taskCount, eventCount]);
 
   const activeDateFilterSet = useMemo(() => new Set(activeDateFilters), [activeDateFilters]);
@@ -729,7 +822,8 @@ const App: React.FC = () => {
   }, [activeDateFilters]);
 
   const filteredItems = useMemo(() => {
-    const filterMode = filterModeByType[activeTab];
+    const statusFilter = statusFilterByType[activeTab];
+    const priorityFilter = priorityFilterByType[activeTab];
     let base = todos.filter(item => item.type === activeTab);
     
     // Date filter applies only to tasks (former events)
@@ -749,16 +843,18 @@ const App: React.FC = () => {
         return true;
       })
       .filter(item => {
+        let statusMatches = true;
         if (activeTab === 'event') {
-          if (filterMode === 'closed') return item.completed;
-          if (filterMode === 'open') return !item.completed;
-          if (filterMode === 'outdated') return isItemOverdue(item);
-          if (filterMode === 'in_time') return !item.completed && !isItemOverdue(item);
+          if (statusFilter === 'closed') statusMatches = item.completed;
+          else if (statusFilter === 'open') statusMatches = !item.completed;
+          else if (statusFilter === 'outdated') statusMatches = isItemOverdue(item);
+          else if (statusFilter === 'in_time') statusMatches = !item.completed && !isItemOverdue(item);
         }
-        if (filterMode === 'low') return item.priority === 'low';
-        if (filterMode === 'normal') return item.priority === 'normal';
-        if (filterMode === 'high') return item.priority === 'high';
-        return true;
+        let priorityMatches = true;
+        if (priorityFilter === 'low') priorityMatches = item.priority === 'low';
+        else if (priorityFilter === 'normal') priorityMatches = item.priority === 'normal';
+        else if (priorityFilter === 'high') priorityMatches = item.priority === 'high';
+        return statusMatches && priorityMatches;
       })
       .sort((a, b) => {
         if (activeTab === 'task') {
@@ -769,7 +865,7 @@ const App: React.FC = () => {
         if (aTime !== bTime) return aTime - bTime;
         return String(a.id).localeCompare(String(b.id));
       });
-  }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet, labelFilter]);
+  }, [todos, activeTab, statusFilterByType, priorityFilterByType, activeDateFilters, activeDateFilterSet, labelFilter]);
 
   const groupedItems = useMemo(() => {
     if (activeTab === 'task') {
@@ -1548,20 +1644,44 @@ const App: React.FC = () => {
   };
   const formTypeLabel = formType === 'task' ? 'Note' : 'Task';
   const activeFilterLabel = (() => {
-    const mode = filterModeByType[activeTab];
-    if (mode === 'all') return t.filterAll;
-    if (mode === 'low') return t.filterLow;
-    if (mode === 'normal') return t.filterNormal;
-    if (mode === 'high') return t.filterHigh;
-    if (mode === 'closed') return t.filterResolved;
-    if (mode === 'open') return t.filterUnresolved;
-    if (mode === 'outdated') return t.filterOverdue;
-    if (mode === 'in_time') return t.filterInTime;
-    return t.filterAll;
+    const statusMode = statusFilterByType[activeTab];
+    const priorityMode = priorityFilterByType[activeTab];
+    if (activeTab === 'task') {
+      if (priorityMode === 'low') return t.prioLow;
+      if (priorityMode === 'normal') return t.prioNormal;
+      if (priorityMode === 'high') return t.prioHigh;
+      return t.filterAllPriorities;
+    }
+    const statusLabel = statusMode === 'closed'
+      ? t.filterResolved
+      : statusMode === 'open'
+        ? t.filterUnresolved
+        : statusMode === 'outdated'
+          ? t.filterOverdue
+          : statusMode === 'in_time'
+            ? t.filterInTime
+            : t.filterAll;
+    const priorityLabel = priorityMode === 'low'
+      ? t.prioLow
+      : priorityMode === 'normal'
+        ? t.prioNormal
+        : priorityMode === 'high'
+          ? t.prioHigh
+          : '';
+    return priorityLabel ? `${statusLabel} + ${priorityLabel}` : statusLabel;
   })();
   const activeLabelLabel = activeTab === 'event'
-    ? (labelFilter === 'all' ? 'All labels' : labelNameById.get(labelFilter.slice(6)) || 'All labels')
+    ? (labelFilter === 'all' ? t.allLabels : labelNameById.get(labelFilter.slice(6)) || t.allLabels)
     : '-';
+  const mobilePriorityLabel = (() => {
+    const priorityMode = priorityFilterByType[activeTab];
+    if (priorityMode === 'all') return '';
+    if (priorityMode === 'low') return t.prioLow;
+    if (priorityMode === 'normal') return t.prioNormal;
+    return t.prioHigh;
+  })();
+  const mobileFilterLine = activeTab === 'task' ? mobilePriorityLabel : activeFilterLabel;
+  const mobileLabelLine = activeTab === 'event' ? activeLabelLabel : '';
 
   return (
     <div className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
@@ -1679,7 +1799,7 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
-          <div className="flex items-end justify-between gap-4 border-b-2 border-slate-100 pb-0 max-[1100px]:flex-wrap">
+          <div className="flex items-end justify-between gap-4 border-b-2 border-slate-100 pb-0 max-[1100px]:flex-wrap items-center">
             <div className="flex items-center gap-6 flex-shrink-0">
               <button onClick={() => setActiveTab('task')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
@@ -1691,7 +1811,7 @@ const App: React.FC = () => {
               <button onClick={() => setActiveTab('event')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.events}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
-                  {eventCount}
+                  {filteredEventCount}
                 </span>
                 {activeTab === 'event' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
@@ -1699,8 +1819,8 @@ const App: React.FC = () => {
 
             <div className="hidden max-[500px]:flex mb-4 items-center gap-3">
               <div className="leading-tight text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">
-                <div className="text-blue-600">{activeFilterLabel}</div>
-                <div className="text-blue-600">{activeLabelLabel}</div>
+                {mobileFilterLine && <div className="text-slate-400">{mobileFilterLine}</div>}
+                {mobileLabelLine && <div className="text-slate-400">{mobileLabelLine}</div>}
               </div>
               <button
                 type="button"
@@ -1713,25 +1833,74 @@ const App: React.FC = () => {
             </div>
 
             <div className="mb-4 flex items-center space-x-2 max-[500px]:hidden flex-wrap justify-end max-[1100px]:w-full max-[1100px]:justify-start">
-              <div className="relative group">
-                <div className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer">
+              <div className="relative" ref={filterMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterMenuOpen(prev => !prev)}
+                  className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
+                >
                   <i className="fas fa-filter text-[10px] text-slate-400 mr-2"></i>
-                  <select 
-                    value={filterModeByType[activeTab]} 
-                    onChange={(e) => setFilterModeByType(prev => ({ ...prev, [activeTab]: e.target.value as FilterMode }))}
-                    className="bg-transparent text-[10px] font-black text-blue-500 tracking-widest appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-2 py-0.5"
-                  >
-                    <option value="all">{t.filterAll}</option>
-                    {activeTab === 'event' && <option value="closed">{t.filterResolved}</option>}
-                    {activeTab === 'event' && <option value="open">{t.filterUnresolved}</option>}
-                    {activeTab === 'event' && <option value="outdated">{t.filterOverdue}</option>}
-                    {activeTab === 'event' && <option value="in_time">{t.filterInTime}</option>}
-                    <option value="normal">{t.filterNormal}</option>
-                    <option value="low">{t.filterLow}</option>
-                    <option value="high">{t.filterHigh}</option>
-                  </select>
+                  <span className="text-[10px] font-black text-blue-500 tracking-widest px-2 py-0.5">{activeFilterLabel}</span>
                   <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
-                </div>
+                </button>
+                {isFilterMenuOpen && (
+                  <div className="absolute mt-2 right-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+                    {activeTab === 'event' && (
+                      <>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Status</div>
+                        <button
+                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'all' }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.filterAll}
+                        </button>
+                        <button
+                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'closed' }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'closed' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.filterResolved}
+                        </button>
+                        <button
+                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'open' }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'open' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.filterUnresolved}
+                        </button>
+                        <button
+                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'outdated' }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'outdated' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.filterOverdue}
+                        </button>
+                        <button
+                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'in_time' }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'in_time' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.filterInTime}
+                        </button>
+                        <div className="mt-2 pt-2 border-t border-slate-200"></div>
+                      </>
+                    )}
+                    <div className={activeTab === 'event' ? '' : 'pt-0'}>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Priority</div>
+                      <button
+                        onClick={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: 'all' }))}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${priorityFilterByType[activeTab] === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {t.filterAllPriorities}
+                      </button>
+                      {(['low', 'normal', 'high'] as const).map(value => (
+                        <button
+                          key={value}
+                          onClick={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: prev[activeTab] === value ? 'all' : value }))}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${priorityFilterByType[activeTab] === value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {value === 'low' ? t.filterLow : value === 'normal' ? t.filterNormal : t.filterHigh}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               {activeTab === 'event' && (
                 <div className="relative" ref={labelMenuRef}>
@@ -1743,8 +1912,8 @@ const App: React.FC = () => {
                     <i className="fas fa-tags text-[10px] text-slate-400 mr-2"></i>
                     <span className="text-[10px] font-black text-blue-500 tracking-widest px-2 py-0.5">
                       {labelFilter === 'all'
-                        ? 'All labels'
-                        : labelNameById.get(labelFilter.slice(6)) || 'All labels'}
+                        ? t.allLabels
+                        : labelNameById.get(labelFilter.slice(6)) || t.allLabels}
                     </span>
                     <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                   </button>
@@ -1754,7 +1923,7 @@ const App: React.FC = () => {
                         onClick={() => { setLabelFilter('all'); setIsLabelMenuOpen(false); }}
                         className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                       >
-                        All labels
+                        {t.allLabels}
                       </button>
                       {labels.map(label => (
                         <div
@@ -1809,20 +1978,20 @@ const App: React.FC = () => {
                         </div>
                       ))}
                       <div className="mt-2 pt-2 border-t border-slate-200">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Add label...</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">{t.addLabel}</div>
                         <div className="flex items-center gap-2">
                           <input
                             value={newLabelName}
                             onChange={(e) => setNewLabelName(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-                            placeholder="Label name"
+                            placeholder={t.labelNamePlaceholder}
                           />
                           <button
                             type="button"
                             onClick={() => void createLabel()}
                             disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
                             className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
-                            title="Add label"
+                            title={t.addLabel}
                           >
                             <i className="fas fa-check text-xs"></i>
                           </button>
@@ -1851,17 +2020,37 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <div>
-                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Filter</div>
-                    <div className="space-y-2">
-                      {[
-                        { value: 'all', label: t.filterAll },
-                        ...(activeTab === 'event' ? [
+                  {activeTab === 'event' && (
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Status</div>
+                      <div className="space-y-2">
+                        {[
+                          { value: 'all', label: t.filterAll },
                           { value: 'closed', label: t.filterResolved },
                           { value: 'open', label: t.filterUnresolved },
                           { value: 'outdated', label: t.filterOverdue },
                           { value: 'in_time', label: t.filterInTime }
-                        ] : []),
+                        ].map(opt => (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="radio"
+                              name="mobile-status-filter"
+                              checked={statusFilterByType[activeTab] === (opt.value as StatusFilter)}
+                              onChange={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: opt.value as StatusFilter }))}
+                              className="h-4 w-4"
+                            />
+                            <span>{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Priority</div>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'all', label: t.filterAllPriorities },
                         { value: 'normal', label: t.filterNormal },
                         { value: 'low', label: t.filterLow },
                         { value: 'high', label: t.filterHigh }
@@ -1869,9 +2058,9 @@ const App: React.FC = () => {
                         <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                           <input
                             type="radio"
-                            name="mobile-filter-mode"
-                            checked={filterModeByType[activeTab] === (opt.value as FilterMode)}
-                            onChange={() => setFilterModeByType(prev => ({ ...prev, [activeTab]: opt.value as FilterMode }))}
+                            name="mobile-priority-filter"
+                            checked={priorityFilterByType[activeTab] === (opt.value as PriorityFilterMode)}
+                            onChange={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: opt.value as PriorityFilterMode }))}
                             className="h-4 w-4"
                           />
                           <span>{opt.label}</span>
@@ -1882,7 +2071,7 @@ const App: React.FC = () => {
 
                   {activeTab === 'event' && (
                     <div className="pt-2 border-t border-slate-100">
-                      <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Labels</div>
+                      <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{t.labelsTitle}</div>
                       <div className="space-y-2">
                         <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                           <input
@@ -1892,7 +2081,7 @@ const App: React.FC = () => {
                             onChange={() => setLabelFilter('all')}
                             className="h-4 w-4"
                           />
-                          <span>All labels</span>
+                          <span>{t.allLabels}</span>
                         </label>
                         {labels.map(label => (
                           <div key={label.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -1943,20 +2132,20 @@ const App: React.FC = () => {
                         ))}
                       </div>
                       <div className="mt-4">
-                        <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Add label...</div>
+                        <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{t.addLabel}</div>
                         <div className="flex items-center gap-2">
                           <input
                             value={newLabelName}
                             onChange={(e) => setNewLabelName(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-                            placeholder="Label name"
+                            placeholder={t.labelNamePlaceholder}
                           />
                           <button
                             type="button"
                             onClick={() => void createLabel()}
                             disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
                             className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
-                            title="Add label"
+                            title={t.addLabel}
                           >
                             <i className="fas fa-check text-xs"></i>
                           </button>

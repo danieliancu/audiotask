@@ -20,12 +20,30 @@ const defaultSettings = {
   activeTab: 'task',
   language: 'en',
   activeDateFilters: [] as string[],
-  filterTask: 'all',
-  filterEvent: 'all',
+  filterTask: 'all|all',
+  filterEvent: 'all|all',
   calendarMonth: '',
   defaultLanguage: '',
   defaultActiveTab: '',
   defaultShowSubtasks: false
+};
+
+const isStatusFilter = (value: string) => ['all', 'closed', 'open', 'outdated', 'in_time'].includes(value);
+const isPriorityFilter = (value: string) => ['all', 'low', 'normal', 'high'].includes(value);
+
+const normalizeCombinedFilter = (rawValue: unknown, isEvent: boolean) => {
+  const raw = String(rawValue || 'all').trim().toLowerCase();
+  if (raw.includes('|')) {
+    const [rawStatus, rawPriority] = raw.split('|');
+    const status = isStatusFilter(rawStatus) ? rawStatus : 'all';
+    const priority = isPriorityFilter(rawPriority) ? rawPriority : 'all';
+    return `${isEvent ? status : 'all'}|${priority}`;
+  }
+  if (raw === 'resolved') return `${isEvent ? 'closed' : 'all'}|all`;
+  if (raw === 'unresolved') return `${isEvent ? 'open' : 'all'}|all`;
+  if (isStatusFilter(raw)) return `${isEvent ? raw : 'all'}|all`;
+  if (isPriorityFilter(raw)) return `all|${raw}`;
+  return 'all|all';
 };
 
 export async function GET() {
@@ -60,16 +78,8 @@ export async function PUT(request: Request) {
   const activeTab = body.activeTab === 'event' ? 'event' : 'task';
   const language = ['en', 'ro', 'fr', 'de', 'es'].includes(body.language) ? body.language : 'en';
   const activeDateFilters = Array.isArray(body.activeDateFilters) ? JSON.stringify(body.activeDateFilters) : JSON.stringify([]);
-  const filterTask = ['all', 'low', 'normal', 'high'].includes(body.filterTask) ? body.filterTask : 'all';
-  const rawFilterEvent = String(body.filterEvent || 'all');
-  const normalizedFilterEvent = rawFilterEvent === 'resolved'
-    ? 'closed'
-    : rawFilterEvent === 'unresolved'
-      ? 'open'
-      : rawFilterEvent;
-  const filterEvent = ['all', 'low', 'normal', 'high', 'closed', 'open', 'outdated', 'in_time'].includes(normalizedFilterEvent)
-    ? normalizedFilterEvent
-    : 'all';
+  const filterTask = normalizeCombinedFilter(body.filterTask, false);
+  const filterEvent = normalizeCombinedFilter(body.filterEvent, true);
   const calendarMonth = typeof body.calendarMonth === 'string' ? body.calendarMonth : '';
 
   await pool.query(
