@@ -83,7 +83,7 @@ export default function AppHeader({
   return (
     <>
       <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between bg-transparent relative z-50">
-        <div className="flex items-center space-x-3">
+        <Link href="/" className="flex items-center space-x-3">
           <div className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
             <svg
               viewBox="0 0 24 24"
@@ -111,7 +111,7 @@ export default function AppHeader({
               </span>
             )}
           </div>
-        </div>
+        </Link>
         <div className="flex items-center space-x-3">
           <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
             <Link href={externalLinks.home} className="hover:text-blue-600 transition-colors">{t.menuHome}</Link>
@@ -149,7 +149,7 @@ export default function AppHeader({
               className="relative w-11 h-11 text-slate-600 flex items-center justify-center"
               title={t.menuTrash || 'Trash'}
             >
-              <i className="far fa-trash-alt"></i>
+              <i className="far fa-trash-alt" style={{ fontSize:24 }}></i>
               <span
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
                 style={{ top: "5px", right: "5px" }}
@@ -162,10 +162,10 @@ export default function AppHeader({
               className={`w-11 h-11 flex items-center justify-center ${userId ? 'text-emerald-600' : 'text-slate-600'}`}
               title={userId ? (userEmail || 'Logged in') : 'Login'}
             >
-              <i className={`${userId ? 'fas fa-user-check' : 'far fa-user'}`}></i>
+              <i className={`${userId ? 'fas fa-lock' : 'far fa-user'}`} style={{ fontSize:24 }}></i>
             </Link>
             <button className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
-              <i className="far fa-bell"></i>
+              <i className="far fa-bell" style={{ fontSize:24 }}></i>
               <span
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
                 style={{ top: "5px", right: "5px" }}
@@ -174,7 +174,7 @@ export default function AppHeader({
               </span>
             </button>
             <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center">
-              <i className="fas fa-bars"></i>
+              <i className="fas fa-bars" style={{ fontSize:24 }}></i>
             </button>
           </div>
         </div>

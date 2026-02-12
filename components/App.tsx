@@ -8,18 +8,18 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 
-type FilterMode = 'all' | 'completed' | 'low' | 'normal' | 'high' | 'outdated';
+type FilterMode = 'all' | 'low' | 'normal' | 'high' | 'closed' | 'open' | 'outdated' | 'in_time';
 
 // Translation strings for professional i18n
 const translations = {
   en: {
-    tasks: "Tasks",
-    events: "Events",
+    tasks: "Notes",
+    events: "Tasks",
     clear: "Clear",
     listening: "Listening...",
     placeholder: "Meeting at 5, buy bread...",
-    noTasks: "No tasks found",
-    noEvents: "No events found",
+    noTasks: "No notes found",
+    noEvents: "No tasks found",
     settings: "Settings",
     language: "Language",
     languages: "Languages",
@@ -30,11 +30,13 @@ const translations = {
     timeLabel: "Time",
     searchPlaceholder: "Search tasks or say a command...",
     filterAll: "All",
-    filterCompleted: "Completed",
+    filterResolved: "Closed",
+    filterUnresolved: "Open",
+    filterOverdue: "Overdue",
+    filterInTime: "In time",
     filterLow: "Low priority",
     filterNormal: "Normal priority",
     filterHigh: "High priority",
-    filterOutdated: "Overdue",
     prioLow: "Low",
     prioNormal: "Normal",
     prioHigh: "High",
@@ -53,13 +55,13 @@ const translations = {
     menuTrash: "Trash"
   },
   ro: {
-    tasks: "Tasks",
-    events: "Events",
+    tasks: "Notite",
+    events: "Taskuri",
     clear: "Curăță",
     listening: "Se ascultă...",
     placeholder: "Scrie o comandă...",
-    noTasks: "Nicio sarcină găsită",
-    noEvents: "Niciun eveniment găsit",
+    noTasks: "Nicio notita gasita",
+    noEvents: "Niciun task gasit",
     settings: "Setări",
     language: "Limbă",
     languages: "Limbi",
@@ -70,15 +72,17 @@ const translations = {
     timeLabel: "Ora",
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
     filterAll: "Toate",
-    filterCompleted: "Bifate",
+    filterResolved: "Închise",
+    filterUnresolved: "Deschise",
+    filterOverdue: "Depășite",
+    filterInTime: "În timp",
     filterLow: "Prioritate mică",
     filterNormal: "Prioritate normală",
     filterHigh: "Prioritate mare",
-    filterOutdated: "Depășite",
     prioLow: "Mică",
     prioNormal: "Normală",
     prioHigh: "Mare",
-    outdated: "Depășit",
+    outdated: "Depasit",
     save: "Salvează",
     clearFilter: "Resetează data",
     selectDates: "Selectează aceste date",
@@ -93,8 +97,8 @@ const translations = {
     menuTrash: "Coș"
   },
   fr: {
-    tasks: "Tâches",
-    events: "Événements",
+    tasks: "Notes",
+    events: "Tâches",
     clear: "Effacer",
     listening: "Écoute...",
     placeholder: "Réunion à 17h, acheter du pain...",
@@ -110,11 +114,13 @@ const translations = {
     timeLabel: "Heure",
     searchPlaceholder: "Rechercher ou parler...",
     filterAll: "Tout",
-    filterCompleted: "Terminé",
+    filterResolved: "Fermées",
+    filterUnresolved: "Ouvertes",
+    filterOverdue: "En retard",
+    filterInTime: "À temps",
     filterLow: "Basse priorité",
     filterNormal: "Priorité normale",
     filterHigh: "Haute priorité",
-    filterOutdated: "En retard",
     prioLow: "Basse",
     prioNormal: "Normale",
     prioHigh: "Haute",
@@ -133,8 +139,8 @@ const translations = {
     menuTrash: "Corbeille"
   },
   de: {
-    tasks: "Aufgaben",
-    events: "Termine",
+    tasks: "Notizen",
+    events: "Aufgaben",
     clear: "Bereinigen",
     listening: "Zuhören...",
     placeholder: "Meeting um 17 Uhr, Brot kaufen...",
@@ -150,11 +156,13 @@ const translations = {
     timeLabel: "Uhrzeit",
     searchPlaceholder: "Suchen oder Befehl sagen...",
     filterAll: "Alle",
-    filterCompleted: "Erledigt",
+    filterResolved: "Geschlossen",
+    filterUnresolved: "Offen",
+    filterOverdue: "Überfällig",
+    filterInTime: "Pünktlich",
     filterLow: "Niedrig",
     filterNormal: "Normal",
     filterHigh: "Hoch",
-    filterOutdated: "Überfällig",
     prioLow: "Niedrig",
     prioNormal: "Normal",
     prioHigh: "Hoch",
@@ -173,8 +181,8 @@ const translations = {
     menuTrash: "Papierkorb"
   },
   es: {
-    tasks: "Tareas",
-    events: "Eventos",
+    tasks: "Notas",
+    events: "Tareas",
     clear: "Limpiar",
     listening: "Escuchando...",
     placeholder: "Reunión a las 5, comprar pan...",
@@ -190,11 +198,13 @@ const translations = {
     timeLabel: "Hora",
     searchPlaceholder: "Buscar tareas o decir un comando...",
     filterAll: "Todo",
-    filterCompleted: "Completado",
+    filterResolved: "Cerradas",
+    filterUnresolved: "Abiertas",
+    filterOverdue: "Vencidas",
+    filterInTime: "A tiempo",
     filterLow: "Baja",
     filterNormal: "Normal",
     filterHigh: "Alta",
-    filterOutdated: "Atrasados",
     prioLow: "Baja",
     prioNormal: "Normal",
     prioHigh: "Alta",
@@ -486,6 +496,7 @@ const App: React.FC = () => {
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [formType, setFormType] = useState<ItemType>('task');
   const [formPriority, setFormPriority] = useState<Priority>('normal');
+  const [formTitle, setFormTitle] = useState('');
   const [formText, setFormText] = useState('');
   const [formDate, setFormDate] = useState('');
   const [formTime, setFormTime] = useState('');
@@ -554,8 +565,15 @@ const App: React.FC = () => {
         const nextLanguage = persistedLanguage || defaultLanguage || 'en';
         const nextActiveTab = (defaultActiveTab || (data.activeTab === 'event' ? 'event' : 'task')) as ItemType;
         const nextDates = Array.isArray(data.activeDateFilters) ? data.activeDateFilters : [];
-        const nextFilterTask = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(data.filterTask) ? data.filterTask : 'all';
-        const nextFilterEvent = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(data.filterEvent) ? data.filterEvent : 'all';
+        const nextFilterTask = ['all', 'low', 'normal', 'high'].includes(data.filterTask) ? data.filterTask : 'all';
+        const nextFilterEventRaw = String(data.filterEvent || 'all');
+        const nextFilterEvent = nextFilterEventRaw === 'resolved'
+          ? 'closed'
+          : nextFilterEventRaw === 'unresolved'
+            ? 'open'
+            : ['all', 'low', 'normal', 'high', 'closed', 'open', 'outdated', 'in_time'].includes(nextFilterEventRaw)
+              ? nextFilterEventRaw
+              : 'all';
         const monthStr = typeof data.calendarMonth === 'string' ? data.calendarMonth : '';
         const monthMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
         const nextMonth = monthMatch
@@ -599,7 +617,7 @@ const App: React.FC = () => {
       setExpandedSubitems(new Set());
       return;
     }
-    setExpandedSubitems(new Set(todos.filter(t => t.subtasks?.length).map(t => t.id)));
+    setExpandedSubitems(new Set(todos.filter(t => t.type === 'event' && t.subtasks?.length).map(t => t.id)));
   }, [userId, showSubtasksDefault, todos]);
   const daysInMonth = useMemo(() => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate(), [currentDate]);
   const firstDayOfMonth = useMemo(() => {
@@ -609,7 +627,7 @@ const App: React.FC = () => {
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, TodoItem[]> = {};
-    todos.forEach(item => {
+    todos.filter(item => item.type === 'event').forEach(item => {
       const d = new Date(item.sortTimestamp);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!map[key]) map[key] = [];
@@ -645,10 +663,10 @@ const App: React.FC = () => {
 
   const filteredItems = useMemo(() => {
     const filterMode = filterModeByType[activeTab];
-    let base = todos;
+    let base = todos.filter(item => item.type === activeTab);
     
-    // Apply date filter if set
-    if (activeDateFilters.length) {
+    // Date filter applies only to tasks (former events)
+    if (activeTab === 'event' && activeDateFilters.length) {
       base = base.filter(item => {
         const d = new Date(item.sortTimestamp);
         const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -657,16 +675,22 @@ const App: React.FC = () => {
     }
 
     return base
-      .filter(item => item.type === activeTab)
       .filter(item => {
-        if (filterMode === 'completed') return item.completed;
+        if (activeTab === 'event') {
+          if (filterMode === 'closed') return item.completed;
+          if (filterMode === 'open') return !item.completed;
+          if (filterMode === 'outdated') return isItemOverdue(item);
+          if (filterMode === 'in_time') return !item.completed && !isItemOverdue(item);
+        }
         if (filterMode === 'low') return item.priority === 'low';
         if (filterMode === 'normal') return item.priority === 'normal';
         if (filterMode === 'high') return item.priority === 'high';
-        if (filterMode === 'outdated') return isItemOverdue(item);
         return true;
       })
       .sort((a, b) => {
+        if (activeTab === 'task') {
+          return b.createdAt - a.createdAt;
+        }
         const aTime = getItemDateTime(a);
         const bTime = getItemDateTime(b);
         if (aTime !== bTime) return aTime - bTime;
@@ -675,6 +699,9 @@ const App: React.FC = () => {
   }, [todos, activeTab, filterModeByType, activeDateFilters, activeDateFilterSet]);
 
   const groupedItems = useMemo(() => {
+    if (activeTab === 'task') {
+      return [{ key: 'notes', dateLabel: t.tasks, items: filteredItems }];
+    }
     const groups = new Map<string, TodoItem[]>();
     filteredItems.forEach(item => {
       const d = new Date(item.sortTimestamp);
@@ -692,7 +719,10 @@ const App: React.FC = () => {
         });
         const first = items[0];
         const date = new Date(first.sortTimestamp);
-        const dateLabel = date.toLocaleDateString(language, { weekday: 'long', day: '2-digit', month: 'long' });
+        const dayLabel = date.toLocaleDateString(language, { day: '2-digit' });
+        const monthLabel = date.toLocaleDateString(language, { month: 'long' });
+        const weekdayLabel = date.toLocaleDateString(language, { weekday: 'long' });
+        const dateLabel = `${dayLabel} ${monthLabel} • ${weekdayLabel}`;
         return { key, dateLabel, items };
       })
       .sort((a, b) => {
@@ -703,7 +733,7 @@ const App: React.FC = () => {
         return aTime - bTime;
       });
     return sortedGroups;
-  }, [filteredItems, language]);
+  }, [activeTab, filteredItems, language, t.tasks]);
 
   const scrollToTask = useCallback((id: string, type: ItemType) => {
     setActiveTab(type);
@@ -851,16 +881,20 @@ const App: React.FC = () => {
       case ToolNames.ADD_TODO: {
         const ts = parseTaskDate(args.date);
         const normalizedTime = normalizeDueTime(args.time);
+        const isNote = ((args.type as ItemType) || 'task') === 'task';
+        const noteTitle = isNote ? capitalize(String(args.title || args.text || '').trim()) : undefined;
+        const normalizedSubtasks = isNote ? undefined : normalizeSubitems(args.subtasks);
         const baseItem: Omit<TodoItem, 'id'> = {
-          text: capitalize(args.text),
+          title: noteTitle,
+          text: isNote ? String(args.text || '').trim() : capitalize(args.text),
           type: (args.type as ItemType) || 'task',
           completed: false,
           createdAt: Date.now(),
-          dueDate: new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
-          dueTime: normalizedTime,
-          location: args.location ? normalizeLocation(args.location, language) : undefined,
-          subtasks: normalizeSubitems(args.subtasks),
-          sortTimestamp: ts,
+          dueDate: isNote ? undefined : new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
+          dueTime: isNote ? undefined : normalizedTime,
+          location: isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined),
+          subtasks: normalizedSubtasks,
+          sortTimestamp: isNote ? Date.now() : ts,
           priority: (args.priority as Priority) || 'normal'
         };
 
@@ -905,35 +939,50 @@ const App: React.FC = () => {
         }
         const newTs = args.date ? parseTaskDate(args.date) : existing.sortTimestamp;
         const newType = (args.type as ItemType) || existing.type;
+        const isNote = newType === 'task';
         if (newType !== activeTab) setActiveTab(newType);
         const newLocation = args.location !== undefined
-          ? (args.location ? normalizeLocation(args.location, language) : undefined)
+          ? (isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined))
           : existing.location;
         const newSubtasks = args.subtasks !== undefined
-          ? normalizeSubitems(args.subtasks)
+          ? (isNote ? undefined : normalizeSubitems(args.subtasks))
           : existing.subtasks;
         const normalizedTime = args.time !== undefined ? normalizeDueTime(args.time) : existing.dueTime;
+        const newTitle = args.title !== undefined
+          ? (args.title ? capitalize(String(args.title)) : undefined)
+          : existing.title;
         const nextTodo: TodoItem = {
           ...existing,
-          text: args.text ? capitalize(args.text) : existing.text,
+          title: newTitle,
+          text: args.text !== undefined ? (isNote ? String(args.text) : capitalize(args.text)) : existing.text,
           type: newType,
-          dueDate: args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate,
-          dueTime: normalizedTime,
+          completed: isNote ? false : existing.completed,
+          dueDate: isNote ? undefined : (args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate),
+          dueTime: isNote ? undefined : normalizedTime,
           location: newLocation,
           subtasks: newSubtasks,
           priority: (args.priority as Priority) || existing.priority,
-          sortTimestamp: newTs
+          sortTimestamp: isNote ? existing.createdAt : newTs
         };
         const payload: Record<string, unknown> = {};
+        if (args.title !== undefined) payload.title = nextTodo.title ?? null;
         if (args.text !== undefined) payload.text = nextTodo.text;
         if (args.type !== undefined) payload.type = nextTodo.type;
-        if (args.date !== undefined) {
+        if (args.date !== undefined && !isNote) {
           payload.sortTimestamp = nextTodo.sortTimestamp;
           payload.dueDate = nextTodo.dueDate ?? null;
         }
-        if (args.time !== undefined) payload.dueTime = nextTodo.dueTime ?? null;
-        if (args.location !== undefined) payload.location = nextTodo.location ?? null;
-        if (args.subtasks !== undefined) payload.subtasks = nextTodo.subtasks ?? null;
+        if (args.time !== undefined) payload.dueTime = isNote ? null : nextTodo.dueTime ?? null;
+        if (args.location !== undefined) payload.location = isNote ? null : nextTodo.location ?? null;
+        if (args.subtasks !== undefined) payload.subtasks = isNote ? null : nextTodo.subtasks ?? null;
+        if (isNote) {
+          payload.completed = false;
+          payload.dueDate = null;
+          payload.dueTime = null;
+          payload.location = null;
+          payload.subtasks = null;
+          payload.sortTimestamp = existing.createdAt;
+        }
         if (args.priority !== undefined) payload.priority = nextTodo.priority;
         setTodos(prev => prev.map(todo => (todo.id === editId ? nextTodo : todo)));
         if (!isLoggedIn) {
@@ -952,6 +1001,7 @@ const App: React.FC = () => {
         const addItems = normalizeSubitems(args.subtasks ?? args.text ?? args.subtask);
         if (!addItems?.length) break;
         updateTodo(parentId, (todo) => {
+          if (todo.type !== 'event') return todo;
           const existing = todo.subtasks || [];
           const updated = [...existing, ...addItems];
           if (isLoggedIn) syncUpdate(parentId, { subtasks: updated });
@@ -967,6 +1017,7 @@ const App: React.FC = () => {
         if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1 || !normalized?.length) break;
 
         updateTodo(parentId, (todo) => {
+          if (todo.type !== 'event') return todo;
           const existing = [...(todo.subtasks || [])];
           const targetIndex = oneBasedIndex - 1;
           if (targetIndex >= existing.length) return todo;
@@ -983,6 +1034,7 @@ const App: React.FC = () => {
         if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) break;
 
         updateTodo(parentId, (todo) => {
+          if (todo.type !== 'event') return todo;
           const existing = [...(todo.subtasks || [])];
           const targetIndex = oneBasedIndex - 1;
           if (targetIndex >= existing.length) return todo;
@@ -1009,6 +1061,7 @@ const App: React.FC = () => {
       case ToolNames.TOGGLE_TODO: {
         const id = String(args.id);
         updateTodo(id, (todo) => {
+          if (todo.type !== 'event') return todo;
           const next = { ...todo, completed: !todo.completed };
           if (isLoggedIn) syncUpdate(id, { completed: next.completed });
           return next;
@@ -1016,10 +1069,10 @@ const App: React.FC = () => {
         break;
       }
       case ToolNames.CLEAR_COMPLETED: {
-        const removedCount = todosRef.current.filter(t => t.completed && !String(t.id).startsWith('tmp-')).length;
+        const removedCount = todosRef.current.filter(t => t.type === 'event' && t.completed && !String(t.id).startsWith('tmp-')).length;
         setTodos(prev => {
-          if (isLoggedIn) prev.filter(t => !t.completed).forEach(t => syncDelete(t.id));
-          return prev.filter(t => !t.completed);
+          if (isLoggedIn) prev.filter(t => t.type === 'event' && t.completed).forEach(t => syncDelete(t.id));
+          return prev.filter(t => !(t.type === 'event' && t.completed));
         });
         if (typeof window !== 'undefined' && isLoggedIn && removedCount > 0) {
           window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: removedCount } }));
@@ -1252,6 +1305,7 @@ const App: React.FC = () => {
     setModalItemId(null);
     setFormType(activeTab);
     setFormPriority('normal');
+    setFormTitle('');
     setFormText('');
     setFormDate(today.toISOString().split('T')[0]);
     setFormTime('');
@@ -1264,6 +1318,7 @@ const App: React.FC = () => {
     setModalItemId(item.id);
     setFormType(item.type);
     setFormPriority(item.priority);
+    setFormTitle(item.title || (item.type === 'task' ? item.text : ''));
     setFormText(item.text);
     const dateObj = new Date(item.sortTimestamp);
     setFormDate(dateObj.toISOString().split('T')[0]);
@@ -1275,33 +1330,41 @@ const App: React.FC = () => {
   const closeModal = () => {
     setModalMode(null);
     setModalItemId(null);
+    setFormTitle('');
     setFormSubtasks('');
   };
 
   const saveModal = () => {
     if (!modalMode) return;
-    if (!formText.trim()) return;
+    if (formType === 'task') {
+      if (!formTitle.trim()) return;
+    } else if (!formText.trim()) {
+      return;
+    }
     if (modalMode === 'edit') {
       if (!modalItemId) return;
       executeTool(ToolNames.EDIT_TODO, {
         id: modalItemId,
-        text: formText,
-        date: formDate,
-        time: formTime || null,
-        location: formLocation || null,
+        title: formType === 'task' ? formTitle : null,
+        text: formType === 'task' ? formText : formText,
+        date: formType === 'event' ? formDate : null,
+        time: formType === 'event' ? (formTime || null) : null,
+        location: formType === 'event' ? (formLocation || null) : null,
         priority: formPriority,
         type: formType,
-        subtasks: formSubtasks
+        subtasks: formType === 'event' ? formSubtasks : null,
+        completed: formType === 'task' ? false : undefined
       });
     } else {
       executeTool(ToolNames.ADD_TODO, {
-        text: formText,
+        title: formType === 'task' ? formTitle : null,
+        text: formType === 'task' ? formText : formText,
         type: formType,
-        date: formDate,
-        time: formTime || null,
-        location: formLocation || null,
+        date: formType === 'event' ? formDate : null,
+        time: formType === 'event' ? (formTime || null) : null,
+        location: formType === 'event' ? (formLocation || null) : null,
         priority: formPriority,
-        subtasks: formSubtasks
+        subtasks: formType === 'event' ? formSubtasks : null
       });
     }
     closeModal();
@@ -1457,11 +1520,13 @@ const App: React.FC = () => {
                     className="bg-transparent text-[10px] font-black text-blue-500 tracking-widest appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-2 py-0.5"
                   >
                     <option value="all">{t.filterAll}</option>
-                    <option value="completed">{t.filterCompleted}</option>
+                    {activeTab === 'event' && <option value="closed">{t.filterResolved}</option>}
+                    {activeTab === 'event' && <option value="open">{t.filterUnresolved}</option>}
+                    {activeTab === 'event' && <option value="outdated">{t.filterOverdue}</option>}
+                    {activeTab === 'event' && <option value="in_time">{t.filterInTime}</option>}
                     <option value="normal">{t.filterNormal}</option>
                     <option value="low">{t.filterLow}</option>
                     <option value="high">{t.filterHigh}</option>
-                    <option value="outdated">{t.filterOutdated}</option>
                   </select>
                   <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                 </div>
@@ -1473,7 +1538,7 @@ const App: React.FC = () => {
           <div className="space-y-4">
             {groupedItems.length === 0 ? (
               <div className="py-10 flex flex-col items-center">
-                {activeDateFilters.length > 0 && (
+                {activeTab === 'event' && activeDateFilters.length > 0 && (
                   <button
                     onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
                     className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-blue-600 text-white transition-all inline-flex items-center"
@@ -1490,46 +1555,43 @@ const App: React.FC = () => {
               </div>
             ) : groupedItems.map((group, index) => (
               <div key={group.key} className="space-y-3">
-                <div
-                  className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
-                  style ={{ top:"138px", zIndex:1 }}
-                  >
-                  <span>{group.dateLabel}</span>
-                  {index === 0 && activeDateFilters.length > 0 && (
-                    <button
-                      onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
-                      className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200  bg-blue-600 text-white transition-all inline-flex items-center"
-                      title={t.clearFilter}
+                {activeTab === 'event' && (
+                  <div
+                    className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
+                    style ={{ top:"138px", zIndex:1 }}
                     >
-                      <span className="mr-2 text-[9px] leading-none">×</span>
-                      <span className="whitespace-nowrap">{selectedDateLabel}</span>
-                    </button>
-                  )}
-                </div>
+                    <span>{group.dateLabel}</span>
+                    {index === 0 && activeDateFilters.length > 0 && (
+                      <button
+                        onClick={() => { setActiveDateFilters([]); setPendingDateStart(null); setPendingDateEnd(null); }}
+                        className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200  bg-blue-600 text-white transition-all inline-flex items-center"
+                        title={t.clearFilter}
+                      >
+                        <span className="mr-2 text-[9px] leading-none">×</span>
+                        <span className="whitespace-nowrap">{selectedDateLabel}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
                 {group.items.map(item => (
                   <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.03] ring-4 ring-blue-500/50 rounded-[32px] shadow-2xl z-10 relative' : ''}`}>
-                    <div className={`flex items-start justify-between p-6 bg-white rounded-[32px] shadow-sm border border-slate-100 transition-all ${item.completed ? 'bg-slate-50 opacity-60' : 'hover:border-blue-200 hover:shadow-md'} ${highlightedTaskId === item.id ? 'border-blue-400' : ''}`}>
+                    <div className={`flex items-start justify-between p-6 bg-white rounded-[32px] shadow-sm border border-slate-100 transition-all ${item.type === 'event' && item.completed ? 'bg-slate-50 opacity-60' : 'hover:border-blue-200 hover:shadow-md'} ${highlightedTaskId === item.id ? 'border-blue-400' : ''}`}>
                       <div className="flex items-start space-x-5 w-full">
-                        <button onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })} className={`mt-10 flex-shrink-0 w-7 h-7 rounded-xl border-2 transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200'}`}>
-                          {item.completed && <i className="fas fa-check text-xs"></i>}
-                        </button>
+                        {item.type === 'event' ? (
+                          <button onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })} className={`mt-10 flex-shrink-0 w-7 h-7 rounded-xl border-2 transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200'}`}>
+                            {item.completed && <i className="fas fa-check text-xs"></i>}
+                          </button>
+                        ) : (
+                          <div className="mt-10 flex-shrink-0 w-7 h-7"></div>
+                        )}
                         <div className="flex flex-col flex-grow leading-tight overflow-hidden">
                           {/* Line 1: Time + Type + Priority */}
                           <div className="flex items-center justify-between mb-4 max-[450px]:flex-col max-[450px]:items-start max-[450px]:gap-3">
                             <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:gap-2 max-[450px]:w-full">
                               <div className={`flex items-center gap-2 px-3 py-1 rounded-lg w-fit max-[450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                                <span className="mr-1">#{item.id}</span>
-                                <select
-                                  value={item.type}
-                                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, type: e.target.value as ItemType })}
-                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
-                                >
-                                  <option value="task">{t.tasks}</option>
-                                  <option value="event">{t.events}</option>
-                                </select>
-                                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
+                                <span>#{item.id}</span>
                               </div>
-                              {item.dueTime && (
+                              {item.type === 'event' && item.dueTime && (
                                 <span className="flex items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[450px]:w-full">
                                   <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
                                 </span>
@@ -1547,7 +1609,7 @@ const App: React.FC = () => {
                                 </select>
                                 <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
                               </div>
-                              {isItemOverdue(item) && (
+                              {item.type === 'event' && isItemOverdue(item) && (
                                 <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[450px]:w-full">
                                   {t.outdated}
                                 </span>
@@ -1566,11 +1628,11 @@ const App: React.FC = () => {
 
                           {/* Text */}
                           <div
-                            className={`text-lg font-bold break-words leading-relaxed flex items-center gap-2 ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'} ${item.subtasks?.length ? 'cursor-pointer' : ''}`}
-                            onClick={() => item.subtasks?.length && toggleSubitems(item.id)}
+                            className={`text-lg font-bold break-words leading-relaxed flex items-center gap-2 ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-800'} ${item.type === 'event' && item.subtasks?.length ? 'cursor-pointer' : ''}`}
+                            onClick={() => item.type === 'event' && item.subtasks?.length && toggleSubitems(item.id)}
                           >
-                            <span className="flex-1">{item.text}</span>
-                            {item.subtasks?.length ? (
+                            <span className="flex-1">{item.type === 'task' ? (item.title || item.text) : item.text}</span>
+                            {item.type === 'event' && item.subtasks?.length ? (
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); toggleSubitems(item.id); }}
@@ -1581,7 +1643,20 @@ const App: React.FC = () => {
                               </button>
                             ) : null}
                           </div>
-                          {item.subtasks?.length && expandedSubitems.has(item.id) && (
+                          {item.type === 'task' && item.text && item.title && (
+                            <p className="mt-1 mb-3 text-sm font-semibold text-slate-600 whitespace-pre-wrap">{item.text}</p>
+                          )}
+                          {item.type === 'task' && (
+                            <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
+                              <i className="far fa-clock mr-2 text-[12px] text-slate-400"></i>
+                              <span>
+                                {new Date(item.createdAt).toLocaleDateString(language, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                {' • '}
+                                {new Date(item.createdAt).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}
+                              </span>
+                            </div>
+                          )}
+                          {item.type === 'event' && item.subtasks?.length && expandedSubitems.has(item.id) && (
                             <ol className="mt-1 mb-3 space-y-2 pl-6 text-sm font-semibold text-slate-600 list-decimal marker:font-black marker:text-slate-400">
                               {item.subtasks.map((subtask, index) => (
                                 <li key={`${item.id}-subtask-${index}`} className="pl-1">
@@ -1590,7 +1665,7 @@ const App: React.FC = () => {
                               ))}
                             </ol>
                           )}                          
-                          {item.location && (
+                          {item.type === 'event' && item.location && (
                             <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
                               <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
                               <span className="truncate">{item.location}</span>
@@ -1637,15 +1712,7 @@ const App: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
               <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                 {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
-                <select
-                  value={formType}
-                  onChange={(e) => setFormType(e.target.value as ItemType)}
-                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
-                >
-                  <option value="task">{t.tasks}</option>
-                  <option value="event">{t.events}</option>
-                </select>
-                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
+                <span>{formType === 'task' ? t.tasks : t.events}</span>
               </div>
               <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
                 <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
@@ -1663,49 +1730,66 @@ const App: React.FC = () => {
             </div>
 
             <div className="space-y-4">
+              {formType === 'task' && (
+                <input
+                  autoFocus
+                  type="text"
+                  className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="Titlu..."
+                />
+              )}
               <textarea
-                autoFocus
                 className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[140px] resize-none"
                 value={formText}
                 onChange={(e) => setFormText(e.target.value)}
-                placeholder="Descriere..."
+                placeholder={formType === 'task' ? 'Text...' : 'Descriere...'}
               />
-              <div className="space-y-2">
-                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
-                  {formType === 'event' ? t.subevents : t.subtasks}
-                </label>
-                <textarea
-                  className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[90px] resize-none"
-                  value={formSubtasks}
-                  onChange={(e) => setFormSubtasks(e.target.value)}
-                  placeholder={t.subitemsPlaceholder}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
-                  {t.location}
-                </label>
-                <input
-                  type="text"
-                  className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20"
-                  value={formLocation}
-                  onChange={(e) => setFormLocation(e.target.value)}
-                  placeholder="Ex: Splaiul Unirii 45"
-                />
-              </div>
+              {formType === 'event' && (
+                <>
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                      {t.subevents}
+                    </label>
+                    <textarea
+                      className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[90px] resize-none"
+                      value={formSubtasks}
+                      onChange={(e) => setFormSubtasks(e.target.value)}
+                      placeholder={t.subitemsPlaceholder}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                      {t.location}
+                    </label>
+                    <input
+                      type="text"
+                      className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                      value={formLocation}
+                      onChange={(e) => setFormLocation(e.target.value)}
+                      placeholder="Ex: Splaiul Unirii 45"
+                    />
+                  </div>
+                </>
+              )}
               <div className="flex flex-wrap gap-3">
-                <input
-                  type="date"
-                  className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm flex-grow"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                />
-                <input
-                  type="time"
-                  className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm w-32"
-                  value={formTime}
-                  onChange={(e) => setFormTime(e.target.value)}
-                />
+                {formType === 'event' && (
+                  <>
+                    <input
+                      type="date"
+                      className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm flex-grow"
+                      value={formDate}
+                      onChange={(e) => setFormDate(e.target.value)}
+                    />
+                    <input
+                      type="time"
+                      className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm w-32"
+                      value={formTime}
+                      onChange={(e) => setFormTime(e.target.value)}
+                    />
+                  </>
+                )}
                 <button
                   onClick={saveModal}
                   className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"

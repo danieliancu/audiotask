@@ -6,6 +6,12 @@ export function ensureTodoTrashSchema() {
   if (ensureSchemaPromise) return ensureSchemaPromise;
 
   ensureSchemaPromise = (async () => {
+    const [titleRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'title'");
+    const hasTitle = Array.isArray(titleRows) && titleRows.length > 0;
+    if (!hasTitle) {
+      await pool.query('ALTER TABLE todos ADD COLUMN title VARCHAR(255) NULL DEFAULT NULL AFTER user_id');
+    }
+
     const [columnRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'deleted_at'");
     const hasDeletedAt = Array.isArray(columnRows) && columnRows.length > 0;
 

@@ -6,6 +6,7 @@ import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 
 type DbTodoRow = {
   id: number;
+  title: string | null;
   text: string;
   completed: number | boolean;
   created_at: number;
@@ -21,6 +22,7 @@ type DbTodoRow = {
 
 const mapRow = (row: DbTodoRow) => ({
   id: String(row.id),
+  title: row.title ?? undefined,
   text: row.text,
   completed: Boolean(row.completed),
   createdAt: Number(row.created_at),

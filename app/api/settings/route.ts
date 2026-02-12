@@ -60,8 +60,16 @@ export async function PUT(request: Request) {
   const activeTab = body.activeTab === 'event' ? 'event' : 'task';
   const language = ['en', 'ro', 'fr', 'de', 'es'].includes(body.language) ? body.language : 'en';
   const activeDateFilters = Array.isArray(body.activeDateFilters) ? JSON.stringify(body.activeDateFilters) : JSON.stringify([]);
-  const filterTask = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(body.filterTask) ? body.filterTask : 'all';
-  const filterEvent = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(body.filterEvent) ? body.filterEvent : 'all';
+  const filterTask = ['all', 'low', 'normal', 'high'].includes(body.filterTask) ? body.filterTask : 'all';
+  const rawFilterEvent = String(body.filterEvent || 'all');
+  const normalizedFilterEvent = rawFilterEvent === 'resolved'
+    ? 'closed'
+    : rawFilterEvent === 'unresolved'
+      ? 'open'
+      : rawFilterEvent;
+  const filterEvent = ['all', 'low', 'normal', 'high', 'closed', 'open', 'outdated', 'in_time'].includes(normalizedFilterEvent)
+    ? normalizedFilterEvent
+    : 'all';
   const calendarMonth = typeof body.calendarMonth === 'string' ? body.calendarMonth : '';
 
   await pool.query(

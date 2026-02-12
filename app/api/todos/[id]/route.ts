@@ -21,6 +21,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   };
 
   if (body.text !== undefined) pushField('text', String(body.text).trim());
+  if (body.title !== undefined) {
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    pushField('title', title || null);
+  }
   if (body.completed !== undefined) pushField('completed', Boolean(body.completed));
   if (body.createdAt !== undefined) pushField('created_at', Number(body.createdAt));
   if (body.dueDate !== undefined) pushField('due_date', body.dueDate ?? null);
@@ -54,6 +58,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const subtasks = item.subtasks ? (typeof item.subtasks === 'string' ? JSON.parse(item.subtasks) : item.subtasks) : undefined;
   return NextResponse.json({
     id: String(item.id),
+    title: item.title ?? undefined,
     text: item.text,
     completed: Boolean(item.completed),
     createdAt: Number(item.created_at),

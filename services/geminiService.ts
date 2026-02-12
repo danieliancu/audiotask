@@ -4,8 +4,8 @@ import { ToolNames, Language } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
 
 export const systemInstructions: Record<Language, string> = {
-  en: "Minimalist voice assistant. Identify task vs event. Use tool calls for all actions. For dates, ALWAYS use YYYY-MM-DD format. Support priorities: low, normal, high. Extract location and subtasks when present. When asked to show subtasks, set showSubtasks true. When editing, clarify the item id. For subtask edit or delete, always use id plus subtaskIndex (1-based). Speak ONLY after tool execution.",
-  ro: "Asistent vocal minimalist. Identifica task vs event. Foloseste uneltele pentru orice actiune. Pentru date, foloseste intotdeauna formatul YYYY-MM-DD. Suporta prioritati: low, normal, high. Extrage locatia si subtask-urile cand sunt prezente. Cand se cere afisare, seteaza showSubtasks true. La editare, mentioneaza id-ul elementului. Pentru editare sau stergere subtask, foloseste mereu id plus subtaskIndex (1-based). Vorbeste doar dupa executie.",
+  en: "Minimalist voice assistant. There are two types: task means Note, event means Task. For notes use title and optional text, no time/location/subtasks/completion. For tasks keep date, time, location and subtasks. Use tool calls for all actions. For dates, ALWAYS use YYYY-MM-DD format. Support priorities: low, normal, high. For subtask edit or delete, always use id plus subtaskIndex (1-based). Speak ONLY after tool execution.",
+  ro: "Asistent vocal minimalist. Exista doua tipuri: task inseamna Nota, event inseamna Task. Pentru note foloseste title si optional text, fara ora/locatie/subtask/completare. Pentru task-uri pastreaza data, ora, locatie si subtask-uri. Foloseste uneltele pentru orice actiune. Pentru date, foloseste intotdeauna formatul YYYY-MM-DD. Suporta prioritati: low, normal, high. Pentru editare sau stergere subtask, foloseste mereu id plus subtaskIndex (1-based). Vorbeste doar dupa executie.",
   fr: "Assistant vocal minimaliste. Identifiez tache vs evenement. Utilisez les outils pour toutes les actions. Pour les dates, utilisez toujours YYYY-MM-DD. Priorites: low, normal, high. Extrayez la localisation et les sous-taches. Pour editer ou supprimer un sous-element, utilisez id et subtaskIndex (1-based).",
   de: "Minimalistischer Sprachassistent. Unterscheiden Sie Aufgabe vs Termin. Nutzen Sie Tools fuer alle Aktionen. Fuer Datumswerte immer YYYY-MM-DD. Prioritaeten: low, normal, high. Ort und Unteraufgaben extrahieren. Fuer Bearbeiten oder Loeschen einer Unteraufgabe immer id und subtaskIndex (1-based) verwenden.",
   es: "Asistente de voz minimalista. Identifica tarea vs evento. Usa herramientas para todas las acciones. Para fechas, usa siempre YYYY-MM-DD. Prioridades: low, normal, high. Extrae ubicacion y subtareas. Para editar o borrar subtarea, usa id y subtaskIndex (1-based)."
@@ -14,11 +14,12 @@ export const systemInstructions: Record<Language, string> = {
 export const todoTools: FunctionDeclaration[] = [
   {
     name: ToolNames.ADD_TODO,
-    description: "Adds a new item. Categorize as task or event. Extract date (YYYY-MM-DD), time, priority, location, and subtasks.",
+    description: "Adds a new item. type=task means Note (title + optional text). type=event means Task (date/time/location/subtasks).",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        text: { type: Type.STRING, description: "Description." },
+        title: { type: Type.STRING, description: "Title for notes." },
+        text: { type: Type.STRING, description: "Description/body." },
         type: { type: Type.STRING, enum: ['task', 'event'], description: "Classify item." },
         date: { type: Type.STRING, description: "Target date in YYYY-MM-DD format." },
         time: { type: Type.STRING, description: "Time string." },
@@ -31,11 +32,12 @@ export const todoTools: FunctionDeclaration[] = [
   },
   {
     name: ToolNames.EDIT_TODO,
-    description: "Edits an existing item by id. Update text, date (YYYY-MM-DD), time, priority, location, or subtasks. Use showSubtasks to expand or collapse.",
+    description: "Edits an existing item by id. Notes (type=task): title/text/priority only. Tasks (type=event): text/date/time/location/priority/subtasks.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         id: { type: Type.STRING, description: "ID of the item." },
+        title: { type: Type.STRING },
         text: { type: Type.STRING },
         type: { type: Type.STRING, enum: ['task', 'event'] },
         date: { type: Type.STRING, description: "Updated date in YYYY-MM-DD format." },

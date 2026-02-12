@@ -7,6 +7,7 @@ import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 type DbTodoRow = {
   id: number;
   user_id: number;
+  title: string | null;
   text: string;
   completed: number | boolean;
   created_at: number;
@@ -22,6 +23,7 @@ type DbTodoRow = {
 
 const mapRow = (row: DbTodoRow) => ({
   id: String(row.id),
+  title: row.title ?? undefined,
   text: row.text,
   completed: Boolean(row.completed),
   createdAt: Number(row.created_at),
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const payload = {
+    title: body.title ? String(body.title).trim() : null,
     text: String(body.text || '').trim(),
     completed: Boolean(body.completed),
     createdAt: Number(body.createdAt) || Date.now(),
@@ -73,14 +76,19 @@ export async function POST(request: Request) {
     subtasks: Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null
   };
 
-  if (!payload.text) {
+  const type = body.type === 'event' ? 'event' : 'task';
+  if (type === 'task' && !payload.title && !payload.text) {
+    return NextResponse.json({ error: 'Title required for note' }, { status: 400 });
+  }
+  if (type === 'event' && !payload.text) {
     return NextResponse.json({ error: 'Text required' }, { status: 400 });
   }
 
   const [result] = await pool.query(
-    'INSERT INTO todos (user_id, text, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO todos (user_id, title, text, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       userId,
+      payload.title,
       payload.text,
       payload.completed,
       payload.createdAt,
@@ -88,7 +96,7 @@ export async function POST(request: Request) {
       payload.dueTime,
       payload.location,
       payload.sortTimestamp,
-      payload.type,
+      type,
       payload.priority,
       payload.subtasks
     ]
