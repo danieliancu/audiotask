@@ -178,8 +178,6 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [defaultLanguage, setDefaultLanguage] = useState<Language>('en');
-  const [defaultActiveTab, setDefaultActiveTab] = useState<'task' | 'event'>('task');
   const [defaultShowSubtasks, setDefaultShowSubtasks] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [nowLabel, setNowLabel] = useState('');
@@ -196,12 +194,10 @@ export default function SettingsPage() {
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (!data) return;
+        const persistedLanguage = ['en', 'ro', 'fr', 'de', 'es'].includes(data.language) ? data.language : '';
         const lang = ['en', 'ro', 'fr', 'de', 'es'].includes(data.defaultLanguage) ? data.defaultLanguage : 'en';
-        const tab = data.defaultActiveTab === 'event' ? 'event' : 'task';
-        setDefaultLanguage(lang);
-        setDefaultActiveTab(tab);
         setDefaultShowSubtasks(Boolean(data.defaultShowSubtasks));
-        setPageLanguage(lang);
+        setPageLanguage((persistedLanguage || lang) as Language);
       })
       .catch(() => {});
   }, [session?.user?.id]);
@@ -243,13 +239,10 @@ export default function SettingsPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        defaultLanguage,
-        defaultActiveTab,
         defaultShowSubtasks
       })
     });
     setStatus(res.ok ? 'saved' : 'error');
-    if (res.ok) setPageLanguage(defaultLanguage);
   };
 
   if (!session?.user?.id) {
@@ -356,26 +349,7 @@ export default function SettingsPage() {
 
         <section className="space-y-4">
           <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">{t.defaults}</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            <select
-              value={defaultLanguage}
-              onChange={(e) => setDefaultLanguage(e.target.value as Language)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-            >
-              {Object.entries(languageNames).map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={defaultActiveTab}
-              onChange={(e) => setDefaultActiveTab(e.target.value as 'task' | 'event')}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-            >
-              <option value="task">{t.tasks}</option>
-              <option value="event">{t.events}</option>
-            </select>
+          <div className="grid gap-3 md:grid-cols-1">
             <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"

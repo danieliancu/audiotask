@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
+import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 
 type DbTodoRow = {
   id: number;
@@ -16,6 +17,7 @@ type DbTodoRow = {
   type: 'task' | 'event';
   priority: 'low' | 'normal' | 'high';
   subtasks: string | string[] | null;
+  deleted_at: number | null;
 };
 
 const mapRow = (row: DbTodoRow) => ({
@@ -29,6 +31,7 @@ const mapRow = (row: DbTodoRow) => ({
   sortTimestamp: Number(row.sort_timestamp),
   type: row.type,
   priority: row.priority,
+  deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
   subtasks: Array.isArray(row.subtasks)
     ? row.subtasks
     : row.subtasks
@@ -37,16 +40,21 @@ const mapRow = (row: DbTodoRow) => ({
 });
 
 export async function GET() {
+  await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const [rows] = await pool.query('SELECT * FROM todos WHERE user_id = ? ORDER BY sort_timestamp ASC', [userId]);
+  const [rows] = await pool.query(
+    'SELECT * FROM todos WHERE user_id = ? AND deleted_at IS NULL ORDER BY sort_timestamp ASC',
+    [userId]
+  );
   const items = (rows as DbTodoRow[]).map(mapRow);
   return NextResponse.json(items);
 }
 
 export async function POST(request: Request) {
+  await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

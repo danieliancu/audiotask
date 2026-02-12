@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS todos (
   sort_timestamp BIGINT NOT NULL,
   type ENUM('task','event') NOT NULL,
   priority ENUM('low','normal','high') NOT NULL,
+  deleted_at BIGINT NULL DEFAULT NULL,
   subtasks JSON,
+  INDEX idx_todos_user_deleted (user_id, deleted_at),
   CONSTRAINT fk_todos_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

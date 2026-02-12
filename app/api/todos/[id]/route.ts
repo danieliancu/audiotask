@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
+import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+  await ensureTodoTrashSchema();
   const { id } = await context.params;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
@@ -41,11 +43,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
   values.push(id, userId);
   await pool.query(
-    `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+    `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
     values
   );
 
-  const [rows] = await pool.query('SELECT * FROM todos WHERE id = ? AND user_id = ?', [id, userId]);
+  const [rows] = await pool.query('SELECT * FROM todos WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
   const item = (rows as any[])[0];
   if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -66,11 +68,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  await ensureTodoTrashSchema();
   const { id } = await context.params;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await pool.query('DELETE FROM todos WHERE id = ? AND user_id = ?', [id, userId]);
+  await pool.query(
+    'UPDATE todos SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [Date.now(), id, userId]
+  );
   return NextResponse.json({ ok: true });
 }

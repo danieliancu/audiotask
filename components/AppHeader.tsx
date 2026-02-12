@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type HeaderTranslations = {
@@ -9,6 +9,7 @@ type HeaderTranslations = {
   menuFeatures: string;
   menuPricing: string;
   menuBlog: string;
+  menuTrash?: string;
   languages: string;
   // menuTitle: string;
   close: string;
@@ -29,7 +30,7 @@ type Props = {
 };
 
 const externalLinks = {
-  home: "#",
+  home: "/",
   blog: "#",
   features: "#",
   pricing: "#"
@@ -48,6 +49,36 @@ export default function AppHeader({
 }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [trashCount, setTrashCount] = useState(0);
+
+  const refreshTrashCount = useCallback(() => {
+    if (!userId) {
+      setTrashCount(0);
+      return;
+    }
+    void fetch('/api/todos/trash?count=1', { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : { count: 0 }))
+      .then(data => setTrashCount(Number(data?.count) || 0))
+      .catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
+    refreshTrashCount();
+    if (!userId) return;
+    const onRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ delta?: number }>).detail;
+      if (typeof detail?.delta === 'number') {
+        setTrashCount(prev => Math.max(0, prev + detail.delta));
+      }
+      setTimeout(() => refreshTrashCount(), 120);
+    };
+    window.addEventListener('trash-count-refresh', onRefresh);
+    const timer = setInterval(refreshTrashCount, 15000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('trash-count-refresh', onRefresh);
+    };
+  }, [refreshTrashCount, userId]);
 
   return (
     <>
@@ -83,7 +114,7 @@ export default function AppHeader({
         </div>
         <div className="flex items-center space-x-3">
           <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
-            <a href={externalLinks.home} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuHome}</a>
+            <Link href={externalLinks.home} className="hover:text-blue-600 transition-colors">{t.menuHome}</Link>
             <a href={externalLinks.features} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuFeatures}</a>
             <a href={externalLinks.pricing} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuPricing}</a>
             <a href={externalLinks.blog} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuBlog}</a>
@@ -114,6 +145,19 @@ export default function AppHeader({
 
           <div className="flex items-center space-x-1">
             <Link
+              href="/trash"
+              className="relative w-11 h-11 text-slate-600 flex items-center justify-center"
+              title={t.menuTrash || 'Trash'}
+            >
+              <i className="far fa-trash-alt"></i>
+              <span
+                className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
+                style={{ top: "5px", right: "5px" }}
+              >
+                {trashCount}
+              </span>
+            </Link>
+            <Link
               href={userId ? '/settings' : '/auth'}
               className={`w-11 h-11 flex items-center justify-center ${userId ? 'text-emerald-600' : 'text-slate-600'}`}
               title={userId ? (userEmail || 'Logged in') : 'Login'}
@@ -126,7 +170,7 @@ export default function AppHeader({
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
                 style={{ top: "5px", right: "5px" }}
               >
-                0
+                {bellCount}
               </span>
             </button>
             <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center">
@@ -148,10 +192,13 @@ export default function AppHeader({
             </button>
             <div className="flex flex-col space-y-4">
               <div className="flex flex-col space-y-3">
-                <a href={externalLinks.home} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuHome}</a>
+                <Link href={externalLinks.home} className="hover:border-blue-300" onClick={() => setIsMenuOpen(false)}>{t.menuHome}</Link>
                 <a href={externalLinks.features} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuFeatures}</a>
                 <a href={externalLinks.pricing} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuPricing}</a>
                 <a href={externalLinks.blog} target="_blank" rel="noreferrer" className="hover:border-blue-300">{t.menuBlog}</a>
+                <Link href="/trash" className="hover:border-blue-300" onClick={() => setIsMenuOpen(false)}>
+                  {t.menuTrash || 'Trash'}
+                </Link>
               </div>
 
               <div>

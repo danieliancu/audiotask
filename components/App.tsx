@@ -49,7 +49,8 @@ const translations = {
     menuHome: "Home",
     menuBlog: "Blog",
     menuFeatures: "Features",
-    menuPricing: "Pricing"
+    menuPricing: "Pricing",
+    menuTrash: "Trash"
   },
   ro: {
     tasks: "Tasks",
@@ -88,7 +89,8 @@ const translations = {
     menuHome: "Acasă",
     menuBlog: "Blog",
     menuFeatures: "Funcționalități",
-    menuPricing: "Prețuri"
+    menuPricing: "Prețuri",
+    menuTrash: "Coș"
   },
   fr: {
     tasks: "Tâches",
@@ -127,7 +129,8 @@ const translations = {
     menuHome: "Accueil",
     menuBlog: "Blog",
     menuFeatures: "Fonctionnalités",
-    menuPricing: "Tarifs"
+    menuPricing: "Tarifs",
+    menuTrash: "Corbeille"
   },
   de: {
     tasks: "Aufgaben",
@@ -166,7 +169,8 @@ const translations = {
     menuHome: "Startseite",
     menuBlog: "Blog",
     menuFeatures: "Funktionen",
-    menuPricing: "Preise"
+    menuPricing: "Preise",
+    menuTrash: "Papierkorb"
   },
   es: {
     tasks: "Tareas",
@@ -205,7 +209,8 @@ const translations = {
     menuHome: "Inicio",
     menuBlog: "Blog",
     menuFeatures: "Funcionalidades",
-    menuPricing: "Precios"
+    menuPricing: "Precios",
+    menuTrash: "Papelera"
   }
 };
 
@@ -543,9 +548,10 @@ const App: React.FC = () => {
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (!active || !data) return;
+        const persistedLanguage = ['en', 'ro', 'fr', 'de', 'es'].includes(data.language) ? data.language : '';
         const defaultLanguage = ['en', 'ro', 'fr', 'de', 'es'].includes(data.defaultLanguage) ? data.defaultLanguage : '';
         const defaultActiveTab = data.defaultActiveTab === 'event' ? 'event' : data.defaultActiveTab === 'task' ? 'task' : '';
-        const nextLanguage = defaultLanguage || (['en', 'ro', 'fr', 'de', 'es'].includes(data.language) ? data.language : 'en');
+        const nextLanguage = persistedLanguage || defaultLanguage || 'en';
         const nextActiveTab = (defaultActiveTab || (data.activeTab === 'event' ? 'event' : 'task')) as ItemType;
         const nextDates = Array.isArray(data.activeDateFilters) ? data.activeDateFilters : [];
         const nextFilterTask = ['all', 'completed', 'low', 'normal', 'high', 'outdated'].includes(data.filterTask) ? data.filterTask : 'all';
@@ -954,6 +960,38 @@ const App: React.FC = () => {
         setExpandedSubitems(prev => new Set(prev).add(parentId));
         break;
       }
+      case ToolNames.EDIT_SUBTASK: {
+        const parentId = String(args.id);
+        const oneBasedIndex = Number(args.subtaskIndex);
+        const normalized = normalizeSubitems([args.text]);
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1 || !normalized?.length) break;
+
+        updateTodo(parentId, (todo) => {
+          const existing = [...(todo.subtasks || [])];
+          const targetIndex = oneBasedIndex - 1;
+          if (targetIndex >= existing.length) return todo;
+          existing[targetIndex] = normalized[0];
+          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
+          return { ...todo, subtasks: existing };
+        });
+        setExpandedSubitems(prev => new Set(prev).add(parentId));
+        break;
+      }
+      case ToolNames.DELETE_SUBTASK: {
+        const parentId = String(args.id);
+        const oneBasedIndex = Number(args.subtaskIndex);
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) break;
+
+        updateTodo(parentId, (todo) => {
+          const existing = [...(todo.subtasks || [])];
+          const targetIndex = oneBasedIndex - 1;
+          if (targetIndex >= existing.length) return todo;
+          existing.splice(targetIndex, 1);
+          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
+          return { ...todo, subtasks: existing.length ? existing : undefined };
+        });
+        break;
+      }
       case ToolNames.DELETE_TODO: {
         const id = String(args.id);
         if (id.startsWith('tmp-')) {
@@ -963,6 +1001,9 @@ const App: React.FC = () => {
         }
         setTodos(prev => prev.filter(t => t.id !== id));
         if (isLoggedIn) syncDelete(id);
+        if (typeof window !== 'undefined' && isLoggedIn) {
+          window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: 1 } }));
+        }
         break;
       }
       case ToolNames.TOGGLE_TODO: {
@@ -975,10 +1016,14 @@ const App: React.FC = () => {
         break;
       }
       case ToolNames.CLEAR_COMPLETED: {
+        const removedCount = todosRef.current.filter(t => t.completed && !String(t.id).startsWith('tmp-')).length;
         setTodos(prev => {
           if (isLoggedIn) prev.filter(t => !t.completed).forEach(t => syncDelete(t.id));
           return prev.filter(t => !t.completed);
         });
+        if (typeof window !== 'undefined' && isLoggedIn && removedCount > 0) {
+          window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: removedCount } }));
+        }
         break;
       }
     }
@@ -1277,6 +1322,7 @@ const App: React.FC = () => {
           menuFeatures: t.menuFeatures,
           menuPricing: t.menuPricing,
           menuBlog: t.menuBlog,
+          menuTrash: t.menuTrash,
           languages: t.languages,
           // menuTitle: t.menuTitle,
           close: t.close
@@ -1536,14 +1582,13 @@ const App: React.FC = () => {
                             ) : null}
                           </div>
                           {item.subtasks?.length && expandedSubitems.has(item.id) && (
-                            <ul className="mt-1 mb-3 space-y-2 pl-4 text-sm font-semibold text-slate-600">
+                            <ol className="mt-1 mb-3 space-y-2 pl-6 text-sm font-semibold text-slate-600 list-decimal marker:font-black marker:text-slate-400">
                               {item.subtasks.map((subtask, index) => (
-                                <li key={`${item.id}-subtask-${index}`} className="relative">
-                                  <span className="absolute -left-3 top-2 h-1.5 w-1.5 rounded-full bg-slate-300"></span>
-                                  {subtask}
+                                <li key={`${item.id}-subtask-${index}`} className="pl-1">
+                                  <span>{subtask}</span>
                                 </li>
                               ))}
-                            </ul>
+                            </ol>
                           )}                          
                           {item.location && (
                             <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
