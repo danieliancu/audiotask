@@ -31,9 +31,9 @@ const translations = {
     dateLabel: "Date",
     timeLabel: "Time",
     searchPlaceholder: "Search tasks or say a command...",
-    filterAll: "All",
-    filterResolved: "Closed",
-    filterUnresolved: "Open",
+    filterAll: "All tasks",
+    filterResolved: "Checked",
+    filterUnresolved: "Active",
     filterOverdue: "Overdue",
     filterInTime: "In time",
     filterLow: "Low priority",
@@ -73,9 +73,9 @@ const translations = {
     dateLabel: "Data",
     timeLabel: "Ora",
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
-    filterAll: "Toate",
-    filterResolved: "Închise",
-    filterUnresolved: "Deschise",
+    filterAll: "Toate taskurile",
+    filterResolved: "Bifate",
+    filterUnresolved: "Active",
     filterOverdue: "Depășite",
     filterInTime: "În timp",
     filterLow: "Prioritate mică",
@@ -115,9 +115,9 @@ const translations = {
     dateLabel: "Date",
     timeLabel: "Heure",
     searchPlaceholder: "Rechercher ou parler...",
-    filterAll: "Tout",
-    filterResolved: "Fermées",
-    filterUnresolved: "Ouvertes",
+    filterAll: "Toutes les tâches",
+    filterResolved: "Cochées",
+    filterUnresolved: "Actives",
     filterOverdue: "En retard",
     filterInTime: "À temps",
     filterLow: "Basse priorité",
@@ -157,9 +157,9 @@ const translations = {
     dateLabel: "Datum",
     timeLabel: "Uhrzeit",
     searchPlaceholder: "Suchen oder Befehl sagen...",
-    filterAll: "Alle",
-    filterResolved: "Geschlossen",
-    filterUnresolved: "Offen",
+    filterAll: "Alle Aufgaben",
+    filterResolved: "Abgehakt",
+    filterUnresolved: "Aktiv",
     filterOverdue: "Überfällig",
     filterInTime: "Pünktlich",
     filterLow: "Niedrig",
@@ -199,9 +199,9 @@ const translations = {
     dateLabel: "Fecha",
     timeLabel: "Hora",
     searchPlaceholder: "Buscar tareas o decir un comando...",
-    filterAll: "Todo",
-    filterResolved: "Cerradas",
-    filterUnresolved: "Abiertas",
+    filterAll: "Todas las tareas",
+    filterResolved: "Marcadas",
+    filterUnresolved: "Activas",
     filterOverdue: "Vencidas",
     filterInTime: "A tiempo",
     filterLow: "Baja",
@@ -545,9 +545,26 @@ const App: React.FC = () => {
   }, [todos]);
 
   useEffect(() => {
-    const formatNow = (d: Date) => (
-      `${d.toLocaleDateString(language, { day: '2-digit', month: 'long' })}. ${d.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}`
-    );
+    const formatNow = (d: Date) => {
+      const dateParts = new Intl.DateTimeFormat(language, { day: '2-digit', month: 'short' }).formatToParts(d);
+      const dateLabel = dateParts
+        .map((part) => {
+          if (part.type !== 'month') return part.value;
+          const lettersRaw = part.value.match(/\p{L}+/gu)?.join('') || part.value;
+          const monthLetters = lettersRaw.slice(0, 3);
+          const first = lettersRaw.charAt(0);
+          const isUpper = first && first === first.toLocaleUpperCase(language) && first !== first.toLocaleLowerCase(language);
+          const normalized = isUpper
+            ? `${monthLetters.charAt(0).toLocaleUpperCase(language)}${monthLetters.slice(1).toLocaleLowerCase(language)}`
+            : monthLetters.toLocaleLowerCase(language);
+          return `${normalized}.`;
+        })
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const timeLabel = d.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
+      return `${dateLabel} • ${timeLabel}`;
+    };
     setNowLabel(formatNow(new Date()));
     const timer = setInterval(() => {
       setNowLabel(formatNow(new Date()));
@@ -1529,6 +1546,22 @@ const App: React.FC = () => {
     normal: 'text-blue-600 bg-blue-50',
     high: 'text-amber-900 bg-amber-200'
   };
+  const formTypeLabel = formType === 'task' ? 'Note' : 'Task';
+  const activeFilterLabel = (() => {
+    const mode = filterModeByType[activeTab];
+    if (mode === 'all') return t.filterAll;
+    if (mode === 'low') return t.filterLow;
+    if (mode === 'normal') return t.filterNormal;
+    if (mode === 'high') return t.filterHigh;
+    if (mode === 'closed') return t.filterResolved;
+    if (mode === 'open') return t.filterUnresolved;
+    if (mode === 'outdated') return t.filterOverdue;
+    if (mode === 'in_time') return t.filterInTime;
+    return t.filterAll;
+  })();
+  const activeLabelLabel = activeTab === 'event'
+    ? (labelFilter === 'all' ? 'All labels' : labelNameById.get(labelFilter.slice(6)) || 'All labels')
+    : '-';
 
   return (
     <div className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
@@ -1664,14 +1697,20 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsFilterPanelOpen(true)}
-              className="hidden max-[500px]:flex mb-4 h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600"
-              aria-label="Open filters"
-            >
-              <i className="fas fa-sliders-h text-xs"></i>
-            </button>
+            <div className="hidden max-[500px]:flex mb-4 items-center gap-3">
+              <div className="leading-tight text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">
+                <div className="text-blue-600">{activeFilterLabel}</div>
+                <div className="text-blue-600">{activeLabelLabel}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(true)}
+                className="h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 flex-shrink-0"
+                aria-label="Open filters"
+              >
+                <i className="fas fa-sliders-h text-xs"></i>
+              </button>
+            </div>
 
             <div className="mb-4 flex items-center space-x-2 max-[500px]:hidden flex-wrap justify-end max-[1100px]:w-full max-[1100px]:justify-start">
               <div className="relative group">
@@ -1992,8 +2031,7 @@ const App: React.FC = () => {
                                   <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
                                 </span>
                               )}
-                              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
-                                <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
+                              <div style={{ padding:"2.5px 10px" }} className={`flex items-center gap-2 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
                                 <select 
                                   value={item.priority}
                                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
@@ -2124,12 +2162,26 @@ const App: React.FC = () => {
               <i className="fas fa-times"></i>
             </button>
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
-                <span>{formType === 'task' ? t.tasks : t.events}</span>
-              </div>
-              <div className={`flex items-center px-3 py-1 rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
-                <i className="fas fa-circle text-[6px] mr-1.5 opacity-60"></i>
+              {modalMode === 'add' ? (
+                <div className={`flex items-center rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                  <select
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value as ItemType)}
+                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-3 py-1 pr-1"
+                    aria-label="Item type"
+                  >
+                    <option value="task">Note</option>
+                    <option value="event">Task</option>
+                  </select>
+                  <i className="fas fa-chevron-down text-[10px] opacity-60 pr-3"></i>
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                  {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
+                  <span>{formTypeLabel}</span>
+                </div>
+              )}
+              <div style={{ padding:"2.5px 10px" }} className={`flex items-center rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
                 <select
                   value={formPriority}
                   onChange={(e) => setFormPriority(e.target.value as Priority)}
@@ -2206,7 +2258,7 @@ const App: React.FC = () => {
                 )}
                 <button
                   onClick={saveModal}
-                  className="text-blue-600 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
                 >
                   {t.save}
                 </button>

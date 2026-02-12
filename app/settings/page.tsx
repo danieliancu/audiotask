@@ -203,9 +203,26 @@ export default function SettingsPage() {
   }, [session?.user?.id]);
 
   useEffect(() => {
-    const formatNow = (d: Date) => (
-      `${d.toLocaleDateString(pageLanguage, { day: '2-digit', month: 'long' })}. ${d.toLocaleTimeString(pageLanguage, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}`
-    );
+    const formatNow = (d: Date) => {
+      const dateParts = new Intl.DateTimeFormat(pageLanguage, { day: '2-digit', month: 'short' }).formatToParts(d);
+      const dateLabel = dateParts
+        .map((part) => {
+          if (part.type !== 'month') return part.value;
+          const lettersRaw = part.value.match(/\p{L}+/gu)?.join('') || part.value;
+          const monthLetters = lettersRaw.slice(0, 3);
+          const first = lettersRaw.charAt(0);
+          const isUpper = first && first === first.toLocaleUpperCase(pageLanguage) && first !== first.toLocaleLowerCase(pageLanguage);
+          const normalized = isUpper
+            ? `${monthLetters.charAt(0).toLocaleUpperCase(pageLanguage)}${monthLetters.slice(1).toLocaleLowerCase(pageLanguage)}`
+            : monthLetters.toLocaleLowerCase(pageLanguage);
+          return `${normalized}.`;
+        })
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const timeLabel = d.toLocaleTimeString(pageLanguage, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
+      return `${dateLabel} • ${timeLabel}`;
+    };
     setNowLabel(formatNow(new Date()));
     const timer = setInterval(() => {
       setNowLabel(formatNow(new Date()));
