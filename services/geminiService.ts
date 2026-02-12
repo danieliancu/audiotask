@@ -34,14 +34,13 @@ export const todoTools: FunctionDeclaration[] = [
   },
   {
     name: ToolNames.EDIT_TODO,
-    description: "Edits an existing item by id. Keep mapping strict: Notes are type=task (title/text/priority), Tasks are type=event (text/date/time/location/priority/subtasks/completion).",
+    description: "Edits an existing item by id. Type is immutable during edit. Notes (type=task) allow title/text/priority changes. Tasks (type=event) allow text/date/time/location/priority/subtasks/completion changes.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         id: { type: Type.STRING, description: "ID of the item." },
         title: { type: Type.STRING },
         text: { type: Type.STRING },
-        type: { type: Type.STRING, enum: ['task', 'event'] },
         date: { type: Type.STRING, description: "Updated date in YYYY-MM-DD format." },
         time: { type: Type.STRING },
         priority: { type: Type.STRING, enum: ['low', 'normal', 'high'] },

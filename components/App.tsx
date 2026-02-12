@@ -34,6 +34,7 @@ const translations = {
     searchPlaceholder: "Search tasks or say a command...",
     filterAll: "All tasks",
     filterAllPriorities: "All priorities",
+    stopListening: "Stop",
     filterResolved: "Checked",
     filterUnresolved: "Active",
     filterOverdue: "Overdue",
@@ -81,6 +82,7 @@ const translations = {
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
     filterAll: "Toate taskurile",
     filterAllPriorities: "Toate prioritatile",
+    stopListening: "Opreste",
     filterResolved: "Bifate",
     filterUnresolved: "Active",
     filterOverdue: "Depășite",
@@ -128,6 +130,7 @@ const translations = {
     searchPlaceholder: "Rechercher ou parler...",
     filterAll: "Toutes les tâches",
     filterAllPriorities: "Toutes les priorités",
+    stopListening: "Arreter",
     filterResolved: "Cochées",
     filterUnresolved: "Actives",
     filterOverdue: "En retard",
@@ -175,6 +178,7 @@ const translations = {
     searchPlaceholder: "Suchen oder Befehl sagen...",
     filterAll: "Alle Aufgaben",
     filterAllPriorities: "Alle Prioritäten",
+    stopListening: "Stoppen",
     filterResolved: "Abgehakt",
     filterUnresolved: "Aktiv",
     filterOverdue: "Überfällig",
@@ -222,6 +226,7 @@ const translations = {
     searchPlaceholder: "Buscar tareas o decir un comando...",
     filterAll: "Todas las tareas",
     filterAllPriorities: "Todas las prioridades",
+    stopListening: "Detener",
     filterResolved: "Marcadas",
     filterUnresolved: "Activas",
     filterOverdue: "Vencidas",
@@ -588,6 +593,7 @@ const App: React.FC = () => {
   const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isMobileMicModalOpen, setIsMobileMicModalOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
   const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
 
@@ -1198,9 +1204,8 @@ const App: React.FC = () => {
           break;
         }
         const newTs = args.date ? parseTaskDate(args.date) : existing.sortTimestamp;
-        const newType = (args.type as ItemType) || existing.type;
+        const newType = existing.type;
         const isNote = newType === 'task';
-        if (newType !== activeTab) setActiveTab(newType);
         const newLocation = args.location !== undefined
           ? (isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined))
           : existing.location;
@@ -1208,6 +1213,9 @@ const App: React.FC = () => {
           ? (isNote ? undefined : normalizeSubitems(args.subtasks))
           : existing.subtasks;
         const normalizedTime = args.time !== undefined ? normalizeDueTime(args.time) : existing.dueTime;
+        const eventTextFromTitle = !isNote && args.text === undefined && args.title !== undefined
+          ? String(args.title)
+          : undefined;
         const newTitle = args.title !== undefined
           ? (args.title ? capitalize(String(args.title)) : undefined)
           : existing.title;
@@ -1219,7 +1227,11 @@ const App: React.FC = () => {
         const nextTodo: TodoItem = {
           ...existing,
           title: newTitle,
-          text: args.text !== undefined ? (isNote ? String(args.text) : capitalize(args.text)) : existing.text,
+          text: args.text !== undefined
+            ? (isNote ? String(args.text) : capitalize(args.text))
+            : eventTextFromTitle !== undefined
+              ? capitalize(eventTextFromTitle)
+              : existing.text,
           labelId: isNote ? undefined : newLabelId,
           type: newType,
           completed: isNote ? false : existing.completed,
@@ -1233,8 +1245,7 @@ const App: React.FC = () => {
         const payload: Record<string, unknown> = {};
         if (args.title !== undefined) payload.title = nextTodo.title ?? null;
         if (labelWasSpecified) payload.labelId = isNote ? null : nextTodo.labelId ?? null;
-        if (args.text !== undefined) payload.text = nextTodo.text;
-        if (args.type !== undefined) payload.type = nextTodo.type;
+        if (args.text !== undefined || eventTextFromTitle !== undefined) payload.text = nextTodo.text;
         if (args.date !== undefined && !isNote) {
           payload.sortTimestamp = nextTodo.sortTimestamp;
           payload.dueDate = nextTodo.dueDate ?? null;
@@ -1486,6 +1497,32 @@ const App: React.FC = () => {
     } catch (err) { isConnectingRef.current = false; isLiveRef.current = false; setIsLive(false); }
   };
 
+  const openMobileMicModal = useCallback(() => {
+    setIsMobileMicModalOpen(true);
+    if (!isLive && !isConnectingRef.current) {
+      void startLiveSession();
+    }
+  }, [isLive, startLiveSession]);
+
+  const closeMobileMicModal = useCallback(() => {
+    stopLiveSession();
+    setIsMobileMicModalOpen(false);
+  }, [stopLiveSession]);
+
+  useEffect(() => {
+    if (!isMobileMicModalOpen) return;
+    if (!isLive && !isConnectingRef.current) {
+      setIsMobileMicModalOpen(false);
+    }
+  }, [isLive, isMobileMicModalOpen]);
+
+  useEffect(() => {
+    if (!isMobileMicModalOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isMobileMicModalOpen]);
+
   const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
     <div>
       <div className="flex items-center justify-start gap-3 mb-8">
@@ -1618,7 +1655,6 @@ const App: React.FC = () => {
         time: formType === 'event' ? (formTime || null) : null,
         location: formType === 'event' ? (formLocation || null) : null,
         priority: formPriority,
-        type: formType,
         subtasks: formType === 'event' ? formSubtasks : null,
         completed: formType === 'task' ? false : undefined
       });
@@ -1752,7 +1788,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-center space-x-4 bg-white p-4 rounded-[32px] shadow-sm border border-slate-200 animate-in fade-in zoom-in duration-300">
                 <button 
                   disabled={isConnectingRef.current}
-                  onClick={startLiveSession} 
+                  onClick={openMobileMicModal} 
                   className={`flex-1 max-w-[80px] h-14 rounded-[20px] flex items-center justify-center transition-all ${isLive ? 'bg-red-500 text-white animate-pulse shadow-xl shadow-red-100' : 'bg-blue-600 text-white shadow-xl shadow-blue-100 active:scale-95'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <i className={`fas ${isLive ? 'fa-stop text-lg' : 'fa-microphone text-xl'}`}></i>
@@ -2452,6 +2488,30 @@ const App: React.FC = () => {
                   {t.save}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Microphone Modal */}
+      {isMobileMicModalOpen && (
+        <div className="fixed inset-0 z-[90] md:hidden flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm"></div>
+          <div className="relative w-full max-w-sm rounded-[36px] bg-white p-8 shadow-2xl border border-slate-200">
+            <div className="flex flex-col items-center text-center gap-6">
+              <div className="w-28 h-28 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl shadow-blue-200 animate-[pulse_2.4s_ease-in-out_infinite]">
+                <i className="fas fa-microphone text-4xl"></i>
+              </div>
+              <div className="text-[12px] font-black uppercase tracking-[0.18em] text-blue-600">
+                {t.listening}
+              </div>
+              <button
+                type="button"
+                onClick={closeMobileMicModal}
+                className="rounded-full bg-red-600 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 active:scale-95 transition-all"
+              >
+                {t.stopListening}
+              </button>
             </div>
           </div>
         </div>

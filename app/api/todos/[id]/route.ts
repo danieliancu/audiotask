@@ -31,7 +31,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (body.dueTime !== undefined) pushField('due_time', body.dueTime ?? null);
   if (body.location !== undefined) pushField('location', body.location ?? null);
   if (body.sortTimestamp !== undefined) pushField('sort_timestamp', Number(body.sortTimestamp));
-  if (body.type !== undefined) pushField('type', body.type === 'event' ? 'event' : 'task');
   if (body.labelId !== undefined) {
     let labelId: number | null = null;
     if (body.labelId !== null && String(body.labelId).trim() !== '') {
