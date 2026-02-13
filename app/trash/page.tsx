@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import AppHeader from '@/components/AppHeader';
 import { Language, TodoItem } from '@/types';
+const LANGUAGE_STORAGE_KEY = 'voicetask.language';
 
 type TrashCopy = {
   appTitle: string;
@@ -181,6 +182,14 @@ export default function TrashPage() {
   );
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved && ['en', 'ro', 'fr', 'de', 'es'].includes(saved)) {
+      setPageLanguage(saved as Language);
+    }
+  }, []);
+
+  useEffect(() => {
     const formatNow = (d: Date) => {
       const dateParts = new Intl.DateTimeFormat(pageLanguage, { day: '2-digit', month: 'short' }).formatToParts(d);
       const dateLabel = dateParts
@@ -220,6 +229,17 @@ export default function TrashPage() {
       })
       .catch(() => {});
   }, [session?.user?.id]);
+
+  const handleLanguageChange = (lang: Language) => {
+    setPageLanguage(lang);
+    if (typeof window !== 'undefined') localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    if (!session?.user?.id) return;
+    void fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: lang })
+    }).catch(() => {});
+  };
 
   const loadTrash = useCallback(() => {
     if (!session?.user?.id) {
@@ -276,7 +296,7 @@ export default function TrashPage() {
         <AppHeader
           t={t}
           language={pageLanguage}
-          setLanguage={setPageLanguage}
+          setLanguage={handleLanguageChange}
           languageNames={languageNames}
           languageFlags={languageFlags}
           nowLabel={nowLabel}
@@ -300,7 +320,7 @@ export default function TrashPage() {
       <AppHeader
         t={t}
         language={pageLanguage}
-        setLanguage={setPageLanguage}
+        setLanguage={handleLanguageChange}
         languageNames={languageNames}
         languageFlags={languageFlags}
         nowLabel={nowLabel}

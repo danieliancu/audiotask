@@ -7,6 +7,10 @@ import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
   const { id } = await context.params;
+  const localId = Number(id);
+  if (!Number.isInteger(localId) || localId <= 0) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -55,19 +59,19 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  values.push(id, userId);
+  values.push(localId, userId);
   await pool.query(
-    `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    `UPDATE todos SET ${fields.join(', ')} WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL`,
     values
   );
 
-  const [rows] = await pool.query('SELECT * FROM todos WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
+  const [rows] = await pool.query('SELECT * FROM todos WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL', [localId, userId]);
   const item = (rows as any[])[0];
   if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const subtasks = item.subtasks ? (typeof item.subtasks === 'string' ? JSON.parse(item.subtasks) : item.subtasks) : undefined;
   return NextResponse.json({
-    id: String(item.id),
+    id: String(item.local_id),
     title: item.title ?? undefined,
     text: item.text,
     labelId: item.label_id ? String(item.label_id) : undefined,
@@ -86,13 +90,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
   const { id } = await context.params;
+  const localId = Number(id);
+  if (!Number.isInteger(localId) || localId <= 0) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   await pool.query(
-    'UPDATE todos SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
-    [Date.now(), id, userId]
+    'UPDATE todos SET deleted_at = ? WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL',
+    [Date.now(), localId, userId]
   );
   return NextResponse.json({ ok: true });
 }

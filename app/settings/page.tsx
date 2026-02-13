@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
 
 type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
+const LANGUAGE_STORAGE_KEY = 'voicetask.language';
 
 const languageNames: Record<Language, string> = {
   en: 'English',
@@ -180,9 +181,32 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [defaultShowSubtasks, setDefaultShowSubtasks] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [nowLabel, setNowLabel] = useState('');
 
   const t = useMemo(() => translations[pageLanguage], [pageLanguage]);
+  const deleteAccountLabel = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Sterge contul';
+    if (pageLanguage === 'fr') return 'Supprimer le compte';
+    if (pageLanguage === 'de') return 'Konto loschen';
+    if (pageLanguage === 'es') return 'Eliminar cuenta';
+    return 'Delete account';
+  }, [pageLanguage]);
+  const deleteAccountConfirm = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Sigur vrei sa stergi contul? Actiunea este permanenta.';
+    if (pageLanguage === 'fr') return 'Supprimer le compte ? Cette action est definitive.';
+    if (pageLanguage === 'de') return 'Mochtest du dein Konto wirklich loschen? Diese Aktion ist dauerhaft.';
+    if (pageLanguage === 'es') return 'Seguro que quieres eliminar tu cuenta? Esta accion es permanente.';
+    return 'Are you sure you want to delete your account? This action is permanent.';
+  }, [pageLanguage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved && ['en', 'ro', 'fr', 'de', 'es'].includes(saved)) {
+      setPageLanguage(saved as Language);
+    }
+  }, []);
 
   useEffect(() => {
     if (session?.user?.name) setUsername(session.user.name);
@@ -262,6 +286,30 @@ export default function SettingsPage() {
     setStatus(res.ok ? 'saved' : 'error');
   };
 
+  const handleLanguageChange = (lang: Language) => {
+    setPageLanguage(lang);
+    if (typeof window !== 'undefined') localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    if (!session?.user?.id) return;
+    void fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: lang })
+    }).catch(() => {});
+  };
+
+  const deleteAccount = async () => {
+    if (isDeletingAccount) return;
+    if (typeof window !== 'undefined' && !window.confirm(deleteAccountConfirm)) return;
+    setIsDeletingAccount(true);
+    const res = await fetch('/api/user', { method: 'DELETE' });
+    if (res.ok) {
+      await signOut({ callbackUrl: '/' });
+      return;
+    }
+    setIsDeletingAccount(false);
+    setStatus('error');
+  };
+
   if (!session?.user?.id) {
     return (
       <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
@@ -276,7 +324,7 @@ export default function SettingsPage() {
             close: t.close
           }}
           language={pageLanguage}
-          setLanguage={setPageLanguage}
+          setLanguage={handleLanguageChange}
           languageNames={languageNames}
           languageFlags={languageFlags}
           nowLabel={nowLabel}
@@ -308,7 +356,7 @@ export default function SettingsPage() {
           close: t.close
         }}
         language={pageLanguage}
-        setLanguage={setPageLanguage}
+        setLanguage={handleLanguageChange}
         languageNames={languageNames}
         languageFlags={languageFlags}
         nowLabel={nowLabel}
@@ -379,18 +427,27 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={saveDefaults}
-            className="rounded-2xl bg-emerald-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-100"
+            className="rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100"
           >
             {t.save}
           </button>
         </section>
 
-        <button
-          onClick={() => signOut({ callbackUrl: '/' })}
-          className="inline-flex rounded-2xl bg-slate-100 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-200"
-        >
-          {t.logout}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => signOut({ callbackUrl: '/' })}
+            className="inline-flex rounded-2xl bg-slate-100 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-200"
+          >
+            {t.logout}
+          </button>
+          <button
+            onClick={deleteAccount}
+            disabled={isDeletingAccount}
+            className="inline-flex rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 hover:bg-red-700 disabled:opacity-60"
+          >
+            {deleteAccountLabel}
+          </button>
+        </div>
 
         {status === 'saved' && <div className="text-xs font-semibold text-emerald-600">{t.saved}</div>}
         {status === 'error' && <div className="text-xs font-semibold text-red-600">{t.error}</div>}

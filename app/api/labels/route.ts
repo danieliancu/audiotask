@@ -3,11 +3,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import { normalizeLabelColor } from '@/lib/labelColors';
 
 type DbLabelRow = {
   id: number;
   user_id: number;
   name: string;
+  color: string;
   created_at: number;
 };
 
@@ -23,6 +25,7 @@ const normalizeLabelName = (value: unknown) => {
 const mapRow = (row: DbLabelRow) => ({
   id: String(row.id),
   name: normalizeLabelName(row.name),
+  color: normalizeLabelColor(row.color),
   createdAt: Number(row.created_at)
 });
 
@@ -44,6 +47,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const name = normalizeLabelName(body.name);
+  const color = normalizeLabelColor(body.color);
   if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
 
   const [existsRows] = await pool.query('SELECT id FROM labels WHERE user_id = ? AND LOWER(name) = LOWER(?) LIMIT 1', [userId, name]);
@@ -54,8 +58,8 @@ export async function POST(request: Request) {
   }
 
   const [result] = await pool.query(
-    'INSERT INTO labels (user_id, name, created_at) VALUES (?, ?, ?)',
-    [userId, name, Date.now()]
+    'INSERT INTO labels (user_id, name, color, created_at) VALUES (?, ?, ?, ?)',
+    [userId, name, color, Date.now()]
   );
   const insertId = (result as { insertId: number }).insertId;
   const [rows] = await pool.query('SELECT * FROM labels WHERE id = ? AND user_id = ?', [insertId, userId]);

@@ -3,11 +3,123 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import AppHeader from '@/components/AppHeader';
+type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
+const LANGUAGE_STORAGE_KEY = 'voicetask.language';
+
+const authTranslations: Record<Language, {
+  subtitle: string;
+  loginTitle: string;
+  signupTitle: string;
+  loginButton: string;
+  createAccountButton: string;
+  socialTitle: string;
+  continueGoogle: string;
+  continueFacebook: string;
+  oauthHelp: string;
+  passwordsDoNotMatch: string;
+  signupFailed: string;
+  email: string;
+  password: string;
+  fullName: string;
+  passwordMin: string;
+  confirmPassword: string;
+}> = {
+  en: {
+    subtitle: 'Login or create your account',
+    loginTitle: 'Login',
+    signupTitle: 'Sign Up',
+    loginButton: 'Login',
+    createAccountButton: 'Create Account',
+    socialTitle: 'Social Login',
+    continueGoogle: 'Continue with Google',
+    continueFacebook: 'Continue with Facebook',
+    oauthHelp: 'OAuth setup needed? Open',
+    passwordsDoNotMatch: 'Passwords do not match',
+    signupFailed: 'Signup failed',
+    email: 'Email',
+    password: 'Password',
+    fullName: 'Full name',
+    passwordMin: 'Password (min 6)',
+    confirmPassword: 'Confirm password'
+  },
+  ro: {
+    subtitle: 'Autentifica-te sau creeaza cont',
+    loginTitle: 'Login',
+    signupTitle: 'Inregistrare',
+    loginButton: 'Login',
+    createAccountButton: 'Creeaza cont',
+    socialTitle: 'Login social',
+    continueGoogle: 'Continua cu Google',
+    continueFacebook: 'Continua cu Facebook',
+    oauthHelp: 'Ai nevoie de setup OAuth? Deschide',
+    passwordsDoNotMatch: 'Parolele nu coincid',
+    signupFailed: 'Inregistrarea a esuat',
+    email: 'Email',
+    password: 'Parola',
+    fullName: 'Nume complet',
+    passwordMin: 'Parola (minim 6)',
+    confirmPassword: 'Confirma parola'
+  },
+  fr: {
+    subtitle: 'Connectez-vous ou creez votre compte',
+    loginTitle: 'Connexion',
+    signupTitle: 'Inscription',
+    loginButton: 'Connexion',
+    createAccountButton: 'Creer un compte',
+    socialTitle: 'Connexion sociale',
+    continueGoogle: 'Continuer avec Google',
+    continueFacebook: 'Continuer avec Facebook',
+    oauthHelp: 'Configuration OAuth necessaire ? Ouvrez',
+    passwordsDoNotMatch: 'Les mots de passe ne correspondent pas',
+    signupFailed: "Echec de l'inscription",
+    email: 'Email',
+    password: 'Mot de passe',
+    fullName: 'Nom complet',
+    passwordMin: 'Mot de passe (min 6)',
+    confirmPassword: 'Confirmer le mot de passe'
+  },
+  de: {
+    subtitle: 'Melde dich an oder erstelle ein Konto',
+    loginTitle: 'Login',
+    signupTitle: 'Registrieren',
+    loginButton: 'Login',
+    createAccountButton: 'Konto erstellen',
+    socialTitle: 'Social Login',
+    continueGoogle: 'Mit Google fortfahren',
+    continueFacebook: 'Mit Facebook fortfahren',
+    oauthHelp: 'OAuth-Setup erforderlich? Offne',
+    passwordsDoNotMatch: 'Passworter stimmen nicht uberein',
+    signupFailed: 'Registrierung fehlgeschlagen',
+    email: 'E-Mail',
+    password: 'Passwort',
+    fullName: 'Vollstandiger Name',
+    passwordMin: 'Passwort (min 6)',
+    confirmPassword: 'Passwort bestatigen'
+  },
+  es: {
+    subtitle: 'Inicia sesion o crea tu cuenta',
+    loginTitle: 'Login',
+    signupTitle: 'Registro',
+    loginButton: 'Iniciar sesion',
+    createAccountButton: 'Crear cuenta',
+    socialTitle: 'Login social',
+    continueGoogle: 'Continuar con Google',
+    continueFacebook: 'Continuar con Facebook',
+    oauthHelp: 'Necesitas configurar OAuth? Abre',
+    passwordsDoNotMatch: 'Las contrasenas no coinciden',
+    signupFailed: 'El registro fallo',
+    email: 'Email',
+    password: 'Contrasena',
+    fullName: 'Nombre completo',
+    passwordMin: 'Contrasena (min 6)',
+    confirmPassword: 'Confirmar contrasena'
+  }
+};
 
 export default function AuthPage() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
-  const [pageLanguage, setPageLanguage] = useState<'en' | 'ro' | 'fr' | 'de' | 'es'>('en');
+  const [pageLanguage, setPageLanguage] = useState<Language>('en');
   const [nowLabel, setNowLabel] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -42,6 +154,26 @@ export default function AuthPage() {
   } as const;
 
   const headerT = useMemo(() => headerTranslations[pageLanguage], [pageLanguage]);
+  const authT = useMemo(() => authTranslations[pageLanguage], [pageLanguage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved && ['en', 'ro', 'fr', 'de', 'es'].includes(saved)) {
+      setPageLanguage(saved as Language);
+    }
+  }, []);
+
+  const handleLanguageChange = (lang: Language) => {
+    setPageLanguage(lang);
+    if (typeof window !== 'undefined') localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    if (!userId) return;
+    void fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: lang })
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     const formatNow = (d: Date) => {
@@ -85,7 +217,7 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
     if (signupPassword !== signupConfirmPassword) {
-      setError('Passwords do not match');
+      setError(authT.passwordsDoNotMatch);
       return;
     }
     const res = await fetch('/api/auth/register', {
@@ -95,7 +227,7 @@ export default function AuthPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Signup failed');
+      setError(data.error || authT.signupFailed);
       return;
     }
     await signIn('credentials', {
@@ -110,7 +242,7 @@ export default function AuthPage() {
       <AppHeader
         t={headerT}
         language={pageLanguage}
-        setLanguage={setPageLanguage}
+        setLanguage={handleLanguageChange}
         languageNames={languageNames}
         languageFlags={languageFlags}
         nowLabel={nowLabel}
@@ -121,19 +253,19 @@ export default function AuthPage() {
       <div className="mx-auto max-w-3xl px-6 space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">VoiceTask</h1>
-          <p className="text-sm font-semibold text-slate-500">Login or create your account</p>
+          <p className="text-sm font-semibold text-slate-500">{authT.subtitle}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Login</h2>
+            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.loginTitle}</h2>
             <form className="space-y-3" onSubmit={handleLogin}>
               <input
                 type="email"
                 required
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={authT.email}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <input
@@ -141,24 +273,24 @@ export default function AuthPage() {
                 required
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Password"
+                placeholder={authT.password}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <button className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
-                Login
+                {authT.loginButton}
               </button>
             </form>
           </div>
 
           <div>
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Sign Up</h2>
+            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.signupTitle}</h2>
             <form className="space-y-3" onSubmit={handleSignup}>
               <input
                 type="text"
                 required
                 value={signupName}
                 onChange={(e) => setSignupName(e.target.value)}
-                placeholder="Full name"
+                placeholder={authT.fullName}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <input
@@ -166,7 +298,7 @@ export default function AuthPage() {
                 required
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={authT.email}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <input
@@ -175,7 +307,7 @@ export default function AuthPage() {
                 minLength={6}
                 value={signupPassword}
                 onChange={(e) => setSignupPassword(e.target.value)}
-                placeholder="Password (min 6)"
+                placeholder={authT.passwordMin}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <input
@@ -184,30 +316,30 @@ export default function AuthPage() {
                 minLength={6}
                 value={signupConfirmPassword}
                 onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
+                placeholder={authT.confirmPassword}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <button className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-100">
-                Create Account
+                {authT.createAccountButton}
               </button>
             </form>
           </div>
         </div>
 
         <div>
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Social Login</h2>
+          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.socialTitle}</h2>
           <div className="grid gap-3 md:grid-cols-2">
             <button
               onClick={() => signIn('google', { callbackUrl: '/' })}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
             >
-              Continue with Google
+              {authT.continueGoogle}
             </button>
             <button
               onClick={() => signIn('facebook', { callbackUrl: '/' })}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
             >
-              Continue with Facebook
+              {authT.continueFacebook}
             </button>
           </div>
         </div>
@@ -219,7 +351,7 @@ export default function AuthPage() {
         )}
 
         <div className="text-center text-xs font-semibold text-slate-400">
-          OAuth setup needed? Open <a className="underline" href="/setup">/setup</a>.
+          {authT.oauthHelp} <a className="underline" href="/setup">/setup</a>.
         </div>
       </div>
     </main>

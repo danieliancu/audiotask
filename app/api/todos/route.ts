@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 
 type DbTodoRow = {
   id: number;
+  local_id: number;
   user_id: number;
   title: string | null;
   text: string;
@@ -23,7 +25,7 @@ type DbTodoRow = {
 };
 
 const mapRow = (row: DbTodoRow) => ({
-  id: String(row.id),
+  id: String(row.local_id),
   title: row.title ?? undefined,
   text: row.text,
   labelId: row.label_id ? String(row.label_id) : undefined,
@@ -95,26 +97,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Text required' }, { status: 400 });
   }
 
-  const [result] = await pool.query(
-    'INSERT INTO todos (user_id, title, text, label_id, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [
-      userId,
-      payload.title,
-      payload.text,
-      payload.labelId,
-      payload.completed,
-      payload.createdAt,
-      payload.dueDate,
-      payload.dueTime,
-      payload.location,
-      payload.sortTimestamp,
-      type,
-      payload.priority,
-      payload.subtasks
-    ]
-  );
-  const insertId = (result as { insertId: number }).insertId;
-  const [rows] = await pool.query('SELECT * FROM todos WHERE id = ? AND user_id = ?', [insertId, userId]);
-  const item = (rows as DbTodoRow[])[0];
-  return NextResponse.json(mapRow(item));
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [maxRows] = await connection.query<RowDataPacket[]>(
+      'SELECT COALESCE(MAX(local_id), 0) + 1 AS nextLocalId FROM todos WHERE user_id = ? FOR UPDATE',
+      [userId]
+    );
+    const nextLocalId = Number(maxRows[0]?.nextLocalId || 1);
+
+    const [insertResult] = await connection.query<ResultSetHeader>(
+      'INSERT INTO todos (user_id, local_id, title, text, label_id, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        userId,
+        nextLocalId,
+        payload.title,
+        payload.text,
+        payload.labelId,
+        payload.completed,
+        payload.createdAt,
+        payload.dueDate,
+        payload.dueTime,
+        payload.location,
+        payload.sortTimestamp,
+        type,
+        payload.priority,
+        payload.subtasks
+      ]
+    );
+
+    const [rows] = await connection.query<RowDataPacket[]>(
+      'SELECT * FROM todos WHERE id = ? AND user_id = ? LIMIT 1',
+      [insertResult.insertId, userId]
+    );
+
+    await connection.commit();
+    return NextResponse.json(mapRow((rows as DbTodoRow[])[0]));
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }

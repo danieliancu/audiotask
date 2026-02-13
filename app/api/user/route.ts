@@ -49,3 +49,12 @@ export async function PUT(request: Request) {
   await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE() {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  await pool.query('DELETE FROM users WHERE id = ?', [userId]);
+  return NextResponse.json({ ok: true });
+}

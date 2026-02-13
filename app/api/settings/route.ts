@@ -75,12 +75,29 @@ export async function PUT(request: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
-  const activeTab = body.activeTab === 'event' ? 'event' : 'task';
-  const language = ['en', 'ro', 'fr', 'de', 'es'].includes(body.language) ? body.language : 'en';
-  const activeDateFilters = Array.isArray(body.activeDateFilters) ? JSON.stringify(body.activeDateFilters) : JSON.stringify([]);
-  const filterTask = normalizeCombinedFilter(body.filterTask, false);
-  const filterEvent = normalizeCombinedFilter(body.filterEvent, true);
-  const calendarMonth = typeof body.calendarMonth === 'string' ? body.calendarMonth : '';
+  const [existingRows] = await pool.query('SELECT * FROM user_settings WHERE user_id = ? LIMIT 1', [userId]);
+  const existing = (existingRows as SettingsRow[])[0];
+
+  const activeTab = body.activeTab === 'event'
+    ? 'event'
+    : body.activeTab === 'task'
+      ? 'task'
+      : (existing?.active_tab ?? defaultSettings.activeTab);
+  const language = ['en', 'ro', 'fr', 'de', 'es'].includes(body.language)
+    ? body.language
+    : (existing?.language ?? defaultSettings.language);
+  const activeDateFilters = Array.isArray(body.activeDateFilters)
+    ? JSON.stringify(body.activeDateFilters)
+    : (existing?.active_date_filters ?? JSON.stringify(defaultSettings.activeDateFilters));
+  const filterTask = body.filterTask !== undefined
+    ? normalizeCombinedFilter(body.filterTask, false)
+    : (existing?.filter_task ?? defaultSettings.filterTask);
+  const filterEvent = body.filterEvent !== undefined
+    ? normalizeCombinedFilter(body.filterEvent, true)
+    : (existing?.filter_event ?? defaultSettings.filterEvent);
+  const calendarMonth = typeof body.calendarMonth === 'string'
+    ? body.calendarMonth
+    : (existing?.calendar_month ?? defaultSettings.calendarMonth);
 
   await pool.query(
     `INSERT INTO user_settings (user_id, active_tab, language, active_date_filters, filter_task, filter_event, calendar_month)

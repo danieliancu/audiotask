@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { DEFAULT_LABEL_COLOR } from '@/lib/labelColors';
 
 let ensureSchemaPromise: Promise<void> | null = null;
 
@@ -14,6 +15,7 @@ export function ensureTodoTrashSchema() {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           user_id BIGINT NOT NULL,
           name VARCHAR(100) NOT NULL,
+          color VARCHAR(7) NOT NULL DEFAULT '${DEFAULT_LABEL_COLOR}',
           created_at BIGINT NOT NULL,
           UNIQUE KEY uniq_user_label_name (user_id, name),
           INDEX idx_labels_user (user_id),
@@ -41,11 +43,45 @@ export function ensureTodoTrashSchema() {
       await pool.query('ALTER TABLE todos ADD COLUMN label_id BIGINT NULL DEFAULT NULL');
     }
 
+    const [localIdRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'local_id'");
+    const hasLocalId = Array.isArray(localIdRows) && localIdRows.length > 0;
+    if (!hasLocalId) {
+      await pool.query('ALTER TABLE todos ADD COLUMN local_id BIGINT NULL DEFAULT NULL AFTER user_id');
+    }
+
+    const [labelColorRows] = await pool.query("SHOW COLUMNS FROM labels LIKE 'color'");
+    const hasLabelColor = Array.isArray(labelColorRows) && labelColorRows.length > 0;
+    if (!hasLabelColor) {
+      await pool.query(`ALTER TABLE labels ADD COLUMN color VARCHAR(7) NOT NULL DEFAULT '${DEFAULT_LABEL_COLOR}' AFTER name`);
+    }
+
+    await pool.query(`
+      UPDATE todos t
+      JOIN (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at ASC, id ASC) AS row_no
+        FROM todos
+      ) x ON x.id = t.id
+      SET t.local_id = x.row_no
+      WHERE t.local_id IS NULL
+    `);
+
+    const [localIdDefinitionRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'local_id'");
+    const localIdDefinition = (localIdDefinitionRows as Array<{ Null: string }>)[0];
+    if (localIdDefinition?.Null === 'YES') {
+      await pool.query('ALTER TABLE todos MODIFY COLUMN local_id BIGINT NOT NULL');
+    }
+
     const [indexRows] = await pool.query("SHOW INDEX FROM todos WHERE Key_name = 'idx_todos_user_deleted'");
     const hasUserDeletedIndex = Array.isArray(indexRows) && indexRows.length > 0;
 
     if (!hasUserDeletedIndex) {
       await pool.query('CREATE INDEX idx_todos_user_deleted ON todos(user_id, deleted_at)');
+    }
+
+    const [localUniqueRows] = await pool.query("SHOW INDEX FROM todos WHERE Key_name = 'uniq_todos_user_local_id'");
+    const hasLocalUniqueIndex = Array.isArray(localUniqueRows) && localUniqueRows.length > 0;
+    if (!hasLocalUniqueIndex) {
+      await pool.query('CREATE UNIQUE INDEX uniq_todos_user_local_id ON todos(user_id, local_id)');
     }
 
     const [labelIndexRows] = await pool.query("SHOW INDEX FROM todos WHERE Key_name = 'idx_todos_label'");

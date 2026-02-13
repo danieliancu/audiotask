@@ -7,11 +7,13 @@ import { useSession } from 'next-auth/react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
+import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@/lib/labelColors';
 
 type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
 type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
 type LabelFilter = 'all' | `label:${string}`;
-type ItemLabel = { id: string; name: string };
+type ItemLabel = { id: string; name: string; color: string };
+const LANGUAGE_STORAGE_KEY = 'voicetask.language';
 
 // Translation strings for professional i18n
 const translations = {
@@ -117,7 +119,7 @@ const translations = {
     clear: "Effacer",
     listening: "Écoute...",
     placeholder: "Réunion à 17h, acheter du pain...",
-    noTasks: "Aucune tâche",
+    noTasks: "Aucune note",
     noEvents: "Aucun événement",
     settings: "Paramètres",
     language: "Langue",
@@ -165,7 +167,7 @@ const translations = {
     clear: "Bereinigen",
     listening: "Zuhören...",
     placeholder: "Meeting um 17 Uhr, Brot kaufen...",
-    noTasks: "Keine Aufgaben",
+    noTasks: "Keine Notizen gefunden",
     noEvents: "Keine Termine",
     settings: "Einstellungen",
     language: "Sprache",
@@ -213,7 +215,7 @@ const translations = {
     clear: "Limpiar",
     listening: "Escuchando...",
     placeholder: "Reunión a las 5, comprar pan...",
-    noTasks: "No se encontraron tareas",
+    noTasks: "No se encontraron notas",
     noEvents: "No se encontraron eventos",
     settings: "Ajustes",
     language: "Idioma",
@@ -428,33 +430,133 @@ const normalizeSubitems = (value: unknown) => {
 const normalizeLabelName = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
-  const firstWord = trimmed.split(/\s+/)[0];
-  if (!firstWord) return '';
-  const lower = firstWord.toLocaleLowerCase();
-  return `${lower.charAt(0).toLocaleUpperCase()}${lower.slice(1)}`;
+  const cleaned = trimmed.replace(/\s+/g, ' ');
+  return cleaned
+    .split(' ')
+    .map((part) => {
+      const lower = part.toLocaleLowerCase();
+      return `${lower.charAt(0).toLocaleUpperCase()}${lower.slice(1)}`;
+    })
+    .join(' ');
+};
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = normalizeLabelColor(hex);
+  const value = normalized.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-function parseTaskDate(dateStr: string | undefined): number {
-  if (!dateStr) return Date.now();
-  
+const normalizeDateText = (value: string) => value
+  .toLocaleLowerCase()
+  .normalize('NFD')
+  .replace(/\p{M}/gu, '')
+  .replace(/[’']/g, "'")
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const inferRelativeDateOffset = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const str = normalizeDateText(value);
+  const matchesAny = (phrases: string[]) => phrases.some((phrase) => str.includes(phrase));
+
+  if (matchesAny([
+    'poimaine',
+    'day after tomorrow',
+    'the day after tomorrow',
+    'apres-demain',
+    'ubermorgen',
+    'uebermorgen',
+    'pasado manana',
+    'pasadomanana'
+  ])) return 2;
+
+  if (matchesAny([
+    'maine',
+    'tomorrow',
+    'demain',
+    'morgen',
+    'manana'
+  ])) return 1;
+
+  if (matchesAny([
+    'ieri',
+    'yesterday',
+    'hier',
+    'gestern',
+    'ayer'
+  ])) return -1;
+
+  if (matchesAny([
+    'azi',
+    'astazi',
+    'today',
+    "aujourd'hui",
+    'aujourdhui',
+    'heute',
+    'hoy'
+  ])) return 0;
+
+  if (matchesAny([
+    'saptamana viitoare',
+    'next week',
+    'semaine prochaine',
+    'nachste woche',
+    'naechste woche',
+    'proxima semana',
+    'semana que viene'
+  ])) return 7;
+
+  return null;
+};
+
+type ParsedTaskDate = {
+  timestamp: number;
+  usedFallback: boolean;
+};
+
+function parseTaskDate(dateStr: string | undefined): ParsedTaskDate {
   const now = new Date();
-  const str = dateStr.toLowerCase().trim();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (!dateStr) return { timestamp: todayStart, usedFallback: false };
 
-  const relativePatterns = [
-    { keys: ['azi', 'today', 'aujourd', 'heute', 'hoy'], val: 0 },
-    { keys: ['mâine', 'tomorrow', 'demain', 'morgen', 'mañana'], val: 86400000 },
-    { keys: ['saptamana', 'week', 'semaine', 'woche', 'semana'], val: 7 * 86400000 }
-  ];
+  const str = normalizeDateText(dateStr);
+  const dayMs = 86400000;
+  const relativeOffset = inferRelativeDateOffset(str);
+  if (relativeOffset !== null) return { timestamp: todayStart + (relativeOffset * dayMs), usedFallback: false };
 
-  for (const p of relativePatterns) {
-    if (p.keys.some(k => str.includes(k))) return todayStart + p.val;
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const parsed = new Date(year, month - 1, day);
+    if (
+      parsed.getFullYear() === year
+      && parsed.getMonth() === month - 1
+      && parsed.getDate() === day
+    ) {
+      return { timestamp: parsed.getTime(), usedFallback: false };
+    }
   }
 
-  const parsed = Date.parse(dateStr);
-  if (!isNaN(parsed)) return parsed;
+  const numericMatch = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (numericMatch) {
+    const day = Number(numericMatch[1]);
+    const month = Number(numericMatch[2]);
+    const year = Number(numericMatch[3]);
+    const parsed = new Date(year, month - 1, day);
+    if (
+      parsed.getFullYear() === year
+      && parsed.getMonth() === month - 1
+      && parsed.getDate() === day
+    ) {
+      return { timestamp: parsed.getTime(), usedFallback: false };
+    }
+  }
 
-  return Date.now();
+  return { timestamp: todayStart, usedFallback: true };
 }
 
 function isItemOverdue(item: TodoItem): boolean {
@@ -585,16 +687,21 @@ const App: React.FC = () => {
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState<string>(DEFAULT_LABEL_COLOR);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const labelMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelName, setEditingLabelName] = useState('');
+  const [editingLabelColor, setEditingLabelColor] = useState<string>(DEFAULT_LABEL_COLOR);
   const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMobileMicModalOpen, setIsMobileMicModalOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
+  const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const uiNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastUserCommandRef = useRef<string>('');
   const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -608,11 +715,48 @@ const App: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const t = useMemo(() => translations[language], [language]);
+  const handleLanguageChange = useCallback((lang: Language) => {
+    setLanguage(lang);
+    if (typeof window !== 'undefined') localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    if (!userId) return;
+    void fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: lang })
+    }).catch(() => {});
+  }, [userId]);
+  const getInvalidDateMessage = useCallback((rawValue: string) => {
+    const value = rawValue.trim().slice(0, 50);
+    if (language === 'ro') return `Data "${value}" nu a fost inteleasa. Am setat azi.`;
+    if (language === 'fr') return `La date "${value}" n'a pas ete comprise. J'ai defini aujourd'hui.`;
+    if (language === 'de') return `Das Datum "${value}" wurde nicht verstanden. Ich habe heute gesetzt.`;
+    if (language === 'es') return `La fecha "${value}" no se entendio. Se configuro hoy.`;
+    return `Date "${value}" was not understood. I set it to today.`;
+  }, [language]);
+  const showUiNotice = useCallback((message: string) => {
+    setUiNotice(message);
+    if (uiNoticeTimerRef.current) clearTimeout(uiNoticeTimerRef.current);
+    uiNoticeTimerRef.current = setTimeout(() => {
+      setUiNotice(null);
+      uiNoticeTimerRef.current = null;
+    }, 5000);
+  }, []);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved && ['en', 'ro', 'fr', 'de', 'es'].includes(saved)) {
+      setLanguage(saved as Language);
+    }
+  }, []);
+
+  useEffect(() => {
     todosRef.current = todos;
   }, [todos]);
+  useEffect(() => () => {
+    if (uiNoticeTimerRef.current) clearTimeout(uiNoticeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const formatNow = (d: Date) => {
@@ -667,7 +811,10 @@ const App: React.FC = () => {
       .then(res => (res.ok ? res.json() : []))
       .then(data => {
         if (!active) return;
-        setLabels(Array.isArray(data) ? data : []);
+        const normalized = Array.isArray(data)
+          ? data.map((label: ItemLabel) => ({ ...label, color: normalizeLabelColor((label as any).color) }))
+          : [];
+        setLabels(normalized);
       })
       .catch(() => {});
     return () => { active = false; };
@@ -915,6 +1062,11 @@ const App: React.FC = () => {
     labels.forEach(label => map.set(label.id, label.name));
     return map;
   }, [labels]);
+  const labelById = useMemo(() => {
+    const map = new Map<string, ItemLabel>();
+    labels.forEach(label => map.set(label.id, label));
+    return map;
+  }, [labels]);
   const labelsPromptContext = useMemo(() => {
     if (!labels.length) return 'Available labels: none.';
     return `Available labels: ${labels.map(label => label.name).join(', ')}.`;
@@ -928,24 +1080,29 @@ const App: React.FC = () => {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, color: newLabelColor })
     });
     setLabelBusyId(null);
     if (!res.ok) return;
     const label = await res.json();
     setLabels(prev => {
       const existing = prev.find(l => l.id === label.id);
-      if (existing) return prev;
-      return [...prev, label].sort((a, b) => a.name.localeCompare(b.name));
+      if (existing) {
+        return prev.map(l => (l.id === label.id ? { ...label, color: normalizeLabelColor(label.color) } : l))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return [...prev, { ...label, color: normalizeLabelColor(label.color) }].sort((a, b) => a.name.localeCompare(b.name));
     });
     setLabelFilter(`label:${label.id}`);
     setNewLabelName('');
+    setNewLabelColor(DEFAULT_LABEL_COLOR);
     setIsLabelMenuOpen(false);
-  }, [newLabelName, userId]);
+  }, [newLabelName, newLabelColor, userId]);
 
   const startEditLabel = useCallback((label: ItemLabel) => {
     setEditingLabelId(label.id);
     setEditingLabelName(label.name);
+    setEditingLabelColor(normalizeLabelColor(label.color));
   }, []);
 
   const saveEditLabel = useCallback(async () => {
@@ -957,15 +1114,18 @@ const App: React.FC = () => {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, color: editingLabelColor })
     });
     setLabelBusyId(null);
     if (!res.ok) return;
     const updated = await res.json();
-    setLabels(prev => prev.map(label => (label.id === updated.id ? updated : label)).sort((a, b) => a.name.localeCompare(b.name)));
+    setLabels(prev => prev
+      .map(label => (label.id === updated.id ? { ...updated, color: normalizeLabelColor(updated.color) } : label))
+      .sort((a, b) => a.name.localeCompare(b.name)));
     setEditingLabelId(null);
     setEditingLabelName('');
-  }, [editingLabelId, editingLabelName, userId]);
+    setEditingLabelColor(DEFAULT_LABEL_COLOR);
+  }, [editingLabelId, editingLabelName, editingLabelColor, userId]);
 
   const deleteLabel = useCallback(async (id: string) => {
     if (!userId) return;
@@ -979,6 +1139,7 @@ const App: React.FC = () => {
     if (editingLabelId === id) {
       setEditingLabelId(null);
       setEditingLabelName('');
+      setEditingLabelColor(DEFAULT_LABEL_COLOR);
     }
   }, [userId, labelFilter, editingLabelId]);
 
@@ -1042,6 +1203,11 @@ const App: React.FC = () => {
     if (!args || typeof args !== 'object') args = {};
     const isLoggedIn = Boolean(userId);
     const resolveLabelIdFromArgs = () => {
+      const normalizeLoose = (value: string) => value
+        .toLocaleLowerCase()
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .replace(/[\s_-]+/g, '');
       const labelIdFromArgs = args.labelId;
       const labelFromArgs = typeof args.label === 'string' ? normalizeLabelName(args.label) : '';
       const clearLabel = Boolean(args.clearLabel);
@@ -1053,7 +1219,8 @@ const App: React.FC = () => {
       if (labelFromArgs) {
         const found = labelsRef.current.find(label => label.name.toLocaleLowerCase() === labelFromArgs.toLocaleLowerCase());
         if (found) return found.id;
-        if (/^(no|none|nolabel|fara|fara-label|without)$/i.test(labelFromArgs)) return null;
+        const normalizedLabelValue = normalizeLoose(labelFromArgs);
+        if (new Set(['no', 'none', 'nolabel', 'fara', 'faraeticheta', 'withoutlabel']).has(normalizedLabelValue)) return null;
       }
       if (args.label !== undefined && !labelFromArgs) return null;
       return undefined;
@@ -1120,9 +1287,13 @@ const App: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item)
       })
-        .then(res => (res.ok ? res.json() : null))
+        .then(async (res) => (res.ok ? res.json() : null))
         .then(serverItem => {
-          if (!serverItem) return;
+          if (!serverItem) {
+            setTodos(prev => prev.filter(todo => todo.id !== tempId));
+            scheduleRefreshTodos();
+            return;
+          }
           if (canceledTempIdsRef.current.has(tempId)) {
             canceledTempIdsRef.current.delete(tempId);
             syncDelete(serverItem.id);
@@ -1135,7 +1306,7 @@ const App: React.FC = () => {
           }
           setTodos(prev => prev.map(todo => (todo.id === tempId ? serverItem : todo)));
           scheduleRefreshTodos();
-        })
+      })
         .catch(() => {
           setTodos(prev => prev.filter(todo => todo.id !== tempId));
         });
@@ -1143,9 +1314,27 @@ const App: React.FC = () => {
 
     switch (name) {
       case ToolNames.ADD_TODO: {
-        const ts = parseTaskDate(args.date);
         const normalizedTime = normalizeDueTime(args.time);
         const isNote = ((args.type as ItemType) || 'task') === 'task';
+        const parsedDate = parseTaskDate(args.date);
+        const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+        const relativeOffsetFromUser = inferRelativeDateOffset(lastUserCommandRef.current);
+        const forcedRelativeTs = relativeOffsetFromUser !== null ? todayStart + (relativeOffsetFromUser * 86400000) : null;
+        const ts = (!isNote && forcedRelativeTs !== null) ? forcedRelativeTs : parsedDate.timestamp;
+        if (!isNote && args.date !== undefined && parsedDate.usedFallback) {
+          showUiNotice(getInvalidDateMessage(String(args.date)));
+        }
+        if (!isNote && forcedRelativeTs !== null && args.date !== undefined && Math.abs(parsedDate.timestamp - forcedRelativeTs) >= 86400000) {
+          showUiNotice(language === 'ro'
+            ? 'Am folosit data relativa ceruta de tine (azi/maine/poimaine), nu data trimisa gresit de AI.'
+            : language === 'fr'
+              ? "J'ai applique la date relative demandee (aujourd'hui/demain/apres-demain), pas la date incorrecte de l'IA."
+              : language === 'de'
+                ? 'Ich habe das von dir genannte relative Datum verwendet (heute/morgen/uebermorgen), nicht das falsche KI-Datum.'
+                : language === 'es'
+                  ? 'Aplique la fecha relativa que pediste (hoy/manana/pasado manana), no la fecha incorrecta de la IA.'
+                  : 'I used your relative date (today/tomorrow/day after tomorrow), not the incorrect AI date.');
+        }
         const noteTitle = isNote ? capitalize(String(args.title || args.text || '').trim()) : undefined;
         const normalizedSubtasks = isNote ? undefined : normalizeSubitems(args.subtasks);
         const resolvedLabelId = resolveLabelIdFromArgs();
@@ -1203,9 +1392,27 @@ const App: React.FC = () => {
           refreshTodos();
           break;
         }
-        const newTs = args.date ? parseTaskDate(args.date) : existing.sortTimestamp;
+        const parsedDate = args.date !== undefined ? parseTaskDate(args.date) : null;
+        const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+        const relativeOffsetFromUser = inferRelativeDateOffset(lastUserCommandRef.current);
+        const forcedRelativeTs = relativeOffsetFromUser !== null ? todayStart + (relativeOffsetFromUser * 86400000) : null;
+        const newTs = (parsedDate ? (forcedRelativeTs ?? parsedDate.timestamp) : existing.sortTimestamp);
         const newType = existing.type;
         const isNote = newType === 'task';
+        if (!isNote && parsedDate?.usedFallback && args.date !== undefined) {
+          showUiNotice(getInvalidDateMessage(String(args.date)));
+        }
+        if (!isNote && parsedDate && forcedRelativeTs !== null && args.date !== undefined && Math.abs(parsedDate.timestamp - forcedRelativeTs) >= 86400000) {
+          showUiNotice(language === 'ro'
+            ? 'Am aplicat data relativa pe care ai spus-o, pentru a evita o data gresita de la AI.'
+            : language === 'fr'
+              ? "J'ai applique la date relative que tu as dite pour eviter une date erronee de l'IA."
+              : language === 'de'
+                ? 'Ich habe dein relatives Datum angewendet, um ein falsches KI-Datum zu vermeiden.'
+                : language === 'es'
+                  ? 'Aplique la fecha relativa que dijiste para evitar una fecha incorrecta de la IA.'
+                  : 'I applied the relative date you said to avoid an incorrect AI date.');
+        }
         const newLocation = args.location !== undefined
           ? (isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined))
           : existing.location;
@@ -1433,12 +1640,14 @@ const App: React.FC = () => {
             if (m.serverContent?.inputTranscription) {
               const text = m.serverContent.inputTranscription.text.toLowerCase();
               setTranscription(prev => prev + m.serverContent.inputTranscription.text);
+              lastUserCommandRef.current = `${lastUserCommandRef.current} ${m.serverContent.inputTranscription.text}`.trim();
               const idMatch = text.match(/id\s+(\d+)|item\s+(\d+)|sarcina\s+(\d+)|task\s+(\d+)|tarea\s+(\d+)/);
               if (idMatch) setHighlightedTaskId(idMatch[1] || idMatch[2] || idMatch[3] || idMatch[4] || idMatch[5]);
             }
             if (m.serverContent?.turnComplete) {
               setTranscription('');
               setTimeout(() => setHighlightedTaskId(null), 3000);
+              lastUserCommandRef.current = '';
             }
             
             m.serverContent?.modelTurn?.parts?.forEach(async (part) => {
@@ -1488,7 +1697,7 @@ const App: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: `${systemInstructions[language]} ${labelsPromptContext}`,
+          systemInstruction: `${systemInstructions[language]} ${labelsPromptContext} Current date is ${new Date().toISOString().split('T')[0]}. For relative dates like today/tomorrow/day after tomorrow, resolve against this date.`,
           tools: [{ functionDeclarations: todoTools }],
           inputAudioTranscription: {},
         }
@@ -1597,8 +1806,15 @@ const App: React.FC = () => {
 
   const handleSendPrompt = async () => {
     if (!inputValue.trim()) return;
-    const response = await generateAssistantResponse(`${inputValue}\n${labelsPromptContext}`, [], language);
+    lastUserCommandRef.current = inputValue;
+    const todayIso = new Date().toISOString().split('T')[0];
+    const response = await generateAssistantResponse(
+      `${inputValue}\n${labelsPromptContext}\nCurrent date: ${todayIso}. For relative dates (today/tomorrow/day after tomorrow), convert to this context.`,
+      [],
+      language
+    );
     response.functionCalls?.forEach(c => executeTool(c.name, c.args));
+    lastUserCommandRef.current = '';
     setInputValue('');
     setIsWriteMode(false);
   };
@@ -1734,7 +1950,7 @@ const App: React.FC = () => {
           close: t.close
         }}
         language={language}
-        setLanguage={setLanguage}
+        setLanguage={handleLanguageChange}
         languageNames={languageNames}
         languageFlags={languageFlags}
         nowLabel={nowLabel}
@@ -1742,6 +1958,14 @@ const App: React.FC = () => {
         userEmail={session?.user?.email}
         bellCount={totalCount}
       />
+
+      {uiNotice && (
+        <div className="max-w-7xl mx-auto px-6 mt-3">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 shadow-sm">
+            {uiNotice}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#FDF5E6] backdrop-blur-xl px-6 py-6 mb-8 border-b border-slate-200/50">
         <div>
@@ -1753,6 +1977,15 @@ const App: React.FC = () => {
               className={`flex-shrink-0 w-14 h-14 rounded-[20px] flex items-center justify-center transition-all ${isLive ? 'bg-red-500 text-white animate-pulse shadow-xl shadow-red-100' : 'bg-blue-600 text-white shadow-xl shadow-blue-100 hover:bg-blue-700 hover:scale-105'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <i className={`fas ${isLive ? 'fa-stop text-lg' : 'fa-microphone text-xl'}`}></i>
+            </button>
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="flex-shrink-0 w-14 h-14 rounded-[20px] flex items-center justify-center transition-all bg-blue-50 text-blue-600 border border-slate-200 shadow-xl shadow-slate-100 hover:bg-blue-50 hover:border-blue-200 hover:scale-105"
+              aria-label="Create item"
+              title="Create item"
+            >
+              <i className="fas fa-pen text-lg"></i>
             </button>
             <div className="flex-grow bg-slate-50 rounded-[24px] px-4 py-3 border border-slate-100 min-h-[56px] flex items-center relative gap-2">
               {isLive ? (
@@ -1946,6 +2179,12 @@ const App: React.FC = () => {
                     className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
                   >
                     <i className="fas fa-tags text-[10px] text-slate-400 mr-2"></i>
+                    {labelFilter.startsWith('label:') && labelById.get(labelFilter.slice(6)) && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full mr-2"
+                        style={{ backgroundColor: normalizeLabelColor(labelById.get(labelFilter.slice(6))!.color) }}
+                      ></span>
+                    )}
                     <span className="text-[10px] font-black text-blue-500 tracking-widest px-2 py-0.5">
                       {labelFilter === 'all'
                         ? t.allLabels
@@ -1964,57 +2203,75 @@ const App: React.FC = () => {
                       {labels.map(label => (
                         <div
                           key={label.id}
-                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === `label:${label.id}` ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                          className={`w-full px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === `label:${label.id}` ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                         >
-                          <div
-                            onClick={() => {
-                              if (editingLabelId === label.id) return;
-                              setLabelFilter(`label:${label.id}`);
-                              setIsLabelMenuOpen(false);
-                            }}
-                            className="flex-1 text-left truncate cursor-pointer"
-                          >
-                            {editingLabelId === label.id ? (
-                              <input
-                                value={editingLabelName}
-                                onChange={(e) => setEditingLabelName(e.target.value)}
-                                className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black uppercase tracking-widest text-slate-700"
-                              />
-                            ) : (
-                              label.name
-                            )}
+                          <div className="w-full flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: normalizeLabelColor(label.color) }}
+                            ></span>
+                            <div
+                              onClick={() => {
+                                if (editingLabelId === label.id) return;
+                                setLabelFilter(`label:${label.id}`);
+                                setIsLabelMenuOpen(false);
+                              }}
+                              className="flex-1 text-left truncate cursor-pointer"
+                            >
+                              {editingLabelId === label.id ? (
+                                <input
+                                  value={editingLabelName}
+                                  onChange={(e) => setEditingLabelName(e.target.value)}
+                                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black uppercase tracking-widest text-slate-700"
+                                />
+                              ) : (
+                                label.name
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void deleteLabel(label.id)}
+                              disabled={labelBusyId === label.id}
+                              className="h-5 w-5 inline-flex items-center justify-center"
+                              title="Delete label"
+                            >
+                              <i className="fas fa-trash text-[10px]"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditLabel(label)}
+                              disabled={labelBusyId === label.id}
+                              className="h-5 w-5 inline-flex items-center justify-center"
+                              title="Edit label"
+                            >
+                              <i className="fas fa-pen text-[10px]"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditLabel()}
+                              disabled={editingLabelId !== label.id || labelBusyId === label.id}
+                              className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
+                              title="Confirm label"
+                            >
+                              <i className="fas fa-check text-[10px]"></i>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => void deleteLabel(label.id)}
-                            disabled={labelBusyId === label.id}
-                            className="h-5 w-5 inline-flex items-center justify-center"
-                            title="Delete label"
-                          >
-                            <i className="fas fa-trash text-[10px]"></i>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => startEditLabel(label)}
-                            disabled={labelBusyId === label.id}
-                            className="h-5 w-5 inline-flex items-center justify-center"
-                            title="Edit label"
-                          >
-                            <i className="fas fa-pen text-[10px]"></i>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void saveEditLabel()}
-                            disabled={editingLabelId !== label.id || labelBusyId === label.id}
-                            className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
-                            title="Confirm label"
-                          >
-                            <i className="fas fa-check text-[10px]"></i>
-                          </button>
                         </div>
                       ))}
                       <div className="mt-2 pt-2 border-t border-slate-200">
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">{t.addLabel}</div>
+                        <div className="flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-2">
+                          {LABEL_COLOR_PALETTE.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
+                              className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
+                              style={{ backgroundColor: color }}
+                              aria-label={`Color ${color}`}
+                            />
+                          ))}
+                        </div>
                         <div className="flex items-center gap-2">
                           <input
                             value={newLabelName}
@@ -2128,12 +2385,18 @@ const App: React.FC = () => {
                               onChange={() => setLabelFilter(`label:${label.id}`)}
                               className="h-4 w-4"
                             />
+                            <span
+                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: normalizeLabelColor(label.color) }}
+                            ></span>
                             {editingLabelId === label.id ? (
-                              <input
-                                value={editingLabelName}
-                                onChange={(e) => setEditingLabelName(e.target.value)}
-                                className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700"
-                              />
+                              <div className="flex-1 min-w-0">
+                                <input
+                                  value={editingLabelName}
+                                  onChange={(e) => setEditingLabelName(e.target.value)}
+                                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700"
+                                />
+                              </div>
                             ) : (
                               <span className="flex-1">{label.name}</span>
                             )}
@@ -2169,6 +2432,18 @@ const App: React.FC = () => {
                       </div>
                       <div className="mt-4">
                         <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{t.addLabel}</div>
+                        <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-2">
+                          {LABEL_COLOR_PALETTE.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
+                              className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
+                              style={{ backgroundColor: color }}
+                              aria-label={`Color ${color}`}
+                            />
+                          ))}
+                        </div>
                         <div className="flex items-center gap-2">
                           <input
                             value={newLabelName}
@@ -2196,7 +2471,7 @@ const App: React.FC = () => {
 
 
           <div className="space-y-4">
-            {groupedItems.length === 0 ? (
+            {filteredItems.length === 0 ? (
               <div className="py-10 flex flex-col items-center">
                 {activeTab === 'event' && activeDateFilters.length > 0 && (
                   <button
@@ -2260,7 +2535,7 @@ const App: React.FC = () => {
                                 <select 
                                   value={item.priority}
                                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
+                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-6"
                                 >
                                   <option value="low">{t.prioLow}</option>
                                   <option value="normal">{t.prioNormal}</option>
@@ -2269,12 +2544,19 @@ const App: React.FC = () => {
                                 <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
                               </div>
                               {item.type === 'event' && (
-                                <div className="flex items-center gap-2 px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full">
+                                <div
+                                  className="flex items-center gap-2 px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full"
+                                  style={{
+                                    backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.14) : undefined,
+                                    borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : undefined,
+                                    color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : undefined
+                                  }}
+                                >
                                   <i className="fas fa-tag text-[10px] opacity-60"></i>
                                   <select
                                     value={item.labelId || ''}
                                     onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
-                                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 text-[12px]"
+                                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-6 text-[12px]"
                                   >
                                     <option value="">No label</option>
                                     {labels.map(label => (
@@ -2392,7 +2674,7 @@ const App: React.FC = () => {
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value as ItemType)}
-                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-3 py-1 pr-1"
+                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-3 py-1 pr-7"
                     aria-label="Item type"
                   >
                     <option value="task">Note</option>
@@ -2410,7 +2692,7 @@ const App: React.FC = () => {
                 <select
                   value={formPriority}
                   onChange={(e) => setFormPriority(e.target.value as Priority)}
-                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5"
+                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-6"
                 >
                   <option value="low">{t.prioLow}</option>
                   <option value="normal">{t.prioNormal}</option>

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS todos (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
+  local_id BIGINT NOT NULL,
   title VARCHAR(255),
   label_id BIGINT NULL,
   text TEXT NOT NULL,
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS todos (
   priority ENUM('low','normal','high') NOT NULL,
   deleted_at BIGINT NULL DEFAULT NULL,
   subtasks JSON,
+  UNIQUE KEY uniq_todos_user_local_id (user_id, local_id),
   INDEX idx_todos_user_deleted (user_id, deleted_at),
   INDEX idx_todos_label (label_id),
   CONSTRAINT fk_todos_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS labels (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   name VARCHAR(100) NOT NULL,
+  color VARCHAR(7) NOT NULL DEFAULT '#2563EB',
   created_at BIGINT NOT NULL,
   UNIQUE KEY uniq_user_label_name (user_id, name),
   INDEX idx_labels_user (user_id),
