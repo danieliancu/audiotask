@@ -3,6 +3,7 @@ export type MessageRole = 'user' | 'model' | 'system' | 'tool';
 export type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
 export type ItemType = 'task' | 'event';
 export type Priority = 'low' | 'normal' | 'high';
+export type ReminderChannel = 'email' | 'sms' | 'push';
 
 export interface TodoItem {
   id: string;
@@ -19,6 +20,8 @@ export interface TodoItem {
   type: ItemType;
   priority: Priority;
   subtasks?: string[];
+  reminderMinutesBefore?: number;
+  reminderChannel?: ReminderChannel;
 }
 
 export interface ToolCall {

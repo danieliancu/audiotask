@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import type { ReminderChannel } from '@/types';
 
 type DbTodoRow = {
   id: number;
@@ -22,6 +23,8 @@ type DbTodoRow = {
   priority: 'low' | 'normal' | 'high';
   subtasks: string | string[] | null;
   deleted_at: number | null;
+  reminder_minutes_before: number | null;
+  reminder_channel: ReminderChannel | null;
 };
 
 const mapRow = (row: DbTodoRow) => ({
@@ -37,6 +40,8 @@ const mapRow = (row: DbTodoRow) => ({
   sortTimestamp: Number(row.sort_timestamp),
   type: row.type,
   priority: row.priority,
+  reminderMinutesBefore: row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
+  reminderChannel: row.reminder_channel ?? undefined,
   deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
   subtasks: Array.isArray(row.subtasks)
     ? row.subtasks

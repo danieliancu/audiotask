@@ -54,6 +54,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const subtasks = Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null;
     pushField('subtasks', subtasks);
   }
+  const shouldResetReminder = (
+    body.dueDate !== undefined
+    || body.dueTime !== undefined
+    || body.sortTimestamp !== undefined
+    || body.completed !== undefined
+    || body.type !== undefined
+  );
 
   if (fields.length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -64,6 +71,20 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     `UPDATE todos SET ${fields.join(', ')} WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL`,
     values
   );
+  if (shouldResetReminder) {
+    const [todoRows] = await pool.query('SELECT id FROM todos WHERE local_id = ? AND user_id = ? LIMIT 1', [localId, userId]);
+    const todoRow = (todoRows as Array<{ id: number }>)[0];
+    if (todoRow) {
+      await pool.query(
+        "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
+        [Date.now(), userId, todoRow.id]
+      );
+      await pool.query(
+        'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE id = ? AND user_id = ?',
+        [todoRow.id, userId]
+      );
+    }
+  }
 
   const [rows] = await pool.query('SELECT * FROM todos WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL', [localId, userId]);
   const item = (rows as any[])[0];
@@ -83,6 +104,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     sortTimestamp: Number(item.sort_timestamp),
     type: item.type,
     priority: item.priority,
+    reminderMinutesBefore: item.reminder_minutes_before !== null ? Number(item.reminder_minutes_before) : undefined,
+    reminderChannel: item.reminder_channel ?? undefined,
     subtasks
   });
 }
@@ -102,5 +125,17 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     'UPDATE todos SET deleted_at = ? WHERE local_id = ? AND user_id = ? AND deleted_at IS NULL',
     [Date.now(), localId, userId]
   );
+  const [todoRows] = await pool.query('SELECT id FROM todos WHERE local_id = ? AND user_id = ? LIMIT 1', [localId, userId]);
+  const todoRow = (todoRows as Array<{ id: number }>)[0];
+  if (todoRow) {
+    await pool.query(
+      "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
+      [Date.now(), userId, todoRow.id]
+    );
+    await pool.query(
+      'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE id = ? AND user_id = ?',
+      [todoRow.id, userId]
+    );
+  }
   return NextResponse.json({ ok: true });
 }

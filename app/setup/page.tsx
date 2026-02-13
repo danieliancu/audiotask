@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS todos (
   type ENUM('task','event') NOT NULL,
   priority ENUM('low','normal','high') NOT NULL,
   deleted_at BIGINT NULL DEFAULT NULL,
+  reminder_minutes_before INT NULL DEFAULT NULL,
+  reminder_channel ENUM('email','sms','push') NULL DEFAULT NULL,
   subtasks JSON,
   UNIQUE KEY uniq_todos_user_local_id (user_id, local_id),
   INDEX idx_todos_user_deleted (user_id, deleted_at),
@@ -73,6 +75,25 @@ CREATE TABLE IF NOT EXISTS user_settings (
   default_active_tab ENUM('task','event'),
   default_show_subtasks BOOLEAN NOT NULL DEFAULT false,
   CONSTRAINT fk_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reminder_jobs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  todo_id BIGINT NOT NULL,
+  channel ENUM('email','sms','push') NOT NULL,
+  scheduled_for BIGINT NOT NULL,
+  status ENUM('scheduled','sent','failed','canceled') NOT NULL DEFAULT 'scheduled',
+  provider_job_id VARCHAR(255),
+  error_message VARCHAR(512),
+  attempts INT NOT NULL DEFAULT 0,
+  created_at BIGINT NOT NULL,
+  sent_at BIGINT,
+  canceled_at BIGINT,
+  INDEX idx_reminder_jobs_due (status, scheduled_for),
+  INDEX idx_reminder_jobs_todo (todo_id),
+  CONSTRAINT fk_reminder_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reminder_jobs_todo FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
 );`}
           </pre>
         </section>

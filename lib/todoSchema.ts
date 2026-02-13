@@ -55,6 +55,18 @@ export function ensureTodoTrashSchema() {
       await pool.query(`ALTER TABLE labels ADD COLUMN color VARCHAR(7) NOT NULL DEFAULT '${DEFAULT_LABEL_COLOR}' AFTER name`);
     }
 
+    const [reminderMinutesRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'reminder_minutes_before'");
+    const hasReminderMinutes = Array.isArray(reminderMinutesRows) && reminderMinutesRows.length > 0;
+    if (!hasReminderMinutes) {
+      await pool.query('ALTER TABLE todos ADD COLUMN reminder_minutes_before INT NULL DEFAULT NULL');
+    }
+
+    const [reminderChannelRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'reminder_channel'");
+    const hasReminderChannel = Array.isArray(reminderChannelRows) && reminderChannelRows.length > 0;
+    if (!hasReminderChannel) {
+      await pool.query("ALTER TABLE todos ADD COLUMN reminder_channel ENUM('email','sms','push') NULL DEFAULT NULL");
+    }
+
     await pool.query(`
       UPDATE todos t
       JOIN (
@@ -88,6 +100,31 @@ export function ensureTodoTrashSchema() {
     const hasLabelIndex = Array.isArray(labelIndexRows) && labelIndexRows.length > 0;
     if (!hasLabelIndex) {
       await pool.query('CREATE INDEX idx_todos_label ON todos(label_id)');
+    }
+
+    const [reminderJobsTableRows] = await pool.query("SHOW TABLES LIKE 'reminder_jobs'");
+    const hasReminderJobsTable = Array.isArray(reminderJobsTableRows) && reminderJobsTableRows.length > 0;
+    if (!hasReminderJobsTable) {
+      await pool.query(
+        `CREATE TABLE reminder_jobs (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          user_id BIGINT NOT NULL,
+          todo_id BIGINT NOT NULL,
+          channel ENUM('email','sms','push') NOT NULL,
+          scheduled_for BIGINT NOT NULL,
+          status ENUM('scheduled','sent','failed','canceled') NOT NULL DEFAULT 'scheduled',
+          provider_job_id VARCHAR(255) NULL,
+          error_message VARCHAR(512) NULL,
+          attempts INT NOT NULL DEFAULT 0,
+          created_at BIGINT NOT NULL,
+          sent_at BIGINT NULL,
+          canceled_at BIGINT NULL,
+          INDEX idx_reminder_jobs_due (status, scheduled_for),
+          INDEX idx_reminder_jobs_todo (todo_id),
+          CONSTRAINT fk_reminder_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          CONSTRAINT fk_reminder_jobs_todo FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
+        )`
+      );
     }
   })().catch((error) => {
     ensureSchemaPromise = null;

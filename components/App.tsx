@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import AppHeader from './AppHeader';
 import { useSession } from 'next-auth/react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
-import { TodoItem, ToolNames, Language, ItemType, Priority } from '../types';
+import { TodoItem, ToolNames, Language, ItemType, Priority, ReminderChannel } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@/lib/labelColors';
 
@@ -439,6 +439,15 @@ const normalizeLabelName = (value: string) => {
     })
     .join(' ');
 };
+
+const splitMinutesToDhm = (value: number) => {
+  const safe = Math.max(0, Math.floor(value));
+  const days = Math.floor(safe / (24 * 60));
+  const remainingAfterDays = safe % (24 * 60);
+  const hours = Math.floor(remainingAfterDays / 60);
+  const minutes = remainingAfterDays % 60;
+  return { days, hours, minutes };
+};
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = normalizeLabelColor(hex);
   const value = normalized.replace('#', '');
@@ -673,6 +682,13 @@ const App: React.FC = () => {
 
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
+  const [reminderModalItemId, setReminderModalItemId] = useState<string | null>(null);
+  const [reminderDays, setReminderDays] = useState('0');
+  const [reminderHours, setReminderHours] = useState('0');
+  const [reminderMinutes, setReminderMinutes] = useState('10');
+  const [reminderChannel, setReminderChannel] = useState<ReminderChannel>('email');
+  const [reminderError, setReminderError] = useState('');
+  const [isReminderSaving, setIsReminderSaving] = useState(false);
   const [formType, setFormType] = useState<ItemType>('task');
   const [formPriority, setFormPriority] = useState<Priority>('normal');
   const [formTitle, setFormTitle] = useState('');
@@ -1071,6 +1087,17 @@ const App: React.FC = () => {
     if (!labels.length) return 'Available labels: none.';
     return `Available labels: ${labels.map(label => label.name).join(', ')}.`;
   }, [labels]);
+
+  const reminderModalItem = useMemo(
+    () => todos.find(item => item.id === reminderModalItemId) || null,
+    [todos, reminderModalItemId]
+  );
+  const reminderMaxMinutes = useMemo(() => {
+    if (!reminderModalItem) return 0;
+    const dueAt = getItemDateTime(reminderModalItem);
+    return Math.max(0, Math.floor((dueAt - Date.now()) / 60000));
+  }, [reminderModalItem]);
+  const reminderMaxParts = useMemo(() => splitMinutesToDhm(reminderMaxMinutes), [reminderMaxMinutes]);
 
   const createLabel = useCallback(async () => {
     const name = normalizeLabelName(newLabelName);
@@ -1854,6 +1881,96 @@ const App: React.FC = () => {
     setFormSubtasks('');
   };
 
+  const openReminderModal = useCallback((item: TodoItem) => {
+    if (item.type !== 'event') return;
+    const maxMinutes = Math.max(0, Math.floor((getItemDateTime(item) - Date.now()) / 60000));
+    const initialMinutes = item.reminderMinutesBefore !== undefined
+      ? Math.min(item.reminderMinutesBefore, maxMinutes)
+      : Math.min(10, maxMinutes);
+    const parts = splitMinutesToDhm(initialMinutes);
+    setReminderDays(String(parts.days));
+    setReminderHours(String(parts.hours));
+    setReminderMinutes(String(parts.minutes));
+    setReminderChannel(item.reminderChannel ?? 'email');
+    setReminderError('');
+    setReminderModalItemId(item.id);
+  }, []);
+
+  const closeReminderModal = useCallback(() => {
+    setReminderModalItemId(null);
+    setReminderError('');
+  }, []);
+
+  const saveReminder = useCallback(async () => {
+    if (!reminderModalItemId) return;
+    const days = Math.max(0, Number(reminderDays) || 0);
+    const hours = Math.max(0, Number(reminderHours) || 0);
+    const minutes = Math.max(0, Number(reminderMinutes) || 0);
+    const totalMinutes = (days * 24 * 60) + (hours * 60) + minutes;
+
+    if (!Number.isInteger(totalMinutes) || totalMinutes < 0) {
+      setReminderError('Invalid reminder time.');
+      return;
+    }
+    if (totalMinutes >= reminderMaxMinutes) {
+      setReminderError('Reminder must be before task time.');
+      return;
+    }
+
+    setIsReminderSaving(true);
+    setReminderError('');
+    const res = await fetch(`/api/todos/${reminderModalItemId}/reminder`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutesBefore: totalMinutes, channel: reminderChannel })
+    });
+    setIsReminderSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setReminderError(data.error || 'Failed to save reminder');
+      return;
+    }
+
+    setTodos(prev => prev.map(item => (
+      item.id === reminderModalItemId
+        ? { ...item, reminderMinutesBefore: totalMinutes, reminderChannel }
+        : item
+    )));
+    closeReminderModal();
+  }, [
+    reminderModalItemId,
+    reminderDays,
+    reminderHours,
+    reminderMinutes,
+    reminderChannel,
+    reminderMaxMinutes,
+    closeReminderModal
+  ]);
+
+  const removeReminder = useCallback(async () => {
+    if (!reminderModalItemId) return;
+    setIsReminderSaving(true);
+    setReminderError('');
+    const res = await fetch(`/api/todos/${reminderModalItemId}/reminder`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    setIsReminderSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setReminderError(data.error || 'Failed to remove reminder');
+      return;
+    }
+
+    setTodos(prev => prev.map(item => (
+      item.id === reminderModalItemId
+        ? { ...item, reminderMinutesBefore: undefined, reminderChannel: undefined }
+        : item
+    )));
+    closeReminderModal();
+  }, [reminderModalItemId, closeReminderModal]);
+
   const saveModal = () => {
     if (!modalMode) return;
     if (formType === 'task') {
@@ -2581,6 +2698,15 @@ const App: React.FC = () => {
                               <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                                 <i className="fas fa-trash-alt text-base"></i>
                               </button>
+                              {item.type === 'event' && (
+                                <button
+                                  onClick={() => openReminderModal(item)}
+                                  className={`p-2 transition-colors ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                                  title="Reminder"
+                                >
+                                  <i className="fas fa-bell text-base"></i>
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -2769,6 +2895,124 @@ const App: React.FC = () => {
                 >
                   {t.save}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reminderModalItem && (
+        <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeReminderModal}></div>
+          <div className="relative bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeReminderModal}
+              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+
+            <div className="mb-6">
+              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Reminder</div>
+              <p className="text-sm font-semibold text-slate-600">
+                Notify me before: <span className="font-black text-slate-800">{reminderModalItem.text}</span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  Days
+                  <input
+                    type="number"
+                    min={0}
+                    max={reminderMaxParts.days}
+                    value={reminderDays}
+                    onChange={(e) => setReminderDays(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </label>
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  Hours
+                  <input
+                    type="number"
+                    min={0}
+                    max={Number(reminderDays || '0') >= reminderMaxParts.days ? reminderMaxParts.hours : 23}
+                    value={reminderHours}
+                    onChange={(e) => setReminderHours(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </label>
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  Minutes
+                  <input
+                    type="number"
+                    min={0}
+                    max={
+                      Number(reminderDays || '0') >= reminderMaxParts.days
+                      && Number(reminderHours || '0') >= reminderMaxParts.hours
+                        ? reminderMaxParts.minutes
+                        : 59
+                    }
+                    value={reminderMinutes}
+                    onChange={(e) => setReminderMinutes(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </label>
+              </div>
+
+              <div>
+                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Channel</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReminderChannel('email')}
+                    className={`rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                  >
+                    SMS (soon)
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                  >
+                    Push (soon)
+                  </button>
+                </div>
+              </div>
+
+              {reminderError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  {reminderError}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={saveReminder}
+                  disabled={isReminderSaving || reminderMaxMinutes <= 0}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 disabled:opacity-60"
+                >
+                  Save reminder
+                </button>
+                {reminderModalItem.reminderMinutesBefore !== undefined && (
+                  <button
+                    type="button"
+                    onClick={removeReminder}
+                    disabled={isReminderSaving}
+                    className="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 disabled:opacity-60"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
           </div>
