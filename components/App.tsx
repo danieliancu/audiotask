@@ -2545,18 +2545,18 @@ const App: React.FC = () => {
                               </div>
                               {item.type === 'event' && (
                                 <div
-                                  className="flex items-center gap-2 px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full"
+                                  className="flex items-center px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full"
                                   style={{
                                     backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.14) : undefined,
                                     borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : undefined,
                                     color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : undefined
                                   }}
                                 >
-                                  <i className="fas fa-tag text-[10px] opacity-60"></i>
+                                  <i className="fas fa-tag text-[10px] opacity-60 mr-1.5"></i>
                                   <select
                                     value={item.labelId || ''}
                                     onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
-                                    className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-6 text-[12px]"
+                                    className="min-w-0 flex-1 bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-4 text-[12px]"
                                   >
                                     <option value="">No label</option>
                                     {labels.map(label => (
@@ -2565,7 +2565,7 @@ const App: React.FC = () => {
                                       </option>
                                     ))}
                                   </select>
-                                  <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
+                                  <i className="fas fa-chevron-down text-[10px] opacity-60 ml-1"></i>
                                 </div>
                               )}
                               {item.type === 'event' && isItemOverdue(item) && (
