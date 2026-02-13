@@ -9,3 +9,20 @@ body {
 .font-mono {
   font-family: var(--font-mono);
 }
+
+.reminder-bell-ring {
+  transform-origin: top center;
+  animation: reminder-bell-ring 5s infinite;
+}
+
+@keyframes reminder-bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  2% { transform: rotate(16deg); }
+  4% { transform: rotate(-14deg); }
+  6% { transform: rotate(12deg); }
+  8% { transform: rotate(-10deg); }
+  10% { transform: rotate(8deg); }
+  12% { transform: rotate(-6deg); }
+  14% { transform: rotate(4deg); }
+  16% { transform: rotate(0deg); }
+}

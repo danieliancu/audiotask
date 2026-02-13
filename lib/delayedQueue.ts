@@ -1,10 +1,9 @@
 type QueuePayload = Record<string, unknown>;
+import { Client } from '@upstash/qstash';
 
 export const enqueueDelayedReminder = async (payload: QueuePayload, runAtMs: number) => {
   const token = process.env.QSTASH_TOKEN;
   if (!token) throw new Error('QSTASH_TOKEN missing');
-
-  const baseUrl = process.env.QSTASH_URL || 'https://qstash.upstash.io';
   const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL;
   if (!appUrl) throw new Error('NEXTAUTH_URL missing');
 
@@ -12,24 +11,20 @@ export const enqueueDelayedReminder = async (payload: QueuePayload, runAtMs: num
   if (!consumerSecret) throw new Error('REMINDER_QUEUE_SECRET missing');
 
   const destination = `${appUrl.replace(/\/+$/, '')}/api/queue/reminder`;
-  const delaySeconds = Math.max(0, Math.floor((runAtMs - Date.now()) / 1000));
+  const baseUrl = process.env.QSTASH_URL;
+  const client = new Client(baseUrl ? { token, baseUrl } : { token });
 
-  const response = await fetch(`${baseUrl}/v2/publish/${encodeURIComponent(destination)}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Upstash-Delay': `${delaySeconds}s`,
-      'Upstash-Forward-Authorization': `Bearer ${consumerSecret}`
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Queue publish failed (${response.status}): ${body}`);
+  try {
+    const response = await client.publishJSON({
+      url: destination,
+      body: payload,
+      notBefore: Math.floor(runAtMs / 1000),
+      headers: {
+        Authorization: `Bearer ${consumerSecret}`
+      }
+    });
+    return String((response as any)?.messageId || '');
+  } catch (error: any) {
+    throw new Error(`Queue publish failed: ${String(error?.message || error)}`);
   }
-
-  const data = await response.json().catch(() => ({} as { messageId?: string; message_id?: string }));
-  return String(data.messageId || data.message_id || '');
 };

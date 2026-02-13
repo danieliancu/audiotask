@@ -63,7 +63,22 @@ const translations = {
     menuBlog: "Blog",
     menuFeatures: "Features",
     menuPricing: "Pricing",
-    menuTrash: "Trash"
+    menuTrash: "Trash",
+    reminderTitle: "Reminder",
+    reminderNotifyBefore: "Notify me before",
+    reminderDays: "Days",
+    reminderHours: "Hours",
+    reminderMinutes: "Minutes",
+    reminderChannel: "Channel",
+    reminderEmail: "Email",
+    reminderSmsSoon: "SMS (soon)",
+    reminderPushSoon: "Push (soon)",
+    reminderSave: "Save reminder",
+    reminderRemove: "Remove",
+    reminderErrorInvalidTime: "Invalid reminder time.",
+    reminderErrorBeforeTask: "Reminder must be before task time.",
+    reminderErrorSave: "Failed to save reminder",
+    reminderErrorRemove: "Failed to remove reminder"
   },
   ro: {
     tasks: "Notite",
@@ -111,7 +126,22 @@ const translations = {
     menuBlog: "Blog",
     menuFeatures: "Funcționalități",
     menuPricing: "Prețuri",
-    menuTrash: "Coș"
+    menuTrash: "Coș",
+    reminderTitle: "Reminder",
+    reminderNotifyBefore: "Anunta-ma inainte de",
+    reminderDays: "Zile",
+    reminderHours: "Ore",
+    reminderMinutes: "Minute",
+    reminderChannel: "Canal",
+    reminderEmail: "Email",
+    reminderSmsSoon: "SMS (curand)",
+    reminderPushSoon: "Push (curand)",
+    reminderSave: "Salveaza reminder",
+    reminderRemove: "Sterge",
+    reminderErrorInvalidTime: "Timpul reminder-ului este invalid.",
+    reminderErrorBeforeTask: "Reminder-ul trebuie sa fie inainte de ora task-ului.",
+    reminderErrorSave: "Nu am putut salva reminder-ul",
+    reminderErrorRemove: "Nu am putut sterge reminder-ul"
   },
   fr: {
     tasks: "Notes",
@@ -159,7 +189,22 @@ const translations = {
     menuBlog: "Blog",
     menuFeatures: "Fonctionnalités",
     menuPricing: "Tarifs",
-    menuTrash: "Corbeille"
+    menuTrash: "Corbeille",
+    reminderTitle: "Rappel",
+    reminderNotifyBefore: "Me notifier avant",
+    reminderDays: "Jours",
+    reminderHours: "Heures",
+    reminderMinutes: "Minutes",
+    reminderChannel: "Canal",
+    reminderEmail: "Email",
+    reminderSmsSoon: "SMS (bientot)",
+    reminderPushSoon: "Push (bientot)",
+    reminderSave: "Enregistrer le rappel",
+    reminderRemove: "Supprimer",
+    reminderErrorInvalidTime: "Heure de rappel invalide.",
+    reminderErrorBeforeTask: "Le rappel doit etre avant l'heure de la tache.",
+    reminderErrorSave: "Echec de l'enregistrement du rappel",
+    reminderErrorRemove: "Echec de la suppression du rappel"
   },
   de: {
     tasks: "Notizen",
@@ -207,7 +252,22 @@ const translations = {
     menuBlog: "Blog",
     menuFeatures: "Funktionen",
     menuPricing: "Preise",
-    menuTrash: "Papierkorb"
+    menuTrash: "Papierkorb",
+    reminderTitle: "Erinnerung",
+    reminderNotifyBefore: "Benachrichtige mich vorher",
+    reminderDays: "Tage",
+    reminderHours: "Stunden",
+    reminderMinutes: "Minuten",
+    reminderChannel: "Kanal",
+    reminderEmail: "E-Mail",
+    reminderSmsSoon: "SMS (bald)",
+    reminderPushSoon: "Push (bald)",
+    reminderSave: "Erinnerung speichern",
+    reminderRemove: "Entfernen",
+    reminderErrorInvalidTime: "Ungultige Erinnerungszeit.",
+    reminderErrorBeforeTask: "Erinnerung muss vor der Aufgabenzeit liegen.",
+    reminderErrorSave: "Erinnerung konnte nicht gespeichert werden",
+    reminderErrorRemove: "Erinnerung konnte nicht entfernt werden"
   },
   es: {
     tasks: "Notas",
@@ -255,7 +315,22 @@ const translations = {
     menuBlog: "Blog",
     menuFeatures: "Funcionalidades",
     menuPricing: "Precios",
-    menuTrash: "Papelera"
+    menuTrash: "Papelera",
+    reminderTitle: "Recordatorio",
+    reminderNotifyBefore: "Avisarme antes de",
+    reminderDays: "Dias",
+    reminderHours: "Horas",
+    reminderMinutes: "Minutos",
+    reminderChannel: "Canal",
+    reminderEmail: "Email",
+    reminderSmsSoon: "SMS (pronto)",
+    reminderPushSoon: "Push (pronto)",
+    reminderSave: "Guardar recordatorio",
+    reminderRemove: "Eliminar",
+    reminderErrorInvalidTime: "Tiempo de recordatorio invalido.",
+    reminderErrorBeforeTask: "El recordatorio debe ser antes de la hora de la tarea.",
+    reminderErrorSave: "No se pudo guardar el recordatorio",
+    reminderErrorRemove: "No se pudo eliminar el recordatorio"
   }
 };
 
@@ -1909,11 +1984,11 @@ const App: React.FC = () => {
     const totalMinutes = (days * 24 * 60) + (hours * 60) + minutes;
 
     if (!Number.isInteger(totalMinutes) || totalMinutes < 0) {
-      setReminderError('Invalid reminder time.');
+      setReminderError(t.reminderErrorInvalidTime);
       return;
     }
     if (totalMinutes >= reminderMaxMinutes) {
-      setReminderError('Reminder must be before task time.');
+      setReminderError(t.reminderErrorBeforeTask);
       return;
     }
 
@@ -1928,7 +2003,7 @@ const App: React.FC = () => {
     setIsReminderSaving(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setReminderError(data.error || 'Failed to save reminder');
+      setReminderError(data.error || t.reminderErrorSave);
       return;
     }
 
@@ -1937,6 +2012,7 @@ const App: React.FC = () => {
         ? { ...item, reminderMinutesBefore: totalMinutes, reminderChannel }
         : item
     )));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('reminder-count-refresh'));
     closeReminderModal();
   }, [
     reminderModalItemId,
@@ -1945,7 +2021,10 @@ const App: React.FC = () => {
     reminderMinutes,
     reminderChannel,
     reminderMaxMinutes,
-    closeReminderModal
+    closeReminderModal,
+    t.reminderErrorBeforeTask,
+    t.reminderErrorInvalidTime,
+    t.reminderErrorSave
   ]);
 
   const removeReminder = useCallback(async () => {
@@ -1959,7 +2038,7 @@ const App: React.FC = () => {
     setIsReminderSaving(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setReminderError(data.error || 'Failed to remove reminder');
+      setReminderError(data.error || t.reminderErrorRemove);
       return;
     }
 
@@ -1968,8 +2047,9 @@ const App: React.FC = () => {
         ? { ...item, reminderMinutesBefore: undefined, reminderChannel: undefined }
         : item
     )));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('reminder-count-refresh'));
     closeReminderModal();
-  }, [reminderModalItemId, closeReminderModal]);
+  }, [reminderModalItemId, closeReminderModal, t.reminderErrorRemove]);
 
   const saveModal = () => {
     if (!modalMode) return;
@@ -2639,16 +2719,16 @@ const App: React.FC = () => {
                         <div className="flex flex-col flex-grow leading-tight overflow-hidden">
                           {/* Line 1: Time + Type + Priority */}
                           <div className="flex items-center justify-between mb-4 max-[450px]:flex-col max-[450px]:items-start max-[450px]:gap-3">
-                            <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:gap-2 max-[450px]:w-full">
-                              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg w-fit max-[450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                            <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[1450px]:grid max-[1450px]:grid-cols-2 max-[1450px]:gap-2 max-[1450px]:w-full">
+                              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg w-fit max-[1450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                                 <span>#{item.id}</span>
                               </div>
                               {item.type === 'event' && item.dueTime && (
-                                <span className="flex items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[450px]:w-full">
+                                <span className="flex items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[1450px]:w-full">
                                   <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
                                 </span>
                               )}
-                              <div style={{ padding:"2.5px 10px" }} className={`flex items-center gap-2 rounded-lg border border-transparent transition-all w-fit max-[450px]:w-full ${priorityColors[item.priority]}`}>
+                              <div style={{ padding:"2.5px 10px" }} className={`flex items-center gap-2 rounded-lg border border-transparent transition-all w-fit max-[1450px]:w-full ${priorityColors[item.priority]}`}>
                                 <select 
                                   value={item.priority}
                                   onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
@@ -2662,7 +2742,7 @@ const App: React.FC = () => {
                               </div>
                               {item.type === 'event' && (
                                 <div
-                                  className="flex items-center px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[450px]:w-full"
+                                  className="flex items-center px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[1450px]:w-full"
                                   style={{
                                     backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.14) : undefined,
                                     borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : undefined,
@@ -2686,7 +2766,7 @@ const App: React.FC = () => {
                                 </div>
                               )}
                               {item.type === 'event' && isItemOverdue(item) && (
-                                <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[450px]:w-full">
+                                <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[1450px]:w-full">
                                   {t.outdated}
                                 </span>
                               )}
@@ -2702,9 +2782,11 @@ const App: React.FC = () => {
                                 <button
                                   onClick={() => openReminderModal(item)}
                                   className={`p-2 transition-colors ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                                  title="Reminder"
+                                  title={t.reminderTitle}
                                 >
-                                  <i className="fas fa-bell text-base"></i>
+                                  <i
+                                    className={`fas fa-bell text-base ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}
+                                  ></i>
                                 </button>
                               )}
                             </div>
@@ -2913,16 +2995,16 @@ const App: React.FC = () => {
             </button>
 
             <div className="mb-6">
-              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Reminder</div>
+              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{t.reminderTitle}</div>
               <p className="text-sm font-semibold text-slate-600">
-                Notify me before: <span className="font-black text-slate-800">{reminderModalItem.text}</span>
+                {t.reminderNotifyBefore}: <span className="font-black text-slate-800">{reminderModalItem.text}</span>
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Days
+                  {t.reminderDays}
                   <input
                     type="number"
                     min={0}
@@ -2933,7 +3015,7 @@ const App: React.FC = () => {
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Hours
+                  {t.reminderHours}
                   <input
                     type="number"
                     min={0}
@@ -2944,7 +3026,7 @@ const App: React.FC = () => {
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Minutes
+                  {t.reminderMinutes}
                   <input
                     type="number"
                     min={0}
@@ -2962,28 +3044,28 @@ const App: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Channel</div>
+                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{t.reminderChannel}</div>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setReminderChannel('email')}
                     className={`rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
                   >
-                    Email
+                    {t.reminderEmail}
                   </button>
                   <button
                     type="button"
                     disabled
                     className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
                   >
-                    SMS (soon)
+                    {t.reminderSmsSoon}
                   </button>
                   <button
                     type="button"
                     disabled
                     className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
                   >
-                    Push (soon)
+                    {t.reminderPushSoon}
                   </button>
                 </div>
               </div>
@@ -3001,7 +3083,7 @@ const App: React.FC = () => {
                   disabled={isReminderSaving || reminderMaxMinutes <= 0}
                   className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 disabled:opacity-60"
                 >
-                  Save reminder
+                  {t.reminderSave}
                 </button>
                 {reminderModalItem.reminderMinutesBefore !== undefined && (
                   <button
@@ -3010,7 +3092,7 @@ const App: React.FC = () => {
                     disabled={isReminderSaving}
                     className="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 disabled:opacity-60"
                   >
-                    Remove
+                    {t.reminderRemove}
                   </button>
                 )}
               </div>

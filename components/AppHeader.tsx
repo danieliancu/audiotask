@@ -50,6 +50,7 @@ export default function AppHeader({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
+  const [reminderCount, setReminderCount] = useState(0);
 
   const refreshTrashCount = useCallback(() => {
     if (!userId) {
@@ -79,6 +80,31 @@ export default function AppHeader({
       window.removeEventListener('trash-count-refresh', onRefresh);
     };
   }, [refreshTrashCount, userId]);
+
+  const refreshReminderCount = useCallback(() => {
+    if (!userId) {
+      setReminderCount(0);
+      return;
+    }
+    void fetch('/api/todos/reminders?count=1', { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : { count: 0 }))
+      .then(data => setReminderCount(Number(data?.count) || 0))
+      .catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
+    refreshReminderCount();
+    if (!userId) return;
+    const onRefresh = () => {
+      setTimeout(() => refreshReminderCount(), 120);
+    };
+    window.addEventListener('reminder-count-refresh', onRefresh);
+    const timer = setInterval(refreshReminderCount, 15000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('reminder-count-refresh', onRefresh);
+    };
+  }, [refreshReminderCount, userId]);
 
   return (
     <>
@@ -164,15 +190,15 @@ export default function AppHeader({
             >
               <i className={`${userId ? 'fas fa-lock' : 'far fa-user'}`} style={{ fontSize:24 }}></i>
             </Link>
-            <button className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
+            <Link href="/reminders" className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
               <i className="far fa-bell" style={{ fontSize:24 }}></i>
               <span
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
                 style={{ top: "5px", right: "5px" }}
               >
-                {bellCount}
+                {userId ? reminderCount : bellCount}
               </span>
-            </button>
+            </Link>
             <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center">
               <i className="fas fa-bars" style={{ fontSize:24 }}></i>
             </button>
