@@ -5,6 +5,7 @@ import pool from '@/lib/db';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 import type { ReminderChannel } from '@/types';
+import { computeTodoDueAt } from '@/lib/reminders';
 
 type DbTodoRow = {
   id: number;
@@ -27,7 +28,12 @@ type DbTodoRow = {
   reminder_channel: ReminderChannel | null;
 };
 
-const mapRow = (row: DbTodoRow) => ({
+const mapRow = (row: DbTodoRow) => {
+  const dueAt = row.type === 'event'
+    ? computeTodoDueAt({ due_time: row.due_time, sort_timestamp: row.sort_timestamp })
+    : null;
+  const isOverdue = row.type === 'event' && !Boolean(row.completed) && dueAt !== null && dueAt <= Date.now();
+  return ({
   id: String(row.local_id),
   title: row.title ?? undefined,
   text: row.text,
@@ -40,15 +46,16 @@ const mapRow = (row: DbTodoRow) => ({
   sortTimestamp: Number(row.sort_timestamp),
   type: row.type,
   priority: row.priority,
-  reminderMinutesBefore: row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
-  reminderChannel: row.reminder_channel ?? undefined,
+  reminderMinutesBefore: !isOverdue && row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
+  reminderChannel: !isOverdue ? (row.reminder_channel ?? undefined) : undefined,
   deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
   subtasks: Array.isArray(row.subtasks)
     ? row.subtasks
     : row.subtasks
       ? JSON.parse(row.subtasks)
       : undefined
-});
+  });
+};
 
 export async function GET() {
   await ensureTodoTrashSchema();

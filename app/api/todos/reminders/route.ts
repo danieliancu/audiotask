@@ -41,6 +41,11 @@ const mapRow = (row: DbReminderRow) => {
   };
 };
 
+const isReminderActive = (row: DbReminderRow) => computeTodoDueAt({
+  due_time: row.due_time,
+  sort_timestamp: row.sort_timestamp
+} as { due_time: string | null; sort_timestamp: number }) > Date.now();
+
 export async function GET(request: Request) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
@@ -52,7 +57,7 @@ export async function GET(request: Request) {
 
   if (countOnly) {
     const [rows] = await pool.query(
-      `SELECT COUNT(*) AS count
+      `SELECT *
        FROM todos
        WHERE user_id = ?
          AND type = 'event'
@@ -62,7 +67,7 @@ export async function GET(request: Request) {
          AND reminder_channel IS NOT NULL`,
       [userId]
     );
-    const count = Number((rows as Array<{ count: number }>)[0]?.count || 0);
+    const count = (rows as DbReminderRow[]).filter(isReminderActive).length;
     return NextResponse.json({ count });
   }
 
@@ -79,5 +84,6 @@ export async function GET(request: Request) {
     [userId]
   );
 
-  return NextResponse.json((rows as DbReminderRow[]).map(mapRow));
+  const activeRows = (rows as DbReminderRow[]).filter(isReminderActive);
+  return NextResponse.json(activeRows.map(mapRow));
 }

@@ -2422,7 +2422,7 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
-          <div className="flex flex-nowrap items-center justify-between gap-4 overflow-x-auto p-[10px] bg-white rounded-[20px] border border-slate-200">
+          <div className="flex flex-nowrap items-center justify-between gap-4 overflow-visible p-[10px] bg-white rounded-[20px] border border-slate-200">
             <div className="flex items-center gap-6 flex-shrink-0">
               <button onClick={() => setActiveTab('task')} className={`pb-1 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
@@ -2467,7 +2467,7 @@ const App: React.FC = () => {
                   <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                 </button>
                 {isFilterMenuOpen && (
-                  <div className="absolute mt-2 right-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+                  <div className="absolute top-full left-1/2 mt-2 flex w-64 -translate-x-1/2 flex-col bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[120]">
                     {activeTab === 'event' && (
                       <>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Status</div>
@@ -2504,7 +2504,7 @@ const App: React.FC = () => {
                         <div className="mt-2 pt-2 border-t border-slate-200"></div>
                       </>
                     )}
-                    <div className={activeTab === 'event' ? '' : 'pt-0'}>
+                    <div className={`${activeTab === 'event' ? '' : 'pt-0'} flex flex-col`}>
                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 pb-1">Priority</div>
                       <button
                         onClick={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: 'all' }))}
@@ -2547,7 +2547,7 @@ const App: React.FC = () => {
                     <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                   </button>
                   {isLabelMenuOpen && (
-                    <div className="absolute mt-2 right-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
                       <button
                         onClick={() => { setLabelFilter('all'); setIsLabelMenuOpen(false); }}
                         className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${labelFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
