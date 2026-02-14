@@ -2321,7 +2321,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#FDF5E6] backdrop-blur-xl px-6 py-6 mb-8 border-b border-slate-200/50">
+      <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#FDF5E6] backdrop-blur-xl px-6 py-6 mb-8 border-b border-black">
         <div>
           {/* Desktop Interaction Bar */}
           <div className="hidden md:flex items-center space-x-4 bg-white p-4 rounded-[32px] shadow-sm border border-slate-200 transition-all hover:shadow-lg focus-within:ring-2 focus-within:ring-blue-500/10">
@@ -2422,16 +2422,16 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
         <section className="space-y-6">
-          <div className="flex items-end justify-between gap-4 border-b-2 border-slate-100 pb-0 max-[1100px]:flex-wrap items-center">
+          <div className="flex flex-nowrap items-center justify-between gap-4 overflow-x-auto p-[10px] bg-white rounded-[20px] border border-slate-200">
             <div className="flex items-center gap-6 flex-shrink-0">
-              <button onClick={() => setActiveTab('task')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
+              <button onClick={() => setActiveTab('task')} className={`pb-1 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {taskCount}
                 </span>
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('event')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
+              <button onClick={() => setActiveTab('event')} className={`pb-1 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.events}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {filteredEventCount}
@@ -2440,7 +2440,7 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <div className="hidden max-[500px]:flex mb-4 items-center gap-3">
+            <div className="hidden max-[500px]:flex mb-0 items-center gap-3">
               <div className="leading-tight text-[10px] font-black uppercase tracking-wider text-slate-500 text-right">
                 {mobileFilterLine && <div className="text-slate-400">{mobileFilterLine}</div>}
                 {mobileLabelLine && <div className="text-slate-400">{mobileLabelLine}</div>}
@@ -2455,7 +2455,7 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <div className="mb-4 flex items-center space-x-2 max-[500px]:hidden flex-wrap justify-end max-[1100px]:w-full max-[1100px]:justify-start">
+            <div className="p-[10px] flex items-center gap-2 max-[500px]:hidden flex-nowrap justify-end shrink-0 whitespace-nowrap">
               <div className="relative" ref={filterMenuRef}>
                 <button
                   type="button"
