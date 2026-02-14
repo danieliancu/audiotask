@@ -14,6 +14,7 @@ type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
 type LabelFilter = 'all' | `label:${string}`;
 type ItemLabel = { id: string; name: string; color: string };
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
+const GUEST_STATE_STORAGE_KEY = 'voicetask.guest.state.v1';
 
 // Translation strings for professional i18n
 const translations = {
@@ -523,6 +524,17 @@ const splitMinutesToDhm = (value: number) => {
   const minutes = remainingAfterDays % 60;
   return { days, hours, minutes };
 };
+const formatRemainingDuration = (totalMs: number) => {
+  const minutesTotal = Math.max(0, Math.floor(totalMs / 60000));
+  const days = Math.floor(minutesTotal / (24 * 60));
+  const hours = Math.floor((minutesTotal % (24 * 60)) / 60);
+  const minutes = minutesTotal % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(' ');
+};
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = normalizeLabelColor(hex);
   const value = normalized.replace('#', '');
@@ -832,6 +844,13 @@ const App: React.FC = () => {
       uiNoticeTimerRef.current = null;
     }, 5000);
   }, []);
+  const getReminderLoginRequiredMessage = useCallback(() => {
+    if (language === 'ro') return 'Reminder-ele sunt disponibile doar dupa autentificare.';
+    if (language === 'fr') return "Les rappels sont disponibles uniquement apres connexion.";
+    if (language === 'de') return 'Erinnerungen sind nur nach dem Login verfuegbar.';
+    if (language === 'es') return 'Los recordatorios solo estan disponibles al iniciar sesion.';
+    return 'Reminders are available only after login.';
+  }, [language]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   useEffect(() => {
@@ -879,8 +898,58 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!userId) {
-      setTodos([]);
-      setLabels([]);
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(GUEST_STATE_STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          const storedTodos = Array.isArray(parsed?.todos) ? parsed.todos : [];
+          const storedLabels = Array.isArray(parsed?.labels)
+            ? parsed.labels.map((label: ItemLabel) => ({ ...label, color: normalizeLabelColor((label as any).color) }))
+            : [];
+          const storedSettings = parsed?.settings && typeof parsed.settings === 'object' ? parsed.settings : {};
+          const nextLang = typeof storedSettings.language === 'string' && ['en', 'ro', 'fr', 'de', 'es'].includes(storedSettings.language)
+            ? (storedSettings.language as Language)
+            : null;
+          const nextTab = storedSettings.activeTab === 'event' ? 'event' : storedSettings.activeTab === 'task' ? 'task' : null;
+          const nextDates = Array.isArray(storedSettings.activeDateFilters)
+            ? storedSettings.activeDateFilters.filter((value: unknown) => typeof value === 'string')
+            : [];
+          const nextTaskFilters = parseCombinedFilter(storedSettings.filterTask, false);
+          const nextEventFilters = parseCombinedFilter(storedSettings.filterEvent, true);
+          const monthStr = typeof storedSettings.calendarMonth === 'string' ? storedSettings.calendarMonth : '';
+          const monthMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
+          const nextMonth = monthMatch
+            ? new Date(Number(monthMatch[1]), Number(monthMatch[2]) - 1, 1)
+            : new Date();
+          const nextLabelFilter = storedSettings.labelFilter === 'all'
+            || (typeof storedSettings.labelFilter === 'string' && String(storedSettings.labelFilter).startsWith('label:'))
+            ? (storedSettings.labelFilter as LabelFilter)
+            : 'all';
+          const nextShowSubtasksDefault = Boolean(storedSettings.showSubtasksDefault);
+          setTodos(storedTodos);
+          setLabels(storedLabels);
+          if (nextLang) setLanguage(nextLang);
+          if (nextTab) setActiveTab(nextTab as ItemType);
+          setActiveDateFilters(nextDates);
+          setStatusFilterByType({ task: nextTaskFilters.status, event: nextEventFilters.status });
+          setPriorityFilterByType({ task: nextTaskFilters.priority, event: nextEventFilters.priority });
+          setCurrentDate(nextMonth);
+          setLabelFilter(nextLabelFilter);
+          setShowSubtasksDefault(nextShowSubtasksDefault);
+          const maxId = storedTodos.reduce((max: number, item: TodoItem) => {
+            const parsedId = Number.parseInt(String(item.id), 10);
+            return Number.isFinite(parsedId) ? Math.max(max, parsedId) : max;
+          }, 0);
+          const savedNextId = Number.parseInt(String(parsed?.nextId ?? ''), 10);
+          nextIdRef.current = Number.isFinite(savedNextId) && savedNextId > 0 ? savedNextId : (maxId + 1);
+        } catch {
+          setTodos([]);
+          setLabels([]);
+        }
+      } else {
+        setTodos([]);
+        setLabels([]);
+      }
       settingsLoadedRef.current = false;
       return;
     }
@@ -983,14 +1052,69 @@ const App: React.FC = () => {
     }, 500);
   }, [userId, activeTab, language, activeDateFilters, statusFilterByType, priorityFilterByType, currentDate]);
 
+  const persistGuestState = useCallback(() => {
+    if (typeof window === 'undefined' || userId) return;
+    const payload = {
+      nextId: nextIdRef.current,
+      todos,
+      labels,
+      settings: {
+        activeTab,
+        language,
+        activeDateFilters,
+        filterTask: buildCombinedFilter(statusFilterByType.task, priorityFilterByType.task),
+        filterEvent: buildCombinedFilter(statusFilterByType.event, priorityFilterByType.event),
+        calendarMonth: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`,
+        labelFilter,
+        showSubtasksDefault
+      }
+    };
+    localStorage.setItem(GUEST_STATE_STORAGE_KEY, JSON.stringify(payload));
+  }, [
+    userId,
+    todos,
+    labels,
+    activeTab,
+    language,
+    activeDateFilters,
+    statusFilterByType,
+    priorityFilterByType,
+    currentDate,
+    labelFilter,
+    showSubtasksDefault
+  ]);
+
   useEffect(() => {
-    if (!userId) return;
+    persistGuestState();
+  }, [persistGuestState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || userId) return;
+    const flushGuestState = () => persistGuestState();
+    window.addEventListener('pagehide', flushGuestState);
+    window.addEventListener('beforeunload', flushGuestState);
+    return () => {
+      flushGuestState();
+      window.removeEventListener('pagehide', flushGuestState);
+      window.removeEventListener('beforeunload', flushGuestState);
+    };
+  }, [userId, persistGuestState]);
+
+  useEffect(() => {
+    const maxId = todos.reduce((max, item) => {
+      const parsedId = Number.parseInt(String(item.id), 10);
+      return Number.isFinite(parsedId) ? Math.max(max, parsedId) : max;
+    }, 0);
+    if (maxId + 1 > nextIdRef.current) nextIdRef.current = maxId + 1;
+  }, [todos]);
+
+  useEffect(() => {
     if (!showSubtasksDefault) {
       setExpandedSubitems(new Set());
       return;
     }
     setExpandedSubitems(new Set(todos.filter(t => t.type === 'event' && t.subtasks?.length).map(t => t.id)));
-  }, [userId, showSubtasksDefault, todos]);
+  }, [showSubtasksDefault, todos]);
   const daysInMonth = useMemo(() => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate(), [currentDate]);
   const firstDayOfMonth = useMemo(() => {
     let day = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -1176,7 +1300,17 @@ const App: React.FC = () => {
 
   const createLabel = useCallback(async () => {
     const name = normalizeLabelName(newLabelName);
-    if (!name || !userId) return;
+    if (!name) return;
+    if (!userId) {
+      const id = `label-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const localLabel = { id, name, color: normalizeLabelColor(newLabelColor) };
+      setLabels(prev => [...prev, localLabel].sort((a, b) => a.name.localeCompare(b.name)));
+      setLabelFilter(`label:${id}`);
+      setNewLabelName('');
+      setNewLabelColor(DEFAULT_LABEL_COLOR);
+      setIsLabelMenuOpen(false);
+      return;
+    }
     setLabelBusyId('create');
     const res = await fetch('/api/labels', {
       method: 'POST',
@@ -1208,9 +1342,18 @@ const App: React.FC = () => {
   }, []);
 
   const saveEditLabel = useCallback(async () => {
-    if (!editingLabelId || !userId) return;
+    if (!editingLabelId) return;
     const name = normalizeLabelName(editingLabelName);
     if (!name) return;
+    if (!userId) {
+      setLabels(prev => prev
+        .map(label => (label.id === editingLabelId ? { ...label, name, color: normalizeLabelColor(editingLabelColor) } : label))
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      setEditingLabelId(null);
+      setEditingLabelName('');
+      setEditingLabelColor(DEFAULT_LABEL_COLOR);
+      return;
+    }
     setLabelBusyId(editingLabelId);
     const res = await fetch(`/api/labels/${editingLabelId}`, {
       method: 'PUT',
@@ -1230,7 +1373,17 @@ const App: React.FC = () => {
   }, [editingLabelId, editingLabelName, editingLabelColor, userId]);
 
   const deleteLabel = useCallback(async (id: string) => {
-    if (!userId) return;
+    if (!userId) {
+      setLabels(prev => prev.filter(label => label.id !== id));
+      if (labelFilter === `label:${id}`) setLabelFilter('all');
+      setTodos(prev => prev.map(item => (item.labelId === id ? { ...item, labelId: undefined } : item)));
+      if (editingLabelId === id) {
+        setEditingLabelId(null);
+        setEditingLabelName('');
+        setEditingLabelColor(DEFAULT_LABEL_COLOR);
+      }
+      return;
+    }
     setLabelBusyId(id);
     const res = await fetch(`/api/labels/${id}`, { method: 'DELETE', credentials: 'include' });
     setLabelBusyId(null);
@@ -1958,6 +2111,10 @@ const App: React.FC = () => {
 
   const openReminderModal = useCallback((item: TodoItem) => {
     if (item.type !== 'event') return;
+    if (!userId) {
+      showUiNotice(getReminderLoginRequiredMessage());
+      return;
+    }
     const maxMinutes = Math.max(0, Math.floor((getItemDateTime(item) - Date.now()) / 60000));
     const initialMinutes = item.reminderMinutesBefore !== undefined
       ? Math.min(item.reminderMinutesBefore, maxMinutes)
@@ -1969,7 +2126,7 @@ const App: React.FC = () => {
     setReminderChannel(item.reminderChannel ?? 'email');
     setReminderError('');
     setReminderModalItemId(item.id);
-  }, []);
+  }, [userId, showUiNotice, getReminderLoginRequiredMessage]);
 
   const closeReminderModal = useCallback(() => {
     setReminderModalItemId(null);
@@ -2267,14 +2424,14 @@ const App: React.FC = () => {
         <section className="space-y-6">
           <div className="flex items-end justify-between gap-4 border-b-2 border-slate-100 pb-0 max-[1100px]:flex-wrap items-center">
             <div className="flex items-center gap-6 flex-shrink-0">
-              <button onClick={() => setActiveTab('task')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
+              <button onClick={() => setActiveTab('task')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.tasks}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {taskCount}
                 </span>
                 {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full" />}
               </button>
-              <button onClick={() => setActiveTab('event')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-[0.14em] whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
+              <button onClick={() => setActiveTab('event')} className={`pb-4 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600' : 'text-slate-400'}`}>
                 {t.events}
                 <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {filteredEventCount}
@@ -2284,7 +2441,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="hidden max-[500px]:flex mb-4 items-center gap-3">
-              <div className="leading-tight text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">
+              <div className="leading-tight text-[10px] font-black uppercase tracking-wider text-slate-500 text-right">
                 {mobileFilterLine && <div className="text-slate-400">{mobileFilterLine}</div>}
                 {mobileLabelLine && <div className="text-slate-400">{mobileLabelLine}</div>}
               </div>
@@ -2689,7 +2846,7 @@ const App: React.FC = () => {
               <div key={group.key} className="space-y-3">
                 {activeTab === 'event' && (
                   <div
-                    className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
+                    className="text-blue-600 sticky top-24 z-20 -mx-2 px-4 py-2 text-xs font-black tracking-wider uppercase bg-[#FDF5E6] backdrop-blur-md flex items-center justify-between"
                     style ={{ top:"138px", zIndex:1 }}
                     >
                     <span>{group.dateLabel}</span>
@@ -2718,7 +2875,7 @@ const App: React.FC = () => {
                         )}
                         <div className="flex flex-col flex-grow leading-tight overflow-hidden">
                           {/* Line 1: Time + Type + Priority */}
-                          <div className="flex items-center justify-between mb-4 max-[450px]:flex-col max-[450px]:items-start max-[450px]:gap-3">
+                          <div className="flex items-center justify-between mb-4 max-[1450px]:flex-col max-[1450px]:items-start max-[1450px]:gap-3">
                             <div className="flex flex-wrap items-center gap-2 text-[13px] font-black uppercase tracking-tighter text-slate-600 max-[1450px]:grid max-[1450px]:grid-cols-2 max-[1450px]:gap-2 max-[1450px]:w-full">
                               <div className={`flex items-center gap-2 px-3 py-1 rounded-lg w-fit max-[1450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
                                 <span>#{item.id}</span>
@@ -2779,15 +2936,24 @@ const App: React.FC = () => {
                                 <i className="fas fa-trash-alt text-base"></i>
                               </button>
                               {item.type === 'event' && (
-                                <button
-                                  onClick={() => openReminderModal(item)}
-                                  className={`p-2 transition-colors ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                                  title={t.reminderTitle}
-                                >
-                                  <i
-                                    className={`fas fa-bell text-base ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}
-                                  ></i>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => openReminderModal(item)}
+                                    disabled={!userId}
+                                    className={`p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                                    title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
+                                  >
+                                    <i
+                                      className={`fas fa-bell text-base ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}
+                                    ></i>
+                                  </button>
+                                  {item.reminderMinutesBefore !== undefined && (
+                                    <span className="!ml-0 text-[12px] font-black text-amber-500 whitespace-nowrap">
+                                      ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
