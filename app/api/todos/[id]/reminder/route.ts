@@ -78,15 +78,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   } catch (error: any) {
     await connection.rollback();
     const message = String(error?.message || 'Reminder queue unavailable');
-    if (
-      message.includes('QSTASH_TOKEN missing')
-      || message.includes('NEXTAUTH_URL missing')
-      || message.includes('REMINDER_QUEUE_SECRET missing')
-      || message.includes('Queue publish failed')
-    ) {
+    const missingKeys: string[] = [];
+    if (message.includes('QSTASH_TOKEN missing')) missingKeys.push('QSTASH_TOKEN');
+    if (message.includes('NEXTAUTH_URL missing')) missingKeys.push('NEXTAUTH_URL');
+    if (message.includes('REMINDER_QUEUE_SECRET missing')) missingKeys.push('REMINDER_QUEUE_SECRET');
+    if (missingKeys.length) {
       return NextResponse.json(
         {
-          error: 'Reminder service is not configured yet. Set QSTASH_TOKEN, REMINDER_QUEUE_SECRET and NEXTAUTH_URL.'
+          error: `Reminder service is not configured yet. Missing: ${missingKeys.join(', ')}.`
+        },
+        { status: 503 }
+      );
+    }
+    if (message.includes('Queue publish failed')) {
+      return NextResponse.json(
+        {
+          error: 'Reminder queue publish failed.',
+          details: message.slice(0, 260)
         },
         { status: 503 }
       );
