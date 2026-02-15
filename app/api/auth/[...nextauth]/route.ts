@@ -4,17 +4,31 @@ import FacebookProvider from 'next-auth/providers/facebook';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { createUserWithPassword, upsertOAuthUser, verifyPassword } from '@/lib/users';
 
+const hasGoogleOAuth = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+const hasFacebookOAuth = Boolean(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET);
+
+const oauthProviders = [];
+if (hasGoogleOAuth) {
+  oauthProviders.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string
+    })
+  );
+}
+if (hasFacebookOAuth) {
+  oauthProviders.push(
+    FacebookProvider({
+      clientId: process.env.FACEBOOK_CLIENT_ID as string,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET as string
+    })
+  );
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? ''
-    }),
-    FacebookProvider({
-      clientId: process.env.FACEBOOK_CLIENT_ID ?? '',
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? ''
-    }),
+    ...oauthProviders,
     CredentialsProvider({
       name: 'Credentials',
       credentials: {

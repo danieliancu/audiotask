@@ -2265,7 +2265,7 @@ const App: React.FC = () => {
         : statusMode === 'outdated'
           ? t.filterOverdue
           : statusMode === 'in_time'
-            ? t.filterInTime
+            ? t.filterUnresolved
             : t.filterAll;
     const priorityLabel = priorityMode === 'low'
       ? t.prioLow
@@ -2495,12 +2495,6 @@ const App: React.FC = () => {
                         >
                           {t.filterOverdue}
                         </button>
-                        <button
-                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'in_time' }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest ${statusFilterByType[activeTab] === 'in_time' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.filterInTime}
-                        </button>
                         <div className="mt-2 pt-2 border-t border-slate-200"></div>
                       </>
                     )}
@@ -2675,8 +2669,7 @@ const App: React.FC = () => {
                           { value: 'all', label: t.filterAll },
                           { value: 'closed', label: t.filterResolved },
                           { value: 'open', label: t.filterUnresolved },
-                          { value: 'outdated', label: t.filterOverdue },
-                          { value: 'in_time', label: t.filterInTime }
+                          { value: 'outdated', label: t.filterOverdue }
                         ].map(opt => (
                           <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <input

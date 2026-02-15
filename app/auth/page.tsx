@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { signIn, useSession } from 'next-auth/react';
+import { getProviders, signIn, useSession } from 'next-auth/react';
 import AppHeader from '@/components/AppHeader';
 type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
@@ -128,6 +128,7 @@ export default function AuthPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [availableOauthProviders, setAvailableOauthProviders] = useState<Record<string, boolean>>({});
 
   const headerTranslations = {
     en: { appTitle: 'VoiceTask', menuHome: 'Home', menuFeatures: 'Features', menuPricing: 'Pricing', menuBlog: 'Blog', languages: 'Languages', menuTitle: 'Menu', close: 'Close' },
@@ -202,6 +203,25 @@ export default function AuthPage() {
     }, 60000);
     return () => clearInterval(timer);
   }, [pageLanguage]);
+
+  useEffect(() => {
+    let mounted = true;
+    void getProviders()
+      .then((providers) => {
+        if (!mounted) return;
+        setAvailableOauthProviders({
+          google: Boolean(providers?.google),
+          facebook: Boolean(providers?.facebook)
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setAvailableOauthProviders({});
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -329,18 +349,22 @@ export default function AuthPage() {
         <div>
           <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.socialTitle}</h2>
           <div className="grid gap-3 md:grid-cols-2">
-            <button
-              onClick={() => signIn('google', { callbackUrl: '/' })}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
-            >
-              {authT.continueGoogle}
-            </button>
-            <button
-              onClick={() => signIn('facebook', { callbackUrl: '/' })}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
-            >
-              {authT.continueFacebook}
-            </button>
+            {availableOauthProviders.google && (
+              <button
+                onClick={() => signIn('google', { callbackUrl: '/' })}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
+              >
+                {authT.continueGoogle}
+              </button>
+            )}
+            {availableOauthProviders.facebook && (
+              <button
+                onClick={() => signIn('facebook', { callbackUrl: '/' })}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
+              >
+                {authT.continueFacebook}
+              </button>
+            )}
           </div>
         </div>
 
