@@ -108,9 +108,9 @@ export default function AppHeader({
 
   return (
     <>
-      <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between bg-transparent relative z-50">
-        <Link href="/" className="flex items-center space-x-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
+      <header className="max-w-7xl mx-auto px-6 py-8 max-[767px]:mx-3 max-[767px]:mt-2 max-[767px]:px-4 max-[767px]:py-4 flex items-center justify-between bg-transparent max-[767px]:bg-white max-[767px]:border max-[767px]:border-slate-200 max-[767px]:border-b max-[767px]:rounded-t-[22px] relative z-50">
+        <Link href="/" className="flex items-center space-x-3 max-[767px]:space-x-2.5">
+          <div className="w-11 h-11 max-[767px]:w-12 max-[767px]:h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
             <svg
               viewBox="0 0 24 24"
               width="20"
@@ -138,8 +138,8 @@ export default function AppHeader({
             )}
           </div>
         </Link>
-        <div className="flex items-center space-x-3">
-          <div className="hidden md:flex items-center space-x-6 text-xs font-black uppercase tracking-widest text-slate-500">
+        <div className="flex items-center space-x-3 max-[767px]:space-x-1">
+          <div className="hidden md:flex items-center space-x-6 text-xs font-black text-slate-500">
             <Link href={externalLinks.home} className="hover:text-blue-600 transition-colors">{t.menuHome}</Link>
             <a href={externalLinks.features} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuFeatures}</a>
             <a href={externalLinks.pricing} className="hover:text-blue-600 transition-colors" target="_blank" rel="noreferrer">{t.menuPricing}</a>
@@ -159,7 +159,7 @@ export default function AppHeader({
                     <button
                       key={code}
                       onClick={() => { setLanguage(code as Language); setIsLanguageMenuOpen(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${language === code ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black transition-all ${language === code ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
                       {name}
                     </button>
@@ -169,37 +169,37 @@ export default function AppHeader({
             </div>
           </div>
 
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-1 max-[767px]:space-x-0">
             <Link
               href="/trash"
-              className="relative w-11 h-11 text-slate-600 flex items-center justify-center"
+              className="relative w-11 h-11 max-[767px]:w-10 max-[767px]:h-10 text-slate-600 flex items-center justify-center"
               title={t.menuTrash || 'Trash'}
             >
-              <i className="far fa-trash-alt" style={{ fontSize:24 }}></i>
+              <i className="far fa-trash-alt" style={{ fontSize:22 }}></i>
               <span
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
-                style={{ top: "5px", right: "5px" }}
+                style={{ top: "3px", right: "4px" }}
               >
                 {trashCount}
               </span>
             </Link>
             <Link
               href={userId ? '/settings' : '/auth'}
-              className={`w-11 h-11 flex items-center justify-center ${userId ? 'text-emerald-600' : 'text-slate-600'}`}
+              className={`w-11 h-11 max-[767px]:w-10 max-[767px]:h-10 flex items-center justify-center ${userId ? 'text-emerald-600' : 'text-slate-600'}`}
               title={userId ? (userEmail || 'Logged in') : 'Login'}
             >
-              <i className={`${userId ? 'fas fa-lock' : 'far fa-user'}`} style={{ fontSize:24 }}></i>
+              <i className={`${userId ? 'fas fa-lock' : 'far fa-user'}`} style={{ fontSize:22 }}></i>
             </Link>
-            <Link href="/reminders" className="relative w-11 h-11 text-slate-600 flex items-center justify-center">
-              <i className="far fa-bell" style={{ fontSize:24 }}></i>
+            <Link href="/reminders" className="relative w-11 h-11 max-[767px]:w-10 max-[767px]:h-10 text-slate-600 flex items-center justify-center">
+              <i className="far fa-bell" style={{ fontSize:22 }}></i>
               <span
                 className="absolute flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal"
-                style={{ top: "5px", right: "5px" }}
+                style={{ top: "3px", right: "4px" }}
               >
                 {userId ? reminderCount : bellCount}
               </span>
             </Link>
-            <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 text-slate-600 flex items-center justify-center">
+            <button onClick={() => setIsMenuOpen(true)} className="md:hidden w-11 h-11 max-[767px]:w-10 max-[767px]:h-10 text-slate-600 flex items-center justify-center">
               <i className="fas fa-bars" style={{ fontSize:24 }}></i>
             </button>
           </div>

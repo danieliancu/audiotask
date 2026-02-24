@@ -15,7 +15,6 @@ const authTranslations: Record<Language, {
   socialTitle: string;
   continueGoogle: string;
   continueFacebook: string;
-  oauthHelp: string;
   passwordsDoNotMatch: string;
   signupFailed: string;
   email: string;
@@ -33,7 +32,6 @@ const authTranslations: Record<Language, {
     socialTitle: 'Social Login',
     continueGoogle: 'Continue with Google',
     continueFacebook: 'Continue with Facebook',
-    oauthHelp: 'OAuth setup needed? Open',
     passwordsDoNotMatch: 'Passwords do not match',
     signupFailed: 'Signup failed',
     email: 'Email',
@@ -51,7 +49,6 @@ const authTranslations: Record<Language, {
     socialTitle: 'Login social',
     continueGoogle: 'Continua cu Google',
     continueFacebook: 'Continua cu Facebook',
-    oauthHelp: 'Ai nevoie de setup OAuth? Deschide',
     passwordsDoNotMatch: 'Parolele nu coincid',
     signupFailed: 'Inregistrarea a esuat',
     email: 'Email',
@@ -69,7 +66,6 @@ const authTranslations: Record<Language, {
     socialTitle: 'Connexion sociale',
     continueGoogle: 'Continuer avec Google',
     continueFacebook: 'Continuer avec Facebook',
-    oauthHelp: 'Configuration OAuth necessaire ? Ouvrez',
     passwordsDoNotMatch: 'Les mots de passe ne correspondent pas',
     signupFailed: "Echec de l'inscription",
     email: 'Email',
@@ -87,7 +83,6 @@ const authTranslations: Record<Language, {
     socialTitle: 'Social Login',
     continueGoogle: 'Mit Google fortfahren',
     continueFacebook: 'Mit Facebook fortfahren',
-    oauthHelp: 'OAuth-Setup erforderlich? Offne',
     passwordsDoNotMatch: 'Passworter stimmen nicht uberein',
     signupFailed: 'Registrierung fehlgeschlagen',
     email: 'E-Mail',
@@ -105,7 +100,6 @@ const authTranslations: Record<Language, {
     socialTitle: 'Login social',
     continueGoogle: 'Continuar con Google',
     continueFacebook: 'Continuar con Facebook',
-    oauthHelp: 'Necesitas configurar OAuth? Abre',
     passwordsDoNotMatch: 'Las contrasenas no coinciden',
     signupFailed: 'El registro fallo',
     email: 'Email',
@@ -374,9 +368,6 @@ export default function AuthPage() {
           </div>
         )}
 
-        <div className="text-center text-xs font-semibold text-slate-400">
-          {authT.oauthHelp} <a className="underline" href="/setup">/setup</a>.
-        </div>
       </div>
     </main>
   );
