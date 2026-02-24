@@ -1,6 +1,6 @@
 export default function SetupPage() {
   return (
-    <main className="min-h-screen bg-[#FDF5E6] px-6 py-10">
+    <main className="min-h-screen bg-[#FFF9EE] px-6 py-10">
       <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">Setup</h1>
 

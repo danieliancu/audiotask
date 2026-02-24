@@ -108,8 +108,9 @@ export default function AppHeader({
 
   return (
     <>
-      <header className="max-w-7xl mx-auto px-6 py-8 max-[767px]:mx-3 max-[767px]:mt-2 max-[767px]:px-4 max-[767px]:py-4 flex items-center justify-between bg-transparent max-[767px]:bg-white max-[767px]:border max-[767px]:border-slate-200 max-[767px]:border-b max-[767px]:rounded-t-[22px] relative z-50">
-        <Link href="/" className="flex items-center space-x-3 max-[767px]:space-x-2.5">
+      <div className="max-[767px]:pt-3">
+        <header className="max-w-7xl mx-auto px-6 py-8 max-[767px]:mx-3 max-[767px]:px-4 max-[767px]:py-4 flex items-center justify-between bg-transparent max-[767px]:bg-white max-[767px]:border max-[767px]:border-slate-200 max-[767px]:border-b max-[767px]:rounded-t-[22px] relative z-50">
+          <Link href="/" className="flex items-center space-x-3 max-[767px]:space-x-2.5">
           <div className="w-11 h-11 max-[767px]:w-12 max-[767px]:h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
             <svg
               viewBox="0 0 24 24"
@@ -203,8 +204,9 @@ export default function AppHeader({
               <i className="fas fa-bars" style={{ fontSize:24 }}></i>
             </button>
           </div>
-        </div>
-      </header>
+          </div>
+        </header>
+      </div>
 
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">

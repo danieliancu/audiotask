@@ -312,7 +312,7 @@ export default function SettingsPage() {
 
   if (!session?.user?.id) {
     return (
-      <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
+      <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
         <AppHeader
           t={{
             appTitle: t.appTitle,
@@ -344,7 +344,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
+    <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
       <AppHeader
         t={{
           appTitle: t.appTitle,

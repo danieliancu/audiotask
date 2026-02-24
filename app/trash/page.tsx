@@ -292,7 +292,7 @@ export default function TrashPage() {
 
   if (!session?.user?.id) {
     return (
-      <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
+      <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
         <AppHeader
           t={t}
           language={pageLanguage}
@@ -316,7 +316,7 @@ export default function TrashPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FDF5E6] text-slate-900 selection:bg-blue-100 pb-20">
+    <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
       <AppHeader
         t={t}
         language={pageLanguage}
