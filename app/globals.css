@@ -10,6 +10,10 @@ body {
   font-family: var(--font-mono);
 }
 
+select:not([multiple]) option {
+  padding: 6px 10px;
+}
+
 .reminder-bell-ring {
   transform-origin: top center;
   animation: reminder-bell-ring 5s infinite;

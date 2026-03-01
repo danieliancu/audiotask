@@ -292,7 +292,7 @@ export default function TrashPage() {
 
   if (!session?.user?.id) {
     return (
-      <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
+      <main className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
         <AppHeader
           t={t}
           language={pageLanguage}
@@ -304,10 +304,10 @@ export default function TrashPage() {
           userEmail={session?.user?.email}
           bellCount={0}
         />
-        <div className="mx-auto max-w-lg px-6 text-center space-y-4">
-          <h1 className="text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
+        <div className="mx-auto max-w-lg px-4 text-center space-y-4">
+          <h1 className="text-2xl font-black text-slate-900">{t.title}</h1>
           <p className="text-sm font-semibold text-slate-500">{t.loginRequired}</p>
-          <Link href="/auth" className="inline-flex rounded-full bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
+          <Link href="/auth" className="inline-flex rounded-xl bg-purple-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-purple-200">
             {t.login}
           </Link>
         </div>
@@ -316,7 +316,7 @@ export default function TrashPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
+    <main className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
       <AppHeader
         t={t}
         language={pageLanguage}
@@ -329,32 +329,32 @@ export default function TrashPage() {
         bellCount={0}
       />
 
-      <div className="mx-auto max-w-4xl px-6 space-y-5">
-        <h1 className="text-[32px] md:text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
+      <div className="mx-auto max-w-4xl px-4 space-y-5">
+        <h1 className="text-2xl font-black text-slate-900">{t.title}</h1>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setFilterType('all')}
-            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-lg px-3 py-2 text-xs font-black ${filterType === 'all' ? 'bg-purple-100 text-purple-700' : 'bg-white text-slate-700 border border-slate-300'}`}
           >
             {t.all}
           </button>
           <button
             onClick={() => setFilterType('task')}
-            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'task' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-lg px-3 py-2 text-xs font-black ${filterType === 'task' ? 'bg-purple-100 text-purple-700' : 'bg-white text-slate-700 border border-slate-300'}`}
           >
             {t.notes}
           </button>
           <button
             onClick={() => setFilterType('event')}
-            className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${filterType === 'event' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}
+            className={`rounded-lg px-3 py-2 text-xs font-black ${filterType === 'event' ? 'bg-purple-100 text-purple-700' : 'bg-white text-slate-700 border border-slate-300'}`}
           >
             {t.tasks}
           </button>
           <button
             onClick={deleteAll}
             disabled={isDeletingAll || items.length === 0}
-            className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+            className="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
           >
             {t.deleteAll}
           </button>
@@ -363,16 +363,16 @@ export default function TrashPage() {
         {loading ? (
           <p className="text-sm font-semibold text-slate-500">...</p>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-[28px] border border-slate-300 bg-slate-100 p-8 text-sm font-semibold text-slate-500 shadow-sm">
+          <div className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-8 text-sm font-semibold text-slate-500 shadow-sm">
             {t.empty}
           </div>
         ) : (
           <div className="space-y-3">
             {filteredItems.map(item => (
-              <div key={item.id} className="rounded-[28px] border border-slate-300 bg-slate-100 p-6 shadow-sm">
+              <div key={item.id} className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5 shadow-sm">
                 <div className="flex flex-col gap-4">
                   <div className="space-y-2">
-                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="text-xs font-black tracking-wide text-slate-500">
                       #{item.id} • {getTypeLabel(item.type)}
                     </div>
                     <p className="text-base font-bold text-slate-800 leading-tight">{item.title || item.text}</p>
@@ -387,14 +387,14 @@ export default function TrashPage() {
                     <button
                       onClick={() => restoreItem(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-full bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
                     >
                       {t.restore}
                     </button>
                     <button
                       onClick={() => deleteForever(item.id)}
                       disabled={busyId === item.id}
-                      className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      className="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
                     >
                       {t.deleteForever}
                     </button>

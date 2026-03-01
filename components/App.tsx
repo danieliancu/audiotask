@@ -37,6 +37,9 @@ const translations = {
     filterAll: "All tasks",
     filterAllPriorities: "All priorities",
     stopListening: "Stop",
+    actionVoiceCommand: "Voice command",
+    actionCalendar: "Calendar",
+    actionAdd: "Add",
     filterResolved: "Checked",
     filterUnresolved: "Active",
     filterOverdue: "Overdue",
@@ -44,6 +47,7 @@ const translations = {
     filterLow: "Low priority",
     filterNormal: "Normal priority",
     filterHigh: "High priority",
+    priorityLabel: "Priority",
     labelsTitle: "Labels",
     allLabels: "All labels",
     addLabel: "Add label...",
@@ -101,6 +105,9 @@ const translations = {
     filterAll: "Toate taskurile",
     filterAllPriorities: "Toate prioritatile",
     stopListening: "Opreste",
+    actionVoiceCommand: "Comandă vocală",
+    actionCalendar: "Calendar",
+    actionAdd: "Adăugare",
     filterResolved: "Bifate",
     filterUnresolved: "Active",
     filterOverdue: "Depășite",
@@ -108,6 +115,7 @@ const translations = {
     filterLow: "Prioritate mică",
     filterNormal: "Prioritate normală",
     filterHigh: "Prioritate mare",
+    priorityLabel: "Prioritate",
     labelsTitle: "Etichete",
     allLabels: "Toate etichetele",
     addLabel: "Adaugă etichetă...",
@@ -165,6 +173,9 @@ const translations = {
     filterAll: "Toutes les tâches",
     filterAllPriorities: "Toutes les priorités",
     stopListening: "Arreter",
+    actionVoiceCommand: "Commande vocale",
+    actionCalendar: "Calendrier",
+    actionAdd: "Ajouter",
     filterResolved: "Cochées",
     filterUnresolved: "Actives",
     filterOverdue: "En retard",
@@ -172,6 +183,7 @@ const translations = {
     filterLow: "Basse priorité",
     filterNormal: "Priorité normale",
     filterHigh: "Haute priorité",
+    priorityLabel: "Priorité",
     labelsTitle: "Étiquettes",
     allLabels: "Toutes les étiquettes",
     addLabel: "Ajouter une étiquette...",
@@ -229,6 +241,9 @@ const translations = {
     filterAll: "Alle Aufgaben",
     filterAllPriorities: "Alle Prioritäten",
     stopListening: "Stoppen",
+    actionVoiceCommand: "Sprachbefehl",
+    actionCalendar: "Kalender",
+    actionAdd: "Hinzufügen",
     filterResolved: "Abgehakt",
     filterUnresolved: "Aktiv",
     filterOverdue: "Überfällig",
@@ -236,6 +251,7 @@ const translations = {
     filterLow: "Niedrig",
     filterNormal: "Normal",
     filterHigh: "Hoch",
+    priorityLabel: "Priorität",
     labelsTitle: "Labels",
     allLabels: "Alle Labels",
     addLabel: "Label hinzufügen...",
@@ -293,6 +309,9 @@ const translations = {
     filterAll: "Todas las tareas",
     filterAllPriorities: "Todas las prioridades",
     stopListening: "Detener",
+    actionVoiceCommand: "Comando de voz",
+    actionCalendar: "Calendario",
+    actionAdd: "Agregar",
     filterResolved: "Marcadas",
     filterUnresolved: "Activas",
     filterOverdue: "Vencidas",
@@ -300,6 +319,7 @@ const translations = {
     filterLow: "Baja",
     filterNormal: "Normal",
     filterHigh: "Alta",
+    priorityLabel: "Prioridad",
     labelsTitle: "Etiquetas",
     allLabels: "Todas las etiquetas",
     addLabel: "Añadir etiqueta...",
@@ -538,6 +558,24 @@ const formatRemainingDuration = (totalMs: number) => {
   if (hours) parts.push(`${hours}h`);
   parts.push(`${minutes}m`);
   return parts.join(' ');
+};
+const formatSubtaskCountLabel = (count: number, language: Language) => {
+  if (count === 1) {
+    switch (language) {
+      case 'ro': return '1 subtask';
+      case 'fr': return '1 sous-tâche';
+      case 'de': return '1 Unteraufgabe';
+      case 'es': return '1 subtarea';
+      default: return '1 subtask';
+    }
+  }
+  switch (language) {
+    case 'ro': return `${count} subtask-uri`;
+    case 'fr': return `${count} sous-tâches`;
+    case 'de': return `${count} Unteraufgaben`;
+    case 'es': return `${count} subtareas`;
+    default: return `${count} subtasks`;
+  }
 };
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = normalizeLabelColor(hex);
@@ -2022,26 +2060,38 @@ const App: React.FC = () => {
   }, [isMobileMicModalOpen]);
 
   const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
-    <div>
-      <div className="flex items-center justify-start gap-3 mb-8">
-        <div className="flex space-x-2">
-          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-all"><i className="fas fa-chevron-left text-[10px]"></i></button>
-          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-all"><i className="fas fa-chevron-right text-[10px]"></i></button>
-        </div>
-        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
+    <div className={`bg-white rounded-lg border border-gray-200 p-4 w-full max-w-full overflow-hidden ${isModal ? '' : 'h-full flex flex-col'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-medium text-gray-900">
           {currentDate.toLocaleString(language, { month: 'long', year: 'numeric' })}
         </h2>
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+            className="p-1 hover:bg-gray-100 rounded transition-colors"
+          >
+            <i className="fas fa-chevron-left text-[12px] text-gray-600"></i>
+          </button>
+          <button
+            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+            className="p-1 hover:bg-gray-100 rounded transition-colors"
+          >
+            <i className="fas fa-chevron-right text-[12px] text-gray-600"></i>
+          </button>
+        </div>
       </div>
-      
-      <div className="grid grid-cols-7 gap-2 mb-6">
+
+      <div className="grid grid-cols-7 gap-1 mb-2">
         {(['en', 'ro', 'fr', 'de', 'es'].includes(language) ? [0,1,2,3,4,5,6] : [0]).map(i => {
            const d = new Date(2021, 0, 4 + i).toLocaleString(language, { weekday: 'short' });
-           return <div key={i} className="text-center text-[9px] font-black text-slate-300 uppercase tracking-widest">{d.slice(0, 2)}</div>
+           return <div key={i} className="text-center text-xs font-medium text-gray-500 py-1">{d.slice(0, 2)}</div>
         })}
       </div>
 
-      <div className="grid grid-cols-7 gap-3">
-        {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="aspect-square"></div>)}
+      <div className={`grid grid-cols-7 ${isModal ? 'gap-1' : 'gap-0.5'}`}>
+        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+          <div key={`empty-${i}`} className={isModal ? 'aspect-square' : 'h-9'}></div>
+        ))}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
           const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${day}`;
@@ -2061,7 +2111,7 @@ const App: React.FC = () => {
             <div key={day} className="flex flex-col items-center">
               <button 
                 onClick={() => handleDateClick(dateKey)}
-                className={`relative w-full aspect-square rounded-[16px] flex items-center justify-center text-sm font-black transition-all ${isSelected ? `bg-blue-600 text-white ${isSelectedEdge ? 'shadow-xl scale-110 z-10' : ''}` : pendingStart || pendingEnd ? 'bg-blue-500 text-white shadow-lg scale-105 z-10' : isPendingRange ? 'bg-blue-200 text-blue-800' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}
+                className={`relative w-full ${isModal ? 'aspect-square' : 'h-9'} rounded-lg flex items-center justify-center text-sm transition-colors ${isSelected ? `bg-purple-100 text-purple-700 font-medium ${isSelectedEdge ? 'ring-1 ring-purple-300' : ''}` : pendingStart || pendingEnd ? 'bg-purple-500 text-white' : isPendingRange ? 'bg-purple-200 text-purple-800' : isToday ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'}`}
               >
                 {day}
               </button>
@@ -2071,7 +2121,7 @@ const App: React.FC = () => {
                     key={item.id}
                     title={item.text}
                     onClick={(e) => { e.stopPropagation(); scrollToTask(item.id, item.type); }}
-                    className={`w-2 h-2 rounded-full shadow-sm transition-all duration-300 hover:scale-150 active:scale-95 ${item.type === 'task' ? 'bg-emerald-500' : 'bg-blue-500'} ${highlightedTaskId === item.id ? 'ring-2 ring-offset-2 ring-blue-500 scale-125 z-10' : 'hover:ring-1 hover:ring-slate-300'}`}
+                    className={`w-2 h-2 rounded-full shadow-sm transition-all duration-300 hover:scale-150 active:scale-95 ${item.type === 'task' ? 'bg-emerald-500' : 'bg-purple-500'} ${highlightedTaskId === item.id ? 'ring-2 ring-offset-2 ring-purple-500 scale-125 z-10' : 'hover:ring-1 hover:ring-slate-300'}`}
                   />
                 ))}
               </div>
@@ -2080,12 +2130,12 @@ const App: React.FC = () => {
         })}
       </div>
 
-      <div className="mt-8 flex items-center justify-center">
+      <div className={`${isModal ? 'mt-4' : 'mt-auto'} pt-4 border-t border-gray-200`}>
         <button
           type="button"
           onClick={() => { applyPendingDates(); if (isModal) setIsCalendarOpen(false); }}
           disabled={!pendingDateStart}
-          className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${pendingDateStart ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pendingDateStart ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
         >
           {t.selectDates}
         </button>
@@ -2279,8 +2329,13 @@ const App: React.FC = () => {
 
   const priorityColors = {
     low: 'text-slate-500 bg-slate-100',
-    normal: 'text-blue-600 bg-blue-50',
+    normal: 'text-purple-600 bg-purple-50',
     high: 'text-amber-900 bg-amber-200'
+  };
+  const priorityBadgeClasses: Record<Priority, string> = {
+    low: 'text-blue-600 border-blue-500 bg-blue-50',
+    normal: 'text-slate-600 border-slate-400 bg-white',
+    high: 'text-red-600 border-red-500 bg-white'
   };
   const formTypeLabel = formType === 'task' ? 'Note' : 'Task';
   const activeFilterLabel = (() => {
@@ -2337,7 +2392,7 @@ const App: React.FC = () => {
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
 
   return (
-    <div className="min-h-screen bg-[#ECE7D9] text-slate-900 selection:bg-blue-100 pb-20">
+    <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
       <AppHeader
         t={{
           appTitle: t.appTitle,
@@ -2368,365 +2423,499 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto sticky top-0 z-40 bg-[#ECE7D9] max-[767px]:mx-3 max-[767px]:bg-white backdrop-blur-xl px-6 max-[767px]:px-0 py-6 max-[767px]:pt-0 max-[767px]:pb-3 mb-8 max-[767px]:mb-0 border-b border-black/20 max-[767px]:border-slate-200 max-[767px]:border-x">
-        <div>
-          {/* Desktop Interaction Bar */}
-          <div className="hidden md:flex items-center space-x-4 bg-white p-4 rounded-[32px] shadow-sm border border-slate-200 transition-all hover:shadow-lg focus-within:ring-2 focus-within:ring-blue-500/10">
-            <button 
-              disabled={isConnectingRef.current}
-              onClick={startLiveSession} 
-              className={`flex-shrink-0 w-14 h-14 rounded-[20px] flex items-center justify-center transition-all ${isLive ? 'bg-red-500 text-white animate-pulse shadow-xl shadow-red-100' : 'bg-blue-600 text-white shadow-xl shadow-blue-100 hover:bg-blue-700 hover:scale-105'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <i className={`fas ${isLive ? 'fa-stop text-lg' : 'fa-microphone text-xl'}`}></i>
-            </button>
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="flex-shrink-0 w-14 h-14 rounded-[20px] flex items-center justify-center transition-all bg-blue-50 text-blue-600 border border-slate-200 shadow-xl shadow-slate-100 hover:bg-blue-50 hover:border-blue-200 hover:scale-105"
-              aria-label="Create item"
-              title="Create item"
-            >
-              <i className="fas fa-pen text-lg"></i>
-            </button>
-            <div className="flex-grow bg-slate-50 rounded-[24px] px-4 py-3 border border-slate-100 min-h-[56px] flex items-center relative gap-2">
-              {isLive ? (
-                <div className="text-sm font-bold text-blue-600 italic leading-relaxed break-words line-clamp-2">
-                  {transcription || t.listening}
-                </div>
-              ) : (
-                <>
-                  <input 
-                    type="text" 
-                    value={inputValue} 
-                    onChange={e => setInputValue(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSendPrompt()} 
-                    placeholder={t.placeholder} 
-                    className="w-full bg-transparent text-sm font-bold focus:outline-none placeholder:text-slate-300 block" 
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSendPrompt}
-                    className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all"
-                    aria-label="Send"
-                  >
-                    <i className="fas fa-paper-plane text-[12px]"></i>
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200">
+        <div className="hidden md:flex items-center gap-3">
+          <button
+            disabled={isConnectingRef.current}
+            onClick={startLiveSession}
+            className={`flex items-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-base`}></i>
+            <span className="text-sm">{isLive ? t.stopListening : t.actionVoiceCommand}</span>
+          </button>
 
-          {/* Mobile Interaction Bar - STICKY GROUP */}
-          <div className="md:hidden px-4">
-            {!isWriteMode ? (
-              <div className="flex items-center justify-center gap-4 bg-transparent p-[10px] max-[767px]:py-2.5 rounded-none shadow-none border-0 animate-in fade-in zoom-in duration-300">
-                <button 
-                  disabled={isConnectingRef.current}
-                  onClick={openMobileMicModal} 
-                  className={`w-10 h-10 rounded-[18px] bg-transparent text-blue-600 shadow-none border-0 flex items-center justify-center transition-all active:scale-95 ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <i className={`fas ${isLive ? 'fa-stop text-lg' : 'fa-microphone text-xl'}`}></i>
-                </button>
-                
-                <button 
-                  onClick={() => setIsCalendarOpen(true)} 
-                  className="w-10 h-10 rounded-[18px] bg-transparent text-blue-600 shadow-none border-0 flex items-center justify-center active:scale-95 transition-all"
-                >
-                  <i className="fas fa-calendar-alt text-lg"></i>
-                </button>
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-purple-500 to-indigo-500 text-white rounded-lg hover:shadow-md transition-all"
+            aria-label="Create item"
+            title="Create item"
+          >
+            <i className="fas fa-pen text-base"></i>
+            <span className="text-sm">{t.actionAdd}</span>
+          </button>
 
-                <button 
-                  onClick={() => { setIsWriteMode(false); openAddModal(); }} 
-                  className="w-10 h-10 rounded-[18px] bg-transparent text-blue-600 shadow-none border-0 flex items-center justify-center active:scale-95 transition-all"
-                >
-                  <i className="fas fa-pen text-lg"></i>
-                </button>
+          <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-lg pl-4 pr-2 py-1">
+            {isLive ? (
+              <div className="text-sm text-purple-700 italic truncate">
+                {transcription || t.listening}
               </div>
             ) : (
-              <div className="flex items-center space-x-3 bg-white p-4 rounded-[32px] shadow-sm border border-slate-200 animate-in slide-in-from-right duration-300">
-                <div className="flex-grow bg-slate-50 rounded-[20px] px-5 py-3 border border-slate-100 flex items-center">
-                  <input 
-                    autoFocus
-                    type="text" 
-                    value={inputValue} 
-                    onChange={e => setInputValue(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSendPrompt()} 
-                    placeholder={t.placeholder} 
-                    className="w-full bg-transparent text-sm font-bold focus:outline-none placeholder:text-slate-400 block" 
-                  />
-                </div>
-                <button 
-                  onClick={() => setIsWriteMode(false)} 
-                  className="w-12 h-12 rounded-[20px] bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 transition-all"
+              <>
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendPrompt()}
+                  placeholder={t.placeholder}
+                  className="flex-1 text-sm bg-transparent border-none outline-none focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendPrompt}
+                  className="p-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  aria-label="Send"
                 >
-                  <i className="fas fa-times text-lg"></i>
+                  <i className="fas fa-paper-plane text-sm text-white"></i>
                 </button>
-              </div>
+              </>
             )}
           </div>
         </div>
-      </div>
 
-      <main className="max-w-7xl mx-auto px-6 max-[767px]:px-3 grid grid-cols-1 md:grid-cols-2 gap-16 max-[767px]:gap-0 items-start">
-        <section className="space-y-6 max-[767px]:space-y-0">
-          <div className="flex flex-nowrap items-center justify-between gap-4 max-[767px]:gap-2 overflow-visible p-[10px] max-[767px]:px-4 max-[767px]:py-2.5 bg-white max-[767px]:bg-blue-600 rounded-[20px] max-[767px]:rounded-none border border-slate-200 max-[767px]:border-x max-[767px]:border-t-0 max-[767px]:border-b max-[767px]:border-blue-500">
-            <div className="flex items-center gap-6 max-[767px]:gap-4 flex-shrink-0 py-2">
-              <button onClick={() => setActiveTab('task')} className={`pb-1 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'task' ? 'text-blue-600 max-[767px]:text-white' : 'text-slate-400 max-[767px]:text-white/70'}`}>
-                {t.tasks}
-                <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
-                  {taskCount}
-                </span>
-                {activeTab === 'task' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 max-[767px]:bg-white rounded-t-full" />}
+        <div className="md:hidden">
+          {!isWriteMode ? (
+            <div className="flex items-center justify-center gap-6">
+              <button
+                disabled={isConnectingRef.current}
+                onClick={openMobileMicModal}
+                className={`flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-white text-base`}></i>
+                </div>
+                <span className="text-xs text-gray-600">{t.actionVoiceCommand}</span>
               </button>
-              <button onClick={() => setActiveTab('event')} className={`pb-1 px-1 text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all relative ${activeTab === 'event' ? 'text-blue-600 max-[767px]:text-white' : 'text-slate-400 max-[767px]:text-white/70'}`}>
-                {t.events}
-                <span className="absolute -top-[5px] -right-[12px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
-                  {filteredEventCount}
-                </span>
-                {activeTab === 'event' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 max-[767px]:bg-white rounded-t-full" />}
+
+              <button
+                onClick={() => setIsCalendarOpen(true)}
+                className="flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
+                  <i className="fas fa-calendar-alt text-white text-base"></i>
+                </div>
+                <span className="text-xs text-gray-600">{t.actionCalendar}</span>
+              </button>
+
+              <button
+                onClick={() => { setIsWriteMode(false); openAddModal(); }}
+                className="flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
+                  <i className="fas fa-pen text-white text-base"></i>
+                </div>
+                <span className="text-xs text-gray-600">{t.actionAdd}</span>
               </button>
             </div>
-
-            {activeTab === 'event' && (
-              <div
-                className="hidden max-[767px]:flex px-4 py-2 items-center gap-2 text-[13px] cursor-pointer"
-                onClick={() => {
-                  if (activeDateFilters.length > 0) {
-                    setActiveDateFilters([]);
-                    setPendingDateStart(null);
-                    setPendingDateEnd(null);
-                    return;
-                  }
-                  setIsCalendarOpen(true);
-                }}
+          ) : (
+            <div className="flex items-center space-x-3 bg-white p-4 rounded-lg border border-gray-300 animate-in slide-in-from-right duration-300">
+              <div className="flex-grow bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 flex items-center">
+                <input
+                  autoFocus
+                  type="text"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendPrompt()}
+                  placeholder={t.placeholder}
+                  className="w-full bg-transparent text-sm focus:outline-none text-gray-700"
+                />
+              </div>
+              <button
+                onClick={() => setIsWriteMode(false)}
+                className="w-10 h-10 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center active:scale-95 transition-all"
               >
-                <i className="far fa-calendar-alt text-[12px] text-white"></i>
-                <span className="font-bold text-white">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
-                {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
-              </div>
-            )}
+                <i className="fas fa-times text-base"></i>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
-            <div className="p-[10px] flex items-center gap-2 max-[767px]:hidden flex-nowrap justify-end shrink-0 whitespace-nowrap">
-              <div className="relative" ref={filterMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsFilterMenuOpen(prev => !prev)}
-                  className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
-                >
-                  <i className="fas fa-filter text-[10px] text-slate-400 mr-2"></i>
-                  <span className="text-[10px] font-black text-blue-500 px-2 py-0.5">{activeFilterLabel}</span>
-                  <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
-                </button>
-                {isFilterMenuOpen && (
-                  <div className="absolute top-full left-1/2 mt-2 flex w-64 -translate-x-1/2 flex-col bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[120]">
-                    {activeTab === 'event' && (
-                      <>
-                        <div className="text-[10px] font-black text-slate-400 px-2 pb-1">Status</div>
-                        <button
-                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'all' }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${statusFilterByType[activeTab] === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.filterAll}
-                        </button>
-                        <button
-                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'closed' }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${statusFilterByType[activeTab] === 'closed' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.filterResolved}
-                        </button>
-                        <button
-                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'open' }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${statusFilterByType[activeTab] === 'open' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.filterUnresolved}
-                        </button>
-                        <button
-                          onClick={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: 'outdated' }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${statusFilterByType[activeTab] === 'outdated' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.filterOverdue}
-                        </button>
-                        <div className="mt-2 pt-2 border-t border-slate-200"></div>
-                      </>
-                    )}
-                    <div className={`${activeTab === 'event' ? '' : 'pt-0'} flex flex-col`}>
-                      <div className="text-[10px] font-black text-slate-400 px-2 pb-1">Priority</div>
-                      <button
-                        onClick={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: 'all' }))}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${priorityFilterByType[activeTab] === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                      >
-                        {t.filterAllPriorities}
-                      </button>
-                      {(['low', 'normal', 'high'] as const).map(value => (
-                        <button
-                          key={value}
-                          onClick={() => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: prev[activeTab] === value ? 'all' : value }))}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${priorityFilterByType[activeTab] === value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {value === 'low' ? t.filterLow : value === 'normal' ? t.filterNormal : t.filterHigh}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {activeTab === 'event' && (
-                <div className="relative" ref={labelMenuRef}>
+      <main className="max-w-7xl mx-auto px-4 lg:grid lg:grid-cols-5 lg:gap-6">
+        <div className="hidden md:flex lg:col-span-5 items-center justify-between gap-3 pb-3 border-b border-gray-200 mb-4">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setActiveTab('task')} className={`relative px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'task' ? 'bg-purple-100 text-purple-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {t.tasks}
+              <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                {taskCount}
+              </span>
+            </button>
+            <button onClick={() => setActiveTab('event')} className={`relative px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'event' ? 'bg-purple-100 text-purple-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {t.events}
+              <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                {filteredEventCount}
+              </span>
+            </button>
+            <div
+              className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
+              onClick={() => {
+                if (activeDateFilters.length > 0) {
+                  setActiveDateFilters([]);
+                  setPendingDateStart(null);
+                  setPendingDateEnd(null);
+                  return;
+                }
+                setIsCalendarOpen(true);
+              }}
+            >
+              <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
+              <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
+              {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+            <select
+              value={statusFilterByType[activeTab]}
+              onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
+              className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            >
+              <option value="all">Status: {t.filterAll}</option>
+              <option value="open">Status: {t.filterUnresolved}</option>
+              <option value="closed">Status: {t.filterResolved}</option>
+              <option value="outdated">Status: {t.filterOverdue}</option>
+              <option value="in_time">Status: {t.filterInTime}</option>
+            </select>
+
+            <select
+              value={priorityFilterByType[activeTab]}
+              onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
+              className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            >
+              <option value="all">Priority: {t.filterAllPriorities}</option>
+              <option value="normal">Priority: {t.prioNormal}</option>
+              <option value="high">Priority: {t.prioHigh}</option>
+              <option value="low">Priority: {t.prioLow}</option>
+            </select>
+
+            <div className="relative" ref={labelMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsLabelMenuOpen(prev => !prev)}
+                className="relative cursor-pointer px-3 py-2 pr-8 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 inline-flex items-center text-slate-900"
+              >
+                <span className="text-slate-900">
+                  {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
+                </span>
+                <i className="pointer-events-none fas fa-chevron-down text-[10px] text-slate-900 absolute right-1 top-1/2 -translate-y-1/2"></i>
+              </button>
+              {isLabelMenuOpen && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
                   <button
-                    type="button"
-                    onClick={() => setIsLabelMenuOpen(prev => !prev)}
-                    className="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
+                    onClick={() => { setSelectedLabelIds([]); setIsLabelMenuOpen(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.length === 0 ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                   >
-                    <i className="fas fa-tags text-[10px] text-slate-400 mr-2"></i>
-                    {selectedLabelIds.length > 0 && (
-                      <span className="h-2.5 w-2.5 rounded-full mr-2 bg-blue-500"></span>
-                    )}
-                    <span className="text-[10px] font-black text-blue-500 px-2 py-0.5">
-                      {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
-                    </span>
-                    <i className="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
+                    {t.allLabels}
                   </button>
-                  {isLabelMenuOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
-                      <button
-                        onClick={() => { setSelectedLabelIds([]); setIsLabelMenuOpen(false); }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.length === 0 ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                      >
-                        {t.allLabels}
-                      </button>
-                      {labels.map(label => (
+                  {labels.map(label => (
+                    <div
+                      key={label.id}
+                      className={`w-full px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.includes(label.id) ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <div className="w-full flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedLabelIds.includes(label.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedLabelIds(prev => checked
+                              ? (prev.includes(label.id) ? prev : [...prev, label.id])
+                              : prev.filter(labelId => labelId !== label.id)
+                            );
+                          }}
+                          className="h-4 w-4 accent-purple-600"
+                        />
+                        <span
+                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: normalizeLabelColor(label.color) }}
+                        ></span>
                         <div
-                          key={label.id}
-                          className={`w-full px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.includes(label.id) ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                          onClick={() => {
+                            if (editingLabelId === label.id) return;
+                            setSelectedLabelIds(prev => prev.includes(label.id)
+                              ? prev.filter(labelId => labelId !== label.id)
+                              : [...prev, label.id]
+                            );
+                          }}
+                          className="flex-1 text-left truncate cursor-pointer"
                         >
-                          <div className="w-full flex items-center gap-2">
+                          {editingLabelId === label.id ? (
                             <input
-                              type="checkbox"
-                              checked={selectedLabelIds.includes(label.id)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSelectedLabelIds(prev => checked
-                                  ? (prev.includes(label.id) ? prev : [...prev, label.id])
-                                  : prev.filter(labelId => labelId !== label.id)
-                                );
-                              }}
-                              className="h-4 w-4 accent-blue-600"
+                              value={editingLabelName}
+                              onChange={(e) => setEditingLabelName(e.target.value)}
+                              className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700"
                             />
-                            <span
-                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: normalizeLabelColor(label.color) }}
-                            ></span>
-                            <div
-                              onClick={() => {
-                                if (editingLabelId === label.id) return;
-                                setSelectedLabelIds(prev => prev.includes(label.id)
-                                  ? prev.filter(labelId => labelId !== label.id)
-                                  : [...prev, label.id]
-                                );
-                              }}
-                              className="flex-1 text-left truncate cursor-pointer"
-                            >
-                              {editingLabelId === label.id ? (
-                                <input
-                                  value={editingLabelName}
-                                  onChange={(e) => setEditingLabelName(e.target.value)}
-                                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700"
-                                />
-                              ) : (
-                                label.name
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => void deleteLabel(label.id)}
-                              disabled={labelBusyId === label.id}
-                              className="h-5 w-5 inline-flex items-center justify-center"
-                              title="Delete label"
-                            >
-                              <i className="fas fa-trash text-[10px]"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => startEditLabel(label)}
-                              disabled={labelBusyId === label.id}
-                              className="h-5 w-5 inline-flex items-center justify-center"
-                              title="Edit label"
-                            >
-                              <i className="fas fa-pen text-[10px]"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveEditLabel()}
-                              disabled={editingLabelId !== label.id || labelBusyId === label.id}
-                              className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
-                              title="Confirm label"
-                            >
-                              <i className="fas fa-check text-[10px]"></i>
-                            </button>
-                          </div>
+                          ) : (
+                            label.name
+                          )}
                         </div>
-                      ))}
-                      <div className="mt-2 pt-2 border-t border-slate-200">
-                        <div className="text-[10px] font-black text-slate-400 px-2 pb-1">{t.addLabel}</div>
-                        <div className="flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-2">
-                          {LABEL_COLOR_PALETTE.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
-                              className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
-                              style={{ backgroundColor: color }}
-                              aria-label={`Color ${color}`}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={newLabelName}
-                            onChange={(e) => setNewLabelName(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-                            placeholder={t.labelNamePlaceholder}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void createLabel()}
-                            disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
-                            className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
-                            title={t.addLabel}
-                          >
-                            <i className="fas fa-check text-xs"></i>
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void deleteLabel(label.id)}
+                          disabled={labelBusyId === label.id}
+                          className="h-5 w-5 inline-flex items-center justify-center"
+                          title="Delete label"
+                        >
+                          <i className="fas fa-trash text-[10px]"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEditLabel(label)}
+                          disabled={labelBusyId === label.id}
+                          className="h-5 w-5 inline-flex items-center justify-center"
+                          title="Edit label"
+                        >
+                          <i className="fas fa-pen text-[10px]"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveEditLabel()}
+                          disabled={editingLabelId !== label.id || labelBusyId === label.id}
+                          className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
+                          title="Confirm label"
+                        >
+                          <i className="fas fa-check text-[10px]"></i>
+                        </button>
                       </div>
                     </div>
-                  )}
+                  ))}
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <div className="text-[10px] font-black text-slate-400 px-2 pb-1">{t.addLabel}</div>
+                    <div className="flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-2">
+                      {LABEL_COLOR_PALETTE.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
+                          className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Color ${color}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={newLabelName}
+                        onChange={(e) => setNewLabelName(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                        placeholder={t.labelNamePlaceholder}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void createLabel()}
+                        disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
+                        className="h-9 w-9 rounded-xl text-purple-600 inline-flex items-center justify-center disabled:opacity-40"
+                        title={t.addLabel}
+                      >
+                        <i className="fas fa-check text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-          {activeTab === 'event' && (
-            <div
-              className="hidden max-[767px]:flex border-x border-b border-slate-300/80 bg-white px-4 py-2 items-center gap-4 text-[13px] rounded-b-[22px] cursor-pointer"
-              onClick={() => setIsFilterPanelOpen(true)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  setIsFilterPanelOpen(true);
-                }
-              }}
-            >
-              <span className="flex items-center gap-2 min-w-0 text-slate-700 font-semibold">
-                <i className="fas fa-tag text-[11px] text-slate-400"></i>
-                <span className="truncate">{selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}</span>
-              </span>
-              <div className="ml-auto flex items-center gap-3 text-blue-700 font-semibold whitespace-nowrap">
-                <span><span className="text-black">Status:</span> {mobileStatusShortLabel}</span>
-                <span><span className="text-black">Priority:</span> {mobilePriorityShortLabel}</span>
-              </div>
+        </div>
+
+        <section className="space-y-6 md:space-y-0 lg:col-span-3">
+          <div className="md:hidden pb-3 border-b border-gray-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <button onClick={() => setActiveTab('task')} className={`relative px-3 py-2 rounded-lg text-[clamp(13px,3.4vw,15px)] leading-none whitespace-nowrap transition-colors ${activeTab === 'task' ? 'bg-purple-100 text-purple-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {t.tasks}
+                <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                  {taskCount}
+                </span>
+              </button>
+              <button onClick={() => setActiveTab('event')} className={`relative px-3 py-2 rounded-lg text-[clamp(13px,3.4vw,15px)] leading-none whitespace-nowrap transition-colors ${activeTab === 'event' ? 'bg-purple-100 text-purple-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {t.events}
+                <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
+                  {filteredEventCount}
+                </span>
+              </button>
+              {activeTab === 'event' && (
+                <div
+                  className="ml-auto min-w-0 flex px-2.5 py-2 items-center gap-2 text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
+                  onClick={() => {
+                    if (activeDateFilters.length > 0) {
+                      setActiveDateFilters([]);
+                      setPendingDateStart(null);
+                      setPendingDateEnd(null);
+                      return;
+                    }
+                    setIsCalendarOpen(true);
+                  }}
+                >
+                  <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
+                  <span className="font-medium text-gray-700 truncate">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
+                  {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
+                </div>
+              )}
             </div>
-          )}
+
+            {activeTab === 'event' && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="min-w-0">
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Etichete</div>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsLabelMenuOpen(prev => !prev)}
+                      className="relative w-full h-10 px-2.5 pr-8 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer inline-flex items-center text-slate-900"
+                    >
+                      <span className="text-slate-900 truncate">
+                        {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
+                      </span>
+                      <i className="pointer-events-none fas fa-chevron-down text-[11px] text-slate-900 absolute right-1 top-1/2 -translate-y-1/2"></i>
+                    </button>
+                    {isLabelMenuOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-64 max-w-[85vw] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+                        <button
+                          onClick={() => { setSelectedLabelIds([]); setIsLabelMenuOpen(false); }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.length === 0 ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          {t.allLabels}
+                        </button>
+                        {labels.map(label => (
+                          <div
+                            key={label.id}
+                            className={`w-full px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.includes(label.id) ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                          >
+                            <div className="w-full flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedLabelIds.includes(label.id)}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setSelectedLabelIds(prev => checked
+                                    ? (prev.includes(label.id) ? prev : [...prev, label.id])
+                                    : prev.filter(labelId => labelId !== label.id)
+                                  );
+                                }}
+                                className="h-4 w-4 accent-purple-600"
+                              />
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: normalizeLabelColor(label.color) }}
+                              ></span>
+                              <div
+                                onClick={() => {
+                                  if (editingLabelId === label.id) return;
+                                  setSelectedLabelIds(prev => prev.includes(label.id)
+                                    ? prev.filter(labelId => labelId !== label.id)
+                                    : [...prev, label.id]
+                                  );
+                                }}
+                                className="flex-1 text-left truncate cursor-pointer"
+                              >
+                                {editingLabelId === label.id ? (
+                                  <input
+                                    value={editingLabelName}
+                                    onChange={(e) => setEditingLabelName(e.target.value)}
+                                    className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700"
+                                  />
+                                ) : (
+                                  label.name
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void deleteLabel(label.id)}
+                                disabled={labelBusyId === label.id}
+                                className="h-5 w-5 inline-flex items-center justify-center"
+                                title="Delete label"
+                              >
+                                <i className="fas fa-trash text-[10px]"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => startEditLabel(label)}
+                                disabled={labelBusyId === label.id}
+                                className="h-5 w-5 inline-flex items-center justify-center"
+                                title="Edit label"
+                              >
+                                <i className="fas fa-pen text-[10px]"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void saveEditLabel()}
+                                disabled={editingLabelId !== label.id || labelBusyId === label.id}
+                                className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
+                                title="Confirm label"
+                              >
+                                <i className="fas fa-check text-[10px]"></i>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="mt-2 pt-2 border-t border-slate-200">
+                          <div className="text-[10px] font-black text-slate-400 px-2 pb-1">{t.addLabel}</div>
+                          <div className="flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-2">
+                            {LABEL_COLOR_PALETTE.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
+                                className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
+                                style={{ backgroundColor: color }}
+                                aria-label={`Color ${color}`}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={newLabelName}
+                              onChange={(e) => setNewLabelName(e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                              placeholder={t.labelNamePlaceholder}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void createLabel()}
+                              disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
+                              className="h-9 w-9 rounded-xl text-purple-600 inline-flex items-center justify-center disabled:opacity-40"
+                              title={t.addLabel}
+                            >
+                              <i className="fas fa-check text-xs"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Status</div>
+                  <select
+                    value={statusFilterByType[activeTab]}
+                    onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
+                    className="w-full h-10 px-2.5 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  >
+                    <option value="all">{t.filterAll}</option>
+                    <option value="open">{t.filterUnresolved}</option>
+                    <option value="closed">{t.filterResolved}</option>
+                    <option value="outdated">{t.filterOverdue}</option>
+                    <option value="in_time">{t.filterInTime}</option>
+                  </select>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Priority</div>
+                  <select
+                    value={priorityFilterByType[activeTab]}
+                    onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
+                    className="w-full h-10 px-2.5 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  >
+                    <option value="all">{t.filterAllPriorities}</option>
+                    <option value="normal">{t.prioNormal}</option>
+                    <option value="high">{t.prioHigh}</option>
+                    <option value="low">{t.prioLow}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+          </div>
 
           <div style={{ marginTop:0 }} className={`fixed inset-0 z-[80] min-[768px]:hidden transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-slate-900/35" onClick={() => setIsFilterPanelOpen(false)}></div>
@@ -2856,7 +3045,7 @@ const App: React.FC = () => {
                               type="button"
                               onClick={() => void saveEditLabel()}
                               disabled={editingLabelId !== label.id || labelBusyId === label.id}
-                              className="h-7 w-7 inline-flex items-center justify-center text-blue-600 disabled:opacity-40"
+                              className="h-7 w-7 inline-flex items-center justify-center text-purple-600 disabled:opacity-40"
                               title="Confirm label"
                             >
                               <i className="fas fa-check text-[11px]"></i>
@@ -2882,14 +3071,14 @@ const App: React.FC = () => {
                           <input
                             value={newLabelName}
                             onChange={(e) => setNewLabelName(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                             placeholder={t.labelNamePlaceholder}
                           />
                           <button
                             type="button"
                             onClick={() => void createLabel()}
                             disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
-                            className="h-9 w-9 rounded-xl text-blue-600 inline-flex items-center justify-center disabled:opacity-40"
+                            className="h-9 w-9 rounded-xl text-purple-600 inline-flex items-center justify-center disabled:opacity-40"
                             title={t.addLabel}
                           >
                             <i className="fas fa-check text-xs"></i>
@@ -2916,241 +3105,167 @@ const App: React.FC = () => {
               <div
                 key={group.key}
                 className="space-y-3"
-                style={{ borderTop: groupIndex === 0 ? "none" : "1px solid black", paddingTop:"24px" }}
+                style={{ borderTop: groupIndex === 0 ? 'none' : '1px solid #e5e7eb', paddingTop: '24px' }}
               >
                 {activeTab === 'event' && (
                   <div
-                    className="text-blue-600 max-[767px]:text-black sticky max-[767px]:static top-24 z-20 -mx-2 max-[767px]:mx-0 px-4 max-[767px]:px-5 py-2 text-xs max-[767px]:text-[16px] font-black tracking-wider max-[767px]:tracking-normal bg-[#FFF9EE] max-[767px]:bg-transparent backdrop-blur-md flex items-center justify-between"
-                    style ={{ top:"138px", zIndex:1 }}
-                    >
+                    className="sticky top-0 z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+                  >
+                    <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                     <span>{group.dateLabel}</span>
                   </div>
                 )}
                 {group.items.map(item => (
-                  <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.03] ring-4 ring-blue-500/50 rounded-[32px] shadow-2xl z-10 relative' : ''}`}>
-                    <div className={`flex items-start justify-between p-6 max-[767px]:p-3 bg-white max-[767px]:bg-[#f7f7f8] rounded-[32px] max-[767px]:rounded-[18px] border border-slate-100 max-[767px]:border-slate-200 transition-all ${item.type === 'event' && item.completed ? 'bg-slate-50 opacity-60' : 'hover:border-blue-200'} ${highlightedTaskId === item.id ? 'border-blue-400' : ''}`}>
-                      <div className="flex items-start space-x-5 max-[767px]:space-x-3 w-full">
-                        {item.type === 'event' ? (
-                          <div className="flex flex-col items-center w-12 max-[767px]:w-[52px]">
-                            <button onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })} className={`mt-10 max-[767px]:mt-1 flex-shrink-0 w-7 h-7 max-[767px]:w-8 max-[767px]:h-8 rounded-xl max-[767px]:rounded-full border-2 max-[767px]:border-[1.5px] transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-500'}`}>
-                              {item.completed && <i className="fas fa-check text-xs"></i>}
-                            </button>
-                            {item.dueTime && (
-                              <span className="hidden max-[767px]:block mt-2 text-md leading-none font-black text-slate-900">
-                                {item.dueTime}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="mt-10 flex-shrink-0 w-7 h-7"></div>
-                        )}
-                        <div className="flex flex-col flex-grow leading-tight overflow-hidden">
-                          {/* Line 1: Time + Type + Priority */}
-                          <div className="flex items-center justify-between mb-4 max-[767px]:hidden max-[1450px]:flex-col max-[1450px]:items-start max-[1450px]:gap-3">
-                            <div className="flex flex-wrap items-center gap-2 max-[767px]:gap-1.5 text-[13px] max-[767px]:text-[11px] font-black max-[767px]:font-semibold uppercase max-[767px]:normal-case tracking-tighter max-[767px]:tracking-normal text-slate-600 max-[1450px]:grid max-[1450px]:grid-cols-2 max-[1450px]:gap-2 max-[1450px]:w-full">
-                              <div className={`flex max-[767px]:hidden items-center gap-2 px-3 py-1 rounded-lg w-fit max-[1450px]:w-full ${item.type === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
-                                <span>#{item.id}</span>
-                              </div>
-                              {item.type === 'event' && item.dueTime && (
-                                <span className="flex max-[767px]:hidden items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 w-fit max-[1450px]:w-full">
-                                  <i className="far fa-clock mr-1.5 opacity-60"></i> {item.dueTime}
-                                </span>
-                              )}
-                              <div style={{ padding:"2.5px 10px" }} className={`flex items-center gap-2 rounded-lg border border-transparent transition-all w-fit max-[1450px]:w-full ${priorityColors[item.priority]}`}>
-                                <select 
-                                  value={item.priority}
-                                  onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                                  className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-6"
-                                >
-                                  <option value="low">{t.prioLow}</option>
-                                  <option value="normal">{t.prioNormal}</option>
-                                  <option value="high">{t.prioHigh}</option>
-                                </select>
-                                <i className="fas fa-chevron-down text-[10px] opacity-60"></i>
-                              </div>
-                              {item.type === 'event' && (
-                                <div
-                                  className="flex items-center px-3 py-1 rounded-lg border border-slate-100 bg-slate-50 w-fit max-[1450px]:w-full"
-                                  style={{
-                                    backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.14) : undefined,
-                                    borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : undefined,
-                                    color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : undefined
-                                  }}
-                                >
-                                  <i className="fas fa-tag text-[10px] opacity-60 mr-1.5"></i>
-                                  <select
-                                    value={item.labelId || ''}
-                                    onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
-                                  className="min-w-0 flex-1 bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer px-1.5 py-0.5 pr-4 text-[12px] max-[767px]:text-[11px]"
-                                  >
-                                    <option value="">No label</option>
-                                    {labels.map(label => (
-                                      <option key={label.id} value={label.id}>
-                                        {label.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <i className="fas fa-chevron-down text-[10px] opacity-60 ml-1"></i>
-                                </div>
-                              )}
-                              {item.type === 'event' && isItemOverdue(item) && (
-                                <span className="px-3 py-1 rounded-lg text-[13px] font-black uppercase tracking-tighter bg-red-50 text-red-600 border border-red-100 w-fit max-[1450px]:w-full">
-                                  {t.outdated}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center space-x-2 max-[767px]:space-x-1 flex-shrink-0">
-                  <button onClick={() => openEditModal(item)} className="p-2 max-[767px]:p-1.5 text-slate-300 hover:text-blue-600 transition-colors">
-                    <i className="fas fa-pen text-base max-[767px]:text-[13px]"></i>
-                  </button>
-                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-2 max-[767px]:p-1.5 text-slate-300 hover:text-red-500 transition-colors">
-                                <i className="fas fa-trash-alt text-base max-[767px]:text-[13px]"></i>
-                              </button>
-                              {item.type === 'event' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => openReminderModal(item)}
-                                    disabled={!userId}
-                                    className={`p-2 max-[767px]:p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                                    title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
-                                  >
-                                    <i
-                                      className={`fas fa-bell text-base max-[767px]:text-[13px] ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}
-                                    ></i>
-                                  </button>
-                                  {item.reminderMinutesBefore !== undefined && (
-                                    <span className="!ml-0 text-[12px] font-black text-amber-500 whitespace-nowrap">
-                                      ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
+                  <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.02] ring-2 ring-purple-500/50 rounded-lg shadow-lg z-10 relative' : ''}`}>
+                    <div className={`flex items-start gap-3 p-4 max-[767px]:p-3 bg-[#f2f2f3] rounded-xl border border-gray-300/70 transition-all ${item.type === 'event' && item.completed ? 'opacity-60' : 'hover:shadow-sm'} ${highlightedTaskId === item.id ? 'border-purple-400' : ''}`}>
+                      {item.type === 'event' ? (
+                        <button
+                          onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
+                          className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500'}`}
+                        >
+                          {item.completed && <i className="fas fa-check text-[11px]"></i>}
+                        </button>
+                      ) : (
+                        <div className="mt-0.5 flex-shrink-0 w-6 h-6"></div>
+                      )}
 
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-lg max-[767px]:text-[17px] font-bold break-words leading-snug ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                          <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
+                          <span>{item.type === 'task' ? (item.title || item.text) : item.text}</span>
+                        </div>
 
-                          {/* Text */}
-                          <div
-                            className={`text-lg max-[767px]:text-[17px] font-bold break-words leading-relaxed max-[767px]:leading-tight flex items-center gap-2 ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-800'} ${item.type === 'event' && item.subtasks?.length ? 'cursor-pointer' : ''}`}
-                            onClick={() => item.type === 'event' && item.subtasks?.length && toggleSubitems(item.id)}
-                          >
-                            <span className="flex-1">
-                              {item.type === 'task'
-                                ? (item.title || item.text)
-                                : (
-                                  <>
-                                    <span className="hidden max-[767px]:inline text-blue-700 mr-1.5">#{item.id}</span>
-                                    {item.text}
-                                  </>
-                                )}
-                            </span>
-                            {item.type === 'event' && item.subtasks?.length ? (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); toggleSubitems(item.id); }}
-                                className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                aria-label="Toggle subtasks"
-                              >
-                                <i className={`fas fa-chevron-down text-[10px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
-                              </button>
-                              ) : null}
-                          </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           {item.type === 'event' && (
-                            <div className="hidden max-[767px]:block mt-1">
-                              {item.subtasks?.length ? (
-                                <p className="text-[11px] font-semibold text-slate-400 leading-tight">
-                                  1. {item.subtasks[0]}
-                                </p>
-                              ) : null}
-                              <div className="mt-2 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div style={{ padding: '2px 8px' }} className={`flex items-center gap-1 rounded-md border border-transparent ${priorityColors[item.priority]}`}>
-                                    <select
-                                      value={item.priority}
-                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                                      className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[10px] font-black pr-3"
-                                    >
-                                      <option value="low">{t.filterLow}</option>
-                                      <option value="normal">{t.filterNormal}</option>
-                                      <option value="high">{t.filterHigh}</option>
-                                    </select>
-                                    <i className="fas fa-chevron-down text-[8px] opacity-60 -ml-2"></i>
-                                  </div>
-                                  <div
-                                    className="flex items-center px-2 py-[2px] rounded-md border border-slate-300 bg-slate-100 min-w-0"
-                                    style={{
-                                      backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.14) : undefined,
-                                      borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : undefined,
-                                      color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : undefined
-                                    }}
-                                  >
-                                    <i className="fas fa-tag text-[8px] opacity-60 mr-1"></i>
-                                    <select
-                                      value={item.labelId || ''}
-                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
-                                      className="min-w-0 bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[10px] font-black pr-2"
-                                    >
-                                      <option value="">No label</option>
-                                      {labels.map(label => (
-                                        <option key={label.id} value={label.id}>
-                                          {label.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <i className="fas fa-chevron-down text-[8px] opacity-60 -ml-1"></i>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 text-slate-300">
-                                  <button onClick={() => openEditModal(item)} className="p-1 text-slate-300 hover:text-blue-600 transition-colors">
-                                    <i className="fas fa-pen text-[12px]"></i>
-                                  </button>
-                                  <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="p-1 text-slate-300 hover:text-red-500 transition-colors">
-                                    <i className="fas fa-trash-alt text-[12px]"></i>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => openReminderModal(item)}
-                                    disabled={!userId}
-                                    className={`p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                                    title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
-                                  >
-                                    <i className={`fas fa-bell text-[12px] ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          {item.type === 'task' && item.text && item.title && (
-                            <p className="mt-1 mb-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">{item.text}</p>
-                          )}
-                          {item.type === 'task' && (
-                            <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
-                              <i className="far fa-clock mr-2 text-[12px] text-slate-400"></i>
-                              <span>
-                                {new Date(item.createdAt).toLocaleDateString(language, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                {' • '}
-                                {new Date(item.createdAt).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}
-                              </span>
-                            </div>
-                          )}                        
-                          {item.type === 'event' && item.location && (
-                            <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
-                              <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
-                              <span className="truncate">{item.location}</span>
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors max-[767px]:bg-transparent max-[767px]:rounded-none max-[767px]:h-auto max-[767px]:w-auto"
-                                aria-label="Open in Google Maps"
-                                title="Open in Google Maps"
+                            <div
+                              className="inline-flex items-center rounded-full border px-2 py-0.5"
+                              style={{
+                                backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#e2e8f0',
+                                borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
+                                color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : '#64748b'
+                              }}
+                            >
+                              <select
+                                value={item.labelId || ''}
+                                onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[13px] font-medium pr-2"
                               >
-                                <i className="fas fa-external-link-alt text-[10px]"></i>
-                              </a>
+                                <option value="">No label</option>
+                                {labels.map(label => (
+                                  <option key={label.id} value={label.id}>
+                                    {label.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <i className="fas fa-chevron-down text-[9px] opacity-60"></i>
                             </div>
+                          )}
+
+                          <div className={`inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
+                            <select
+                              value={item.priority}
+                              onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
+                              className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[13px] font-medium pr-2"
+                            >
+                              <option value="low">{t.prioLow}</option>
+                              <option value="normal">{t.prioNormal}</option>
+                              <option value="high">{t.prioHigh}</option>
+                            </select>
+                            <i className="fas fa-chevron-down text-[9px] opacity-60"></i>
+                          </div>
+
+                          {item.type === 'event' && isItemOverdue(item) && (
+                            <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[14px] max-[767px]:text-[13px] font-medium text-white">
+                              {t.outdated}
+                            </span>
+                          )}
+
+                          {item.type === 'event' && item.dueTime && (
+                            <span className="text-[16px] max-[767px]:text-[15px] text-slate-600">{item.dueTime}</span>
                           )}
                         </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
+                            <i className="fas fa-pen text-[13px]"></i>
+                          </button>
+                          <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                            <i className="fas fa-trash-alt text-[13px]"></i>
+                          </button>
+                          {item.type === 'event' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openReminderModal(item)}
+                                disabled={!userId}
+                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                                title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
+                              >
+                                <i className={`fas fa-bell text-[12px] ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
+                              </button>
+                              {item.reminderMinutesBefore !== undefined && (
+                                <span className="text-[12px] font-black text-amber-600 whitespace-nowrap">
+                                  ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+
+                        {item.type === 'event' && item.subtasks?.length ? (
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleSubitems(item.id)}
+                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors"
+                              aria-label="Toggle subtasks"
+                            >
+                              <i className={`fas fa-angle-down text-[12px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
+                              <span>{formatSubtaskCountLabel(item.subtasks.length, language)}</span>
+                            </button>
+                            {expandedSubitems.has(item.id) && (
+                              <ul className="mt-2 pl-5 space-y-1">
+                                {item.subtasks.map((subtask, index) => (
+                                  <li key={`${item.id}-${index}`} className="text-sm text-slate-600 leading-tight">
+                                    {index + 1}. {subtask}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {item.type === 'task' && item.text && item.title && (
+                          <p className="mt-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">
+                            {item.text}
+                          </p>
+                        )}
+                        {item.type === 'task' && (
+                          <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
+                            <i className="far fa-clock mr-2 text-[12px] text-slate-400"></i>
+                            <span>
+                              {new Date(item.createdAt).toLocaleDateString(language, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              {' • '}
+                              {new Date(item.createdAt).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}
+                            </span>
+                          </div>
+                        )}
+                        {item.type === 'event' && item.location && (
+                          <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
+                            <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
+                            <span className="truncate">{item.location}</span>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              aria-label="Open in Google Maps"
+                              title="Open in Google Maps"
+                            >
+                              <i className="fas fa-external-link-alt text-[10px]"></i>
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3160,8 +3275,8 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        <section className="hidden md:block sticky h-fit" style={{ top:"165px" }}>
-          <div className="bg-white rounded-[40px] border border-slate-200 shadow-xl p-10">
+        <section className="hidden lg:block lg:col-span-2">
+          <div className="sticky top-9 h-[calc(100vh-320px)] max-h-[calc(100vh-320px)]">
             <Calendar />
           </div>
         </section>
@@ -3170,17 +3285,17 @@ const App: React.FC = () => {
       {/* Add/Edit Modal */}
       {modalMode && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeModal}></div>
-          <div className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeModal}></div>
+          <div className="relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
-              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
             >
               <i className="fas fa-times"></i>
             </button>
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
               {modalMode === 'add' ? (
-                <div className={`flex items-center rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                <div className={`flex items-center rounded-lg ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value as ItemType)}
@@ -3193,12 +3308,13 @@ const App: React.FC = () => {
                   <i className="fas fa-chevron-down text-[10px] opacity-60 pr-3"></i>
                 </div>
               ) : (
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-blue-600 bg-blue-50' : 'text-blue-700 bg-blue-100'}`}>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
                   {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
                   <span>{formTypeLabel}</span>
                 </div>
               )}
               <div style={{ padding:"2.5px 10px" }} className={`flex items-center rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
+                <span className="pr-1.5 normal-case">{t.priorityLabel}:</span>
                 <select
                   value={formPriority}
                   onChange={(e) => setFormPriority(e.target.value as Priority)}
@@ -3214,17 +3330,17 @@ const App: React.FC = () => {
 
             <div className="space-y-4">
               {formType === 'task' && (
-                <input
-                  autoFocus
-                  type="text"
-                  className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Titlu..."
-                />
-              )}
+                  <input
+                    autoFocus
+                    type="text"
+                    className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder="Titlu..."
+                  />
+                )}
               <textarea
-                className="text-base font-bold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[140px] resize-none"
+                className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20 min-h-[140px] resize-none"
                 value={formText}
                 onChange={(e) => setFormText(e.target.value)}
                 placeholder={formType === 'task' ? 'Text...' : 'Descriere...'}
@@ -3236,7 +3352,7 @@ const App: React.FC = () => {
                       {t.subevents}
                     </label>
                     <textarea
-                      className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 min-h-[90px] resize-none"
+                      className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20 min-h-[90px] resize-none"
                       value={formSubtasks}
                       onChange={(e) => setFormSubtasks(e.target.value)}
                       placeholder={t.subitemsPlaceholder}
@@ -3248,7 +3364,7 @@ const App: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      className="text-sm font-semibold bg-white border border-slate-200 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                      className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20"
                       value={formLocation}
                       onChange={(e) => setFormLocation(e.target.value)}
                       placeholder="Ex: Splaiul Unirii 45"
@@ -3261,13 +3377,13 @@ const App: React.FC = () => {
                   <>
                     <input
                       type="date"
-                      className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm flex-grow"
+                      className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none flex-grow"
                       value={formDate}
                       onChange={(e) => setFormDate(e.target.value)}
                     />
                     <input
                       type="time"
-                      className="text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none shadow-sm w-32"
+                      className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none w-32"
                       value={formTime}
                       onChange={(e) => setFormTime(e.target.value)}
                     />
@@ -3275,7 +3391,7 @@ const App: React.FC = () => {
                 )}
                 <button
                   onClick={saveModal}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+                  className="bg-purple-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md active:scale-95 transition-all"
                 >
                   {t.save}
                 </button>
@@ -3287,11 +3403,11 @@ const App: React.FC = () => {
 
       {reminderModalItem && (
         <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeReminderModal}></div>
-          <div className="relative bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeReminderModal}></div>
+          <div className="relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeReminderModal}
-              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
             >
               <i className="fas fa-times"></i>
             </button>
@@ -3313,7 +3429,7 @@ const App: React.FC = () => {
                     max={reminderMaxParts.days}
                     value={reminderDays}
                     onChange={(e) => setReminderDays(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
@@ -3324,7 +3440,7 @@ const App: React.FC = () => {
                     max={Number(reminderDays || '0') >= reminderMaxParts.days ? reminderMaxParts.hours : 23}
                     value={reminderHours}
                     onChange={(e) => setReminderHours(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
@@ -3340,7 +3456,7 @@ const App: React.FC = () => {
                     }
                     value={reminderMinutes}
                     onChange={(e) => setReminderMinutes(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
               </div>
@@ -3351,7 +3467,7 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReminderChannel('email')}
-                    className={`rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                    className={`rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
                   >
                     {t.reminderEmail}
                   </button>
@@ -3383,7 +3499,7 @@ const App: React.FC = () => {
                   type="button"
                   onClick={saveReminder}
                   disabled={isReminderSaving || reminderMaxMinutes <= 0}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 disabled:opacity-60"
+                  className="bg-purple-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md disabled:opacity-60"
                 >
                   {t.reminderSave}
                 </button>
@@ -3407,12 +3523,12 @@ const App: React.FC = () => {
       {isMobileMicModalOpen && (
         <div className="fixed inset-0 z-[90] md:hidden flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm"></div>
-          <div className="relative w-full max-w-sm rounded-[36px] bg-white p-8 shadow-2xl border border-slate-200">
+          <div className="relative w-full max-w-sm rounded-[36px] bg-[#f3f4f6] p-8 shadow-2xl border border-slate-200">
             <div className="flex flex-col items-center text-center gap-6">
-              <div className="w-28 h-28 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl shadow-blue-200 animate-[pulse_2.4s_ease-in-out_infinite]">
+              <div className="w-28 h-28 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-xl shadow-purple-200 animate-[pulse_2.4s_ease-in-out_infinite]">
                 <i className="fas fa-microphone text-4xl"></i>
               </div>
-              <div className="text-[12px] font-black uppercase tracking-[0.18em] text-blue-600">
+              <div className="text-[12px] font-black uppercase tracking-[0.18em] text-purple-600">
                 {t.listening}
               </div>
               <button
@@ -3430,11 +3546,11 @@ const App: React.FC = () => {
       {/* Calendar Modal */}
       {isCalendarOpen && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCalendarOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setIsCalendarOpen(false)}></div>
+          <div className="relative bg-[#f3f4f6] w-full max-w-lg rounded-[38px] border border-slate-200 shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setIsCalendarOpen(false)}
-              className="absolute top right-4 w-10 h-10 text-slate-400 hover:text-slate-600"
+              className="absolute top-1 right-1 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
             >
               <i className="fas fa-times"></i>
             </button>

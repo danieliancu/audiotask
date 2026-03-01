@@ -252,7 +252,7 @@ export default function AuthPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
+    <main className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
       <AppHeader
         t={headerT}
         language={pageLanguage}
@@ -264,15 +264,15 @@ export default function AuthPage() {
         userEmail={session?.user?.email}
         bellCount={0}
       />
-      <div className="mx-auto max-w-3xl px-6 space-y-6">
+      <div className="mx-auto max-w-3xl px-4 space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">VoiceTask</h1>
+          <h1 className="text-2xl font-black text-slate-900">VoiceTask</h1>
           <p className="text-sm font-semibold text-slate-500">{authT.subtitle}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.loginTitle}</h2>
+          <div className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5">
+            <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-4">{authT.loginTitle}</h2>
             <form className="space-y-3" onSubmit={handleLogin}>
               <input
                 type="email"
@@ -280,7 +280,7 @@ export default function AuthPage() {
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 placeholder={authT.email}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="password"
@@ -288,16 +288,16 @@ export default function AuthPage() {
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder={authT.password}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
-              <button className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
+              <button className="w-full rounded-xl bg-purple-600 px-4 py-3 text-xs font-black text-white shadow-md shadow-purple-200">
                 {authT.loginButton}
               </button>
             </form>
           </div>
 
-          <div>
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.signupTitle}</h2>
+          <div className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5">
+            <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-4">{authT.signupTitle}</h2>
             <form className="space-y-3" onSubmit={handleSignup}>
               <input
                 type="text"
@@ -305,7 +305,7 @@ export default function AuthPage() {
                 value={signupName}
                 onChange={(e) => setSignupName(e.target.value)}
                 placeholder={authT.fullName}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="email"
@@ -313,7 +313,7 @@ export default function AuthPage() {
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
                 placeholder={authT.email}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="password"
@@ -322,7 +322,7 @@ export default function AuthPage() {
                 value={signupPassword}
                 onChange={(e) => setSignupPassword(e.target.value)}
                 placeholder={authT.passwordMin}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="password"
@@ -331,22 +331,22 @@ export default function AuthPage() {
                 value={signupConfirmPassword}
                 onChange={(e) => setSignupConfirmPassword(e.target.value)}
                 placeholder={authT.confirmPassword}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
-              <button className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-100">
+              <button className="w-full rounded-xl bg-purple-600 px-4 py-3 text-xs font-black text-white shadow-md shadow-purple-200">
                 {authT.createAccountButton}
               </button>
             </form>
           </div>
         </div>
 
-        <div>
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{authT.socialTitle}</h2>
+        <div className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5">
+          <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-4">{authT.socialTitle}</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {availableOauthProviders.google && (
               <button
                 onClick={() => signIn('google', { callbackUrl: '/' })}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-black text-slate-700 hover:border-purple-300"
               >
                 {authT.continueGoogle}
               </button>
@@ -354,7 +354,7 @@ export default function AuthPage() {
             {availableOauthProviders.facebook && (
               <button
                 onClick={() => signIn('facebook', { callbackUrl: '/' })}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:border-blue-300"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-black text-slate-700 hover:border-purple-300"
               >
                 {authT.continueFacebook}
               </button>

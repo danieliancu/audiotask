@@ -312,7 +312,7 @@ export default function SettingsPage() {
 
   if (!session?.user?.id) {
     return (
-      <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
+      <main className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
         <AppHeader
           t={{
             appTitle: t.appTitle,
@@ -332,10 +332,10 @@ export default function SettingsPage() {
           userEmail={session?.user?.email}
           bellCount={0}
         />
-        <div className="mx-auto max-w-lg px-6 text-center space-y-4">
-          <h1 className="text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
+        <div className="mx-auto max-w-lg px-4 text-center space-y-4">
+          <h1 className="text-2xl font-black text-slate-900">{t.title}</h1>
           <p className="text-sm font-semibold text-slate-500">{t.loginRequired}</p>
-          <Link href="/auth" className="inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100">
+          <Link href="/auth" className="inline-flex rounded-xl bg-purple-600 px-5 py-3 text-xs font-black text-white shadow-md shadow-purple-200">
             {t.login}
           </Link>
         </div>
@@ -344,7 +344,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FFF9EE] text-slate-900 selection:bg-blue-100 pb-20">
+    <main className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
       <AppHeader
         t={{
           appTitle: t.appTitle,
@@ -364,21 +364,21 @@ export default function SettingsPage() {
         userEmail={session?.user?.email}
         bellCount={0}
       />
-      <div className="mx-auto max-w-3xl px-6 space-y-10">
+      <div className="mx-auto max-w-3xl px-4 space-y-6">
         <div className="space-y-1">
-          <h1 className="text-xl font-black uppercase tracking-widest text-slate-800">{t.title}</h1>
+          <h1 className="text-2xl font-black text-slate-900">{t.title}</h1>
           <p className="text-sm font-semibold text-slate-500">{session?.user?.email}</p>
         </div>
 
-        <section className="space-y-4">
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">{t.profile}</h2>
+        <section className="space-y-4 rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5">
+          <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">{t.profile}</h2>
           <div className="grid gap-3 md:grid-cols-2">
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder={t.username}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
             />
             <div className="md:col-span-2 grid gap-3 md:grid-cols-3">
               <input
@@ -386,48 +386,48 @@ export default function SettingsPage() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder={t.currentPassword}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder={t.newPassword}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t.confirmPassword}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
               />
             </div>
           </div>
           <button
             onClick={saveProfile}
-            className="rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100"
+            className="rounded-xl bg-purple-600 px-5 py-3 text-xs font-black text-white shadow-md shadow-purple-200"
           >
             {t.save}
           </button>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">{t.defaults}</h2>
+        <section className="space-y-4 rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5">
+          <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">{t.defaults}</h2>
           <div className="grid gap-3 md:grid-cols-1">
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+            <label className="flex items-center gap-3 rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
                 checked={defaultShowSubtasks}
                 onChange={(e) => setDefaultShowSubtasks(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
+                className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500/30"
               />
               <span>{t.defaultShowSubtasks}</span>
             </label>
           </div>
           <button
             onClick={saveDefaults}
-            className="rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-100"
+            className="rounded-xl bg-purple-600 px-5 py-3 text-xs font-black text-white shadow-md shadow-purple-200"
           >
             {t.save}
           </button>
@@ -436,14 +436,14 @@ export default function SettingsPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => signOut({ callbackUrl: '/' })}
-            className="inline-flex rounded-2xl bg-slate-100 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-200"
+            className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-xs font-black text-slate-700 hover:bg-slate-100"
           >
             {t.logout}
           </button>
           <button
             onClick={deleteAccount}
             disabled={isDeletingAccount}
-            className="inline-flex rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 hover:bg-red-700 disabled:opacity-60"
+            className="inline-flex rounded-xl bg-red-600 px-5 py-3 text-xs font-black text-white shadow-md shadow-red-200 hover:bg-red-700 disabled:opacity-60"
           >
             {deleteAccountLabel}
           </button>
