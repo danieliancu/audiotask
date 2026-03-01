@@ -2423,7 +2423,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 sticky top-0 z-30">
         <div className="hidden md:flex items-center gap-3">
           <button
             disabled={isConnectingRef.current}
@@ -3109,7 +3109,7 @@ const App: React.FC = () => {
               >
                 {activeTab === 'event' && (
                   <div
-                    className="sticky top-0 z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+                    className="sticky top-[97px] z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
                   >
                     <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                     <span>{group.dateLabel}</span>
