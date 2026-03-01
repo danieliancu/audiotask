@@ -37,6 +37,7 @@ const translations = {
     filterAll: "All tasks",
     filterAllPriorities: "All priorities",
     stopListening: "Stop",
+    statusLabel: "Status",
     actionVoiceCommand: "Voice command",
     actionCalendar: "Calendar",
     actionAdd: "Add",
@@ -105,6 +106,7 @@ const translations = {
     filterAll: "Toate taskurile",
     filterAllPriorities: "Toate prioritatile",
     stopListening: "Opreste",
+    statusLabel: "Status",
     actionVoiceCommand: "Comandă vocală",
     actionCalendar: "Calendar",
     actionAdd: "Adăugare",
@@ -173,6 +175,7 @@ const translations = {
     filterAll: "Toutes les tâches",
     filterAllPriorities: "Toutes les priorités",
     stopListening: "Arreter",
+    statusLabel: "Statut",
     actionVoiceCommand: "Commande vocale",
     actionCalendar: "Calendrier",
     actionAdd: "Ajouter",
@@ -241,6 +244,7 @@ const translations = {
     filterAll: "Alle Aufgaben",
     filterAllPriorities: "Alle Prioritäten",
     stopListening: "Stoppen",
+    statusLabel: "Status",
     actionVoiceCommand: "Sprachbefehl",
     actionCalendar: "Kalender",
     actionAdd: "Hinzufügen",
@@ -309,6 +313,7 @@ const translations = {
     filterAll: "Todas las tareas",
     filterAllPriorities: "Todas las prioridades",
     stopListening: "Detener",
+    statusLabel: "Estado",
     actionVoiceCommand: "Comando de voz",
     actionCalendar: "Calendario",
     actionAdd: "Agregar",
@@ -2423,7 +2428,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:sticky max-[767px]:top-0 max-[767px]:z-30">
         <div className="hidden md:flex items-center gap-3">
           <button
             disabled={isConnectingRef.current}
@@ -2475,36 +2480,36 @@ const App: React.FC = () => {
 
         <div className="md:hidden">
           {!isWriteMode ? (
-            <div className="flex items-center justify-center gap-6">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 disabled={isConnectingRef.current}
                 onClick={openMobileMicModal}
-                className={`flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center">
                   <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-white text-base`}></i>
                 </div>
-                <span className="text-xs text-gray-600">{t.actionVoiceCommand}</span>
+                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionVoiceCommand}</span>
               </button>
 
               <button
                 onClick={() => setIsCalendarOpen(true)}
-                className="flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
                   <i className="fas fa-calendar-alt text-white text-base"></i>
                 </div>
-                <span className="text-xs text-gray-600">{t.actionCalendar}</span>
+                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionCalendar}</span>
               </button>
 
               <button
                 onClick={() => { setIsWriteMode(false); openAddModal(); }}
-                className="flex flex-col items-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
                   <i className="fas fa-pen text-white text-base"></i>
                 </div>
-                <span className="text-xs text-gray-600">{t.actionAdd}</span>
+                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionAdd}</span>
               </button>
             </div>
           ) : (
@@ -2755,7 +2760,7 @@ const App: React.FC = () => {
             {activeTab === 'event' && (
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Etichete</div>
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.labelsTitle}</div>
                   <div className="relative">
                     <button
                       type="button"
@@ -2885,7 +2890,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Status</div>
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.statusLabel}</div>
                   <select
                     value={statusFilterByType[activeTab]}
                     onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
@@ -2900,7 +2905,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">Priority</div>
+                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.priorityLabel}</div>
                   <select
                     value={priorityFilterByType[activeTab]}
                     onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
@@ -2935,7 +2940,7 @@ const App: React.FC = () => {
                 <div className="space-y-3">
                   {activeTab === 'event' && (
                     <div>
-                      <div className="text-[11px] font-black text-slate-400 mb-2">Status</div>
+                      <div className="text-[11px] font-black text-slate-400 mb-2">{t.statusLabel}</div>
                       <div className="space-y-2">
                         {[
                           { value: 'all', label: t.filterAll },
@@ -2959,7 +2964,7 @@ const App: React.FC = () => {
                   )}
 
                   <div>
-                    <div className="text-[11px] font-black text-slate-400 mb-2">Priority</div>
+                    <div className="text-[11px] font-black text-slate-400 mb-2">{t.priorityLabel}</div>
                     <div className="space-y-2">
                       {[
                         { value: 'all', label: t.filterAllPriorities },
@@ -3109,7 +3114,7 @@ const App: React.FC = () => {
               >
                 {activeTab === 'event' && (
                   <div
-                    className="sticky top-[97px] z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+                    className="sticky top-0 max-[767px]:top-[90px] z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
                   >
                     <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                     <span>{group.dateLabel}</span>
