@@ -2433,7 +2433,7 @@ const App: React.FC = () => {
           <button
             disabled={isConnectingRef.current}
             onClick={startLiveSession}
-            className={`flex items-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-[170px] shrink-0 flex items-center justify-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-base`}></i>
             <span className="text-sm">{isLive ? t.stopListening : t.actionVoiceCommand}</span>
@@ -2451,88 +2451,63 @@ const App: React.FC = () => {
           </button>
 
           <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-lg pl-4 pr-2 py-1">
-            {isLive ? (
-              <div className="text-sm text-purple-700 italic truncate">
-                {transcription || t.listening}
-              </div>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={e => setInputValue(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendPrompt()}
-                  placeholder={t.placeholder}
-                  className="flex-1 text-sm bg-transparent border-none outline-none focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendPrompt}
-                  className="p-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  aria-label="Send"
-                >
-                  <i className="fas fa-paper-plane text-sm text-white"></i>
-                </button>
-              </>
-            )}
+            <input
+              type="text"
+              readOnly={isLive}
+              value={isLive ? transcription : inputValue}
+              onChange={e => {
+                if (!isLive) setInputValue(e.target.value);
+              }}
+              onKeyDown={e => {
+                if (!isLive && e.key === 'Enter') handleSendPrompt();
+              }}
+              placeholder={isLive ? t.listening : t.placeholder}
+              className="flex-1 text-sm bg-transparent border-none outline-none focus:outline-none text-gray-700"
+            />
+            <button
+              type="button"
+              onClick={handleSendPrompt}
+              className={`p-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors ${isLive ? 'invisible pointer-events-none' : ''}`}
+              aria-label="Send"
+            >
+              <i className="fas fa-paper-plane text-sm text-white"></i>
+            </button>
           </div>
         </div>
 
         <div className="md:hidden">
-          {!isWriteMode ? (
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                disabled={isConnectingRef.current}
-                onClick={openMobileMicModal}
-                className={`w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center">
-                  <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-white text-base`}></i>
-                </div>
-                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionVoiceCommand}</span>
-              </button>
-
-              <button
-                onClick={() => setIsCalendarOpen(true)}
-                className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
-                  <i className="fas fa-calendar-alt text-white text-base"></i>
-                </div>
-                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionCalendar}</span>
-              </button>
-
-              <button
-                onClick={() => { setIsWriteMode(false); openAddModal(); }}
-                className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
-                  <i className="fas fa-pen text-white text-base"></i>
-                </div>
-                <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionAdd}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-3 bg-white p-4 rounded-lg border border-gray-300 animate-in slide-in-from-right duration-300">
-              <div className="flex-grow bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 flex items-center">
-                <input
-                  autoFocus
-                  type="text"
-                  value={inputValue}
-                  onChange={e => setInputValue(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendPrompt()}
-                  placeholder={t.placeholder}
-                  className="w-full bg-transparent text-sm focus:outline-none text-gray-700"
-                />
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              disabled={isConnectingRef.current}
+              onClick={openMobileMicModal}
+              className={`w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-white text-base`}></i>
               </div>
-              <button
-                onClick={() => setIsWriteMode(false)}
-                className="w-10 h-10 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center active:scale-95 transition-all"
-              >
-                <i className="fas fa-times text-base"></i>
-              </button>
-            </div>
-          )}
+              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionVoiceCommand}</span>
+            </button>
+
+            <button
+              onClick={() => setIsCalendarOpen(true)}
+              className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
+                <i className="fas fa-calendar-alt text-white text-base"></i>
+              </div>
+              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionCalendar}</span>
+            </button>
+
+            <button
+              onClick={() => { setIsWriteMode(false); openAddModal(); }}
+              className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
+                <i className="fas fa-pen text-white text-base"></i>
+              </div>
+              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionAdd}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2551,36 +2526,40 @@ const App: React.FC = () => {
                 {filteredEventCount}
               </span>
             </button>
-            <div
-              className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
-              onClick={() => {
-                if (activeDateFilters.length > 0) {
-                  setActiveDateFilters([]);
-                  setPendingDateStart(null);
-                  setPendingDateEnd(null);
-                  return;
-                }
-                setIsCalendarOpen(true);
-              }}
-            >
-              <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
-              <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
-              {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
-            </div>
+            {activeTab === 'event' && (
+              <div
+                className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
+                onClick={() => {
+                  if (activeDateFilters.length > 0) {
+                    setActiveDateFilters([]);
+                    setPendingDateStart(null);
+                    setPendingDateEnd(null);
+                    return;
+                  }
+                  setIsCalendarOpen(true);
+                }}
+              >
+                <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
+                <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
+                {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-            <select
-              value={statusFilterByType[activeTab]}
-              onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
-              className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-            >
-              <option value="all">Status: {t.filterAll}</option>
-              <option value="open">Status: {t.filterUnresolved}</option>
-              <option value="closed">Status: {t.filterResolved}</option>
-              <option value="outdated">Status: {t.filterOverdue}</option>
-              <option value="in_time">Status: {t.filterInTime}</option>
-            </select>
+            {activeTab === 'event' && (
+              <select
+                value={statusFilterByType[activeTab]}
+                onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
+                className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                <option value="all">Status: {t.filterAll}</option>
+                <option value="open">Status: {t.filterUnresolved}</option>
+                <option value="closed">Status: {t.filterResolved}</option>
+                <option value="outdated">Status: {t.filterOverdue}</option>
+                <option value="in_time">Status: {t.filterInTime}</option>
+              </select>
+            )}
 
             <select
               value={priorityFilterByType[activeTab]}
@@ -2593,19 +2572,20 @@ const App: React.FC = () => {
               <option value="low">Priority: {t.prioLow}</option>
             </select>
 
-            <div className="relative" ref={labelMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsLabelMenuOpen(prev => !prev)}
-                className="relative cursor-pointer px-3 py-2 pr-8 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 inline-flex items-center text-slate-900"
-              >
-                <span className="text-slate-900">
-                  {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
-                </span>
-                <i className="pointer-events-none fas fa-chevron-down text-[10px] text-slate-900 absolute right-1 top-1/2 -translate-y-1/2"></i>
-              </button>
-              {isLabelMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
+            {activeTab === 'event' && (
+              <div className="relative" ref={labelMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsLabelMenuOpen(prev => !prev)}
+                  className="relative cursor-pointer px-3 py-2 pr-8 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 inline-flex items-center text-slate-900"
+                >
+                  <span className="text-slate-900">
+                    {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
+                  </span>
+                  <i className="pointer-events-none fas fa-chevron-down text-[10px] text-slate-900 absolute right-1 top-1/2 -translate-y-1/2"></i>
+                </button>
+                {isLabelMenuOpen && (
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
                   <button
                     onClick={() => { setSelectedLabelIds([]); setIsLabelMenuOpen(false); }}
                     className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.length === 0 ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -2716,9 +2696,10 @@ const App: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -2754,6 +2735,18 @@ const App: React.FC = () => {
                   <span className="font-medium text-gray-700 truncate">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
                   {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
                 </div>
+              )}
+              {activeTab === 'task' && (
+                <select
+                  value={priorityFilterByType[activeTab]}
+                  onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
+                  className="ml-auto h-9 px-2.5 text-[clamp(12px,3.2vw,14px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 max-w-[42vw]"
+                >
+                  <option value="all">{t.filterAllPriorities}</option>
+                  <option value="normal">{t.prioNormal}</option>
+                  <option value="high">{t.prioHigh}</option>
+                  <option value="low">{t.prioLow}</option>
+                </select>
               )}
             </div>
 
@@ -3110,7 +3103,7 @@ const App: React.FC = () => {
               <div
                 key={group.key}
                 className="space-y-3"
-                style={{ borderTop: groupIndex === 0 ? 'none' : '1px solid #e5e7eb', paddingTop: '24px' }}
+                style={{ borderTop: groupIndex === 0 ? 'none' : '1px solid #e5e7eb', paddingTop: '0px' }}
               >
                 {activeTab === 'event' && (
                   <div
@@ -3140,7 +3133,7 @@ const App: React.FC = () => {
                           <span>{item.type === 'task' ? (item.title || item.text) : item.text}</span>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <div className="mt-3 flex flex-wrap items-center gap-4">
                           {item.type === 'event' && (
                             <div
                               className="inline-flex items-center rounded-full border px-2 py-0.5"
@@ -3178,6 +3171,16 @@ const App: React.FC = () => {
                             </select>
                             <i className="fas fa-chevron-down text-[9px] opacity-60"></i>
                           </div>
+                          {item.type === 'task' && (
+                            <div className="inline-flex items-center gap-2 ml-1">
+                              <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
+                                <i className="fas fa-pen text-[13px]"></i>
+                              </button>
+                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                                <i className="fas fa-trash-alt text-[13px]"></i>
+                              </button>
+                            </div>
+                          )}
 
                           {item.type === 'event' && isItemOverdue(item) && (
                             <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[14px] max-[767px]:text-[13px] font-medium text-white">
@@ -3190,14 +3193,14 @@ const App: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="mt-3 flex items-center gap-2">
-                          <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
-                            <i className="fas fa-pen text-[13px]"></i>
-                          </button>
-                          <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
-                            <i className="fas fa-trash-alt text-[13px]"></i>
-                          </button>
-                          {item.type === 'event' && (
+                        {item.type === 'event' && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
+                              <i className="fas fa-pen text-[13px]"></i>
+                            </button>
+                            <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                              <i className="fas fa-trash-alt text-[13px]"></i>
+                            </button>
                             <>
                               <button
                                 type="button"
@@ -3214,8 +3217,8 @@ const App: React.FC = () => {
                                 </span>
                               )}
                             </>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {item.type === 'event' && item.subtasks?.length ? (
                           <div className="mt-3">
@@ -3536,6 +3539,17 @@ const App: React.FC = () => {
               <div className="text-[12px] font-black uppercase tracking-[0.18em] text-purple-600">
                 {t.listening}
               </div>
+              {!isLive && (
+                <div className="w-full bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 flex items-center">
+                  <input
+                    type="text"
+                    readOnly
+                    value={transcription}
+                    placeholder={t.placeholder}
+                    className="w-full bg-transparent text-sm focus:outline-none text-gray-700"
+                  />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={closeMobileMicModal}
