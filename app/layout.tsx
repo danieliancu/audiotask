@@ -1,6 +1,7 @@
 import './globals.css';
 import { Nunito, Fira_Code } from 'next/font/google';
 import AppSessionProvider from '@/components/SessionProvider';
+import ColorSchemeController from '@/components/ColorSchemeController';
 
 export const metadata = {
   title: 'VoiceTask',
@@ -27,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${nunito.variable} ${firaCode.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${nunito.variable} ${firaCode.variable}`}>
       <head>
         <link
           rel="stylesheet"
@@ -35,6 +36,7 @@ export default function RootLayout({
         />
       </head>
       <body className="text-slate-900 transition-colors duration-300 overflow-x-hidden">
+        <ColorSchemeController />
         <AppSessionProvider>{children}</AppSessionProvider>
       </body>
     </html>

@@ -7,6 +7,7 @@ type SettingsRow = {
   user_id: number;
   active_tab: 'task' | 'event';
   language: string;
+  color_scheme?: string | null;
   active_date_filters: string | null;
   filter_task: string;
   filter_event: string;
@@ -19,6 +20,7 @@ type SettingsRow = {
 const defaultSettings = {
   activeTab: 'task',
   language: 'en',
+  colorScheme: 'light',
   activeDateFilters: [] as string[],
   filterTask: 'all|all',
   filterEvent: 'all|all',
@@ -30,6 +32,7 @@ const defaultSettings = {
 
 const isStatusFilter = (value: string) => ['all', 'closed', 'open', 'outdated', 'in_time'].includes(value);
 const isPriorityFilter = (value: string) => ['all', 'low', 'normal', 'high'].includes(value);
+const isColorScheme = (value: unknown): value is 'light' | 'dark' => value === 'light' || value === 'dark';
 
 const normalizeCombinedFilter = (rawValue: unknown, isEvent: boolean) => {
   const raw = String(rawValue || 'all').trim().toLowerCase();
@@ -59,6 +62,7 @@ export async function GET() {
   return NextResponse.json({
     activeTab: row.active_tab ?? defaultSettings.activeTab,
     language: row.language ?? defaultSettings.language,
+    colorScheme: isColorScheme(row.color_scheme) ? row.color_scheme : defaultSettings.colorScheme,
     activeDateFilters: Array.isArray(activeDateFilters) ? activeDateFilters : [],
     filterTask: row.filter_task ?? defaultSettings.filterTask,
     filterEvent: row.filter_event ?? defaultSettings.filterEvent,
@@ -86,6 +90,9 @@ export async function PUT(request: Request) {
   const language = ['en', 'ro', 'fr', 'de', 'es'].includes(body.language)
     ? body.language
     : (existing?.language ?? defaultSettings.language);
+  const colorScheme = isColorScheme(body.colorScheme)
+    ? body.colorScheme
+    : (isColorScheme(existing?.color_scheme) ? existing.color_scheme : defaultSettings.colorScheme);
   const activeDateFilters = Array.isArray(body.activeDateFilters)
     ? JSON.stringify(body.activeDateFilters)
     : (existing?.active_date_filters ?? JSON.stringify(defaultSettings.activeDateFilters));
@@ -99,18 +106,38 @@ export async function PUT(request: Request) {
     ? body.calendarMonth
     : (existing?.calendar_month ?? defaultSettings.calendarMonth);
 
-  await pool.query(
-    `INSERT INTO user_settings (user_id, active_tab, language, active_date_filters, filter_task, filter_event, calendar_month)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       active_tab = VALUES(active_tab),
-       language = VALUES(language),
-       active_date_filters = VALUES(active_date_filters),
-       filter_task = VALUES(filter_task),
-       filter_event = VALUES(filter_event),
-       calendar_month = VALUES(calendar_month)`,
-    [userId, activeTab, language, activeDateFilters, filterTask, filterEvent, calendarMonth]
-  );
+  try {
+    await pool.query(
+      `INSERT INTO user_settings (user_id, active_tab, language, color_scheme, active_date_filters, filter_task, filter_event, calendar_month)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         active_tab = VALUES(active_tab),
+         language = VALUES(language),
+         color_scheme = VALUES(color_scheme),
+         active_date_filters = VALUES(active_date_filters),
+         filter_task = VALUES(filter_task),
+         filter_event = VALUES(filter_event),
+         calendar_month = VALUES(calendar_month)`,
+      [userId, activeTab, language, colorScheme, activeDateFilters, filterTask, filterEvent, calendarMonth]
+    );
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    if (!message.toLowerCase().includes('unknown column') || !message.includes('color_scheme')) {
+      throw error;
+    }
+    await pool.query(
+      `INSERT INTO user_settings (user_id, active_tab, language, active_date_filters, filter_task, filter_event, calendar_month)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         active_tab = VALUES(active_tab),
+         language = VALUES(language),
+         active_date_filters = VALUES(active_date_filters),
+         filter_task = VALUES(filter_task),
+         filter_event = VALUES(filter_event),
+         calendar_month = VALUES(calendar_month)`,
+      [userId, activeTab, language, activeDateFilters, filterTask, filterEvent, calendarMonth]
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

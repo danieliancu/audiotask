@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
 
 type Language = 'en' | 'ro' | 'fr' | 'de' | 'es';
+type ColorScheme = 'light' | 'dark';
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
+const COLOR_SCHEME_STORAGE_KEY = 'voicetask.colorScheme';
 
 const languageNames: Record<Language, string> = {
   en: 'English',
@@ -175,6 +177,7 @@ const translations = {
 export default function SettingsPage() {
   const { data: session } = useSession();
   const [pageLanguage, setPageLanguage] = useState<Language>('en');
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('light');
   const [username, setUsername] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -199,6 +202,48 @@ export default function SettingsPage() {
     if (pageLanguage === 'es') return 'Seguro que quieres eliminar tu cuenta? Esta accion es permanente.';
     return 'Are you sure you want to delete your account? This action is permanent.';
   }, [pageLanguage]);
+  const savedModalTitle = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Modificarile au fost salvate';
+    if (pageLanguage === 'fr') return 'Modifications enregistrees';
+    if (pageLanguage === 'de') return 'Anderungen gespeichert';
+    if (pageLanguage === 'es') return 'Cambios guardados';
+    return 'Changes saved';
+  }, [pageLanguage]);
+  const savedModalMessage = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Setarile tale au fost actualizate cu succes.';
+    if (pageLanguage === 'fr') return 'Vos parametres ont ete enregistres avec succes.';
+    if (pageLanguage === 'de') return 'Deine Einstellungen wurden erfolgreich gespeichert.';
+    if (pageLanguage === 'es') return 'Tus ajustes se guardaron correctamente.';
+    return 'Your settings were saved successfully.';
+  }, [pageLanguage]);
+  const colorSchemeLabel = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Schema culori';
+    if (pageLanguage === 'fr') return 'Theme couleurs';
+    if (pageLanguage === 'de') return 'Farbschema';
+    if (pageLanguage === 'es') return 'Esquema de color';
+    return 'Color scheme';
+  }, [pageLanguage]);
+  const lightModeLabel = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Luminos';
+    if (pageLanguage === 'fr') return 'Clair';
+    if (pageLanguage === 'de') return 'Hell';
+    if (pageLanguage === 'es') return 'Claro';
+    return 'Light';
+  }, [pageLanguage]);
+  const darkModeLabel = useMemo(() => {
+    if (pageLanguage === 'ro') return 'Intunecat';
+    if (pageLanguage === 'fr') return 'Sombre';
+    if (pageLanguage === 'de') return 'Dunkel';
+    if (pageLanguage === 'es') return 'Oscuro';
+    return 'Dark';
+  }, [pageLanguage]);
+
+  const applyColorScheme = useCallback((next: ColorScheme) => {
+    if (typeof window === 'undefined') return;
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, next);
+    window.dispatchEvent(new CustomEvent('voicetask-theme-change', { detail: { colorScheme: next } }));
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -206,7 +251,12 @@ export default function SettingsPage() {
     if (saved && ['en', 'ro', 'fr', 'de', 'es'].includes(saved)) {
       setPageLanguage(saved as Language);
     }
-  }, []);
+    const savedColorScheme = localStorage.getItem(COLOR_SCHEME_STORAGE_KEY);
+    if (savedColorScheme === 'light' || savedColorScheme === 'dark') {
+      setColorScheme(savedColorScheme);
+      applyColorScheme(savedColorScheme);
+    }
+  }, [applyColorScheme]);
 
   useEffect(() => {
     if (session?.user?.name) setUsername(session.user.name);
@@ -220,11 +270,14 @@ export default function SettingsPage() {
         if (!data) return;
         const persistedLanguage = ['en', 'ro', 'fr', 'de', 'es'].includes(data.language) ? data.language : '';
         const lang = ['en', 'ro', 'fr', 'de', 'es'].includes(data.defaultLanguage) ? data.defaultLanguage : 'en';
+        const persistedColorScheme = data.colorScheme === 'dark' ? 'dark' : 'light';
         setDefaultShowSubtasks(Boolean(data.defaultShowSubtasks));
         setPageLanguage((persistedLanguage || lang) as Language);
+        setColorScheme(persistedColorScheme);
+        applyColorScheme(persistedColorScheme);
       })
       .catch(() => {});
-  }, [session?.user?.id]);
+  }, [applyColorScheme, session?.user?.id]);
 
   useEffect(() => {
     const formatNow = (d: Date) => {
@@ -254,6 +307,12 @@ export default function SettingsPage() {
     return () => clearInterval(timer);
   }, [pageLanguage]);
 
+  useEffect(() => {
+    if (status !== 'saved') return;
+    const timer = setTimeout(() => setStatus('idle'), 1800);
+    return () => clearTimeout(timer);
+  }, [status]);
+
   const saveProfile = async () => {
     setStatus('idle');
     const res = await fetch('/api/user', {
@@ -276,14 +335,23 @@ export default function SettingsPage() {
 
   const saveDefaults = async () => {
     setStatus('idle');
-    const res = await fetch('/api/settings/defaults', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        defaultShowSubtasks
+    const [defaultsRes, schemeRes] = await Promise.all([
+      fetch('/api/settings/defaults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          defaultShowSubtasks
+        })
+      }),
+      fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          colorScheme
+        })
       })
-    });
-    setStatus(res.ok ? 'saved' : 'error');
+    ]);
+    setStatus(defaultsRes.ok && schemeRes.ok ? 'saved' : 'error');
   };
 
   const handleLanguageChange = (lang: Language) => {
@@ -295,6 +363,11 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language: lang })
     }).catch(() => {});
+  };
+
+  const handleColorSchemeChange = (next: ColorScheme) => {
+    setColorScheme(next);
+    applyColorScheme(next);
   };
 
   const deleteAccount = async () => {
@@ -424,6 +497,17 @@ export default function SettingsPage() {
               />
               <span>{t.defaultShowSubtasks}</span>
             </label>
+            <label className="flex items-center gap-3 rounded-xl border border-slate-300 bg-[#f8f9fb] px-4 py-3 text-sm font-semibold text-slate-700">
+              <span>{colorSchemeLabel}</span>
+              <select
+                value={colorScheme}
+                onChange={(e) => handleColorSchemeChange(e.target.value === 'dark' ? 'dark' : 'light')}
+                className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                <option value="light">{lightModeLabel}</option>
+                <option value="dark">{darkModeLabel}</option>
+              </select>
+            </label>
           </div>
           <button
             onClick={saveDefaults}
@@ -449,9 +533,34 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {status === 'saved' && <div className="text-xs font-semibold text-emerald-600">{t.saved}</div>}
         {status === 'error' && <div className="text-xs font-semibold text-red-600">{t.error}</div>}
       </div>
+      {status === 'saved' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setStatus('idle')}></div>
+          <div className="modal-surface relative w-full max-w-md rounded-3xl border border-slate-200 bg-[#f3f4f6] p-6 shadow-2xl animate-in zoom-in fade-in duration-300">
+            <button
+              type="button"
+              onClick={() => setStatus('idle')}
+              className="absolute right-3 top-3 h-9 w-9 rounded-full text-slate-500 hover:bg-slate-200/80 hover:text-slate-700 transition-colors"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg">
+              <i className="fas fa-check text-lg"></i>
+            </div>
+            <h3 className="text-center text-lg font-black text-slate-900">{savedModalTitle}</h3>
+            <p className="mt-2 text-center text-sm font-semibold text-slate-600">{savedModalMessage}</p>
+            <button
+              type="button"
+              onClick={() => setStatus('idle')}
+              className="mt-5 w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-purple-200"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -2068,7 +2068,7 @@ const App: React.FC = () => {
   }, [isMobileMicModalOpen]);
 
   const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
-    <div className={`bg-white rounded-lg border border-gray-200 p-4 w-full max-w-full overflow-hidden ${isModal ? '' : 'h-full flex flex-col'}`}>
+    <div className={`calendar-surface bg-white rounded-lg border border-gray-200 p-4 w-full max-w-full overflow-hidden ${isModal ? '' : 'h-full flex flex-col'}`}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-medium text-gray-900">
           {currentDate.toLocaleString(language, { month: 'long', year: 'numeric' })}
@@ -2431,12 +2431,12 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:fixed max-[767px]:bottom-[-30px] max-[767px]:left-0 max-[767px]:w-full max-[767px]:z-50 max-[767px]:bg-white max-[767px]:shadow-[0_-1px_15px_lightgrey]">
+      <div className="mobile-action-bar max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:fixed max-[767px]:bottom-[-30px] max-[767px]:left-0 max-[767px]:w-full max-[767px]:z-50 max-[767px]:bg-white max-[767px]:shadow-[0_-1px_15px_lightgrey]">
         <div className="hidden md:flex items-center gap-3">
           <button
             disabled={isConnectingRef.current}
             onClick={startLiveSession}
-            className={`w-[170px] shrink-0 flex items-center justify-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-[200px] shrink-0 flex items-center justify-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-base`}></i>
             <span className="text-sm">{isLive ? t.stopListening : t.actionVoiceCommand}</span>
@@ -3139,7 +3139,7 @@ const App: React.FC = () => {
                         <div className="mt-3 flex flex-wrap items-center gap-4">
                           {item.type === 'event' && (
                             <div
-                              className="inline-flex items-center rounded-full border px-2 py-0.5"
+                              className="event-label-chip inline-flex items-center rounded-full border px-2 py-0.5"
                               style={{
                                 backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#e2e8f0',
                                 borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
@@ -3162,7 +3162,7 @@ const App: React.FC = () => {
                             </div>
                           )}
 
-                          <div className={`inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
+                          <div className={`event-priority-chip inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
                             <select
                               value={item.priority}
                               onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
@@ -3297,7 +3297,7 @@ const App: React.FC = () => {
       {modalMode && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeModal}></div>
-          <div className="relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
@@ -3306,7 +3306,7 @@ const App: React.FC = () => {
             </button>
             <div className="flex flex-wrap items-center gap-3 mb-6 text-[13px] font-black uppercase tracking-tighter text-slate-600">
               {modalMode === 'add' ? (
-                <div className={`flex items-center rounded-lg ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
+                <div className={`modal-type-chip flex items-center rounded-lg border border-transparent ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value as ItemType)}
@@ -3319,12 +3319,12 @@ const App: React.FC = () => {
                   <i className="fas fa-chevron-down text-[10px] opacity-60 pr-3"></i>
                 </div>
               ) : (
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
+                <div className={`modal-type-chip flex items-center gap-2 px-3 py-1 rounded-lg border border-transparent ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
                   {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
                   <span>{formTypeLabel}</span>
                 </div>
               )}
-              <div style={{ padding:"2.5px 10px" }} className={`flex items-center rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
+              <div style={{ padding:"2.5px 10px" }} className={`modal-priority-chip flex items-center rounded-lg border border-transparent ${priorityColors[formPriority]}`}>
                 <span className="pr-1.5 normal-case">{t.priorityLabel}:</span>
                 <select
                   value={formPriority}
@@ -3569,7 +3569,7 @@ const App: React.FC = () => {
       {isCalendarOpen && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setIsCalendarOpen(false)}></div>
-          <div className="relative bg-[#f3f4f6] w-full max-w-lg rounded-[38px] border border-slate-200 shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-lg rounded-[38px] border border-slate-200 shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setIsCalendarOpen(false)}
               className="absolute top-1 right-1 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"

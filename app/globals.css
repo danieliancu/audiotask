@@ -5,6 +5,164 @@
 body {
   font-family: var(--font-sans);
 }
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+html.dark .bg-gray-50 {
+  background-color: #000000 !important;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-gray-200 {
+  background-color: #000000 !important;
+}
+
+html.dark .bg-white {
+  background-color: #000000 !important;
+}
+
+html.dark .bg-\[\#f2f2f3\] {
+  background-color: #000000 !important;
+}
+
+html.dark .bg-\[\#f8f9fb\] {
+  background-color: #000000 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-400,
+html.dark .text-slate-300,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-gray-400,
+html.dark .text-gray-300 {
+  color: #ffffff !important;
+}
+
+html.dark .border-gray-200,
+html.dark .border-gray-300,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-gray-300\/70,
+html.dark .border-slate-400,
+html.dark .border-slate-500 {
+  border-color: #ffffff !important;
+}
+
+html.dark .border,
+html.dark [class*="border-"],
+html.dark [style*="border-color"] {
+  border-color: #ffffff !important;
+}
+
+html.dark select,
+html.dark option,
+html.dark input,
+html.dark textarea {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+html.dark select:focus,
+html.dark input:focus,
+html.dark textarea:focus {
+  outline-color: #ffffff !important;
+}
+
+html.dark i[class*="fa-"],
+html.dark svg {
+  color: #ffffff !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-white:hover {
+  background-color: #111111 !important;
+}
+
+html.dark option:hover,
+html.dark option:focus,
+html.dark select:hover {
+  background-color: #111111 !important;
+  color: #ffffff !important;
+}
+
+/* Keep critical overdue red badges unchanged in dark mode */
+html.dark .bg-red-500,
+html.dark .bg-red-600 {
+  color: #ffffff !important;
+}
+
+/* Force event label/priority chips to dark style (e.g. "No label", "Mica") */
+html.dark .event-label-chip,
+html.dark .event-priority-chip {
+  background-color: #000000 !important;
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+}
+
+html.dark .event-label-chip select,
+html.dark .event-priority-chip select,
+html.dark .event-label-chip i,
+html.dark .event-priority-chip i {
+  color: #ffffff !important;
+}
+
+html.dark .modal-surface,
+html.dark .calendar-surface {
+  background-color: #000000 !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .modal-type-chip,
+html.dark .modal-priority-chip {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .modal-type-chip select,
+html.dark .modal-priority-chip select,
+html.dark .modal-type-chip i,
+html.dark .modal-priority-chip i,
+html.dark .modal-type-chip span,
+html.dark .modal-priority-chip span {
+  color: #ffffff !important;
+}
+
+/* Shadows: force grey/light grey shadows to black in dark mode */
+html.dark .shadow-sm,
+html.dark .shadow,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75) !important;
+}
+
+html.dark [class*="shadow-"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.9) !important;
+}
+
+html.dark .mobile-action-bar {
+  box-shadow: 0 -1px 15px rgba(0, 0, 0, 0.9) !important;
+}
 
 .font-mono {
   font-family: var(--font-mono);
