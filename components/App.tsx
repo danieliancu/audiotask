@@ -876,7 +876,6 @@ const App: React.FC = () => {
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const labelMenuRef = useRef<HTMLDivElement | null>(null);
-  const mobileLabelMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelName, setEditingLabelName] = useState('');
   const [editingLabelColor, setEditingLabelColor] = useState<string>(DEFAULT_LABEL_COLOR);
@@ -1069,8 +1068,7 @@ const App: React.FC = () => {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       const insideDesktopLabelMenu = Boolean(labelMenuRef.current?.contains(target));
-      const insideMobileLabelMenu = Boolean(mobileLabelMenuRef.current?.contains(target));
-      if (!insideDesktopLabelMenu && !insideMobileLabelMenu) {
+      if (!insideDesktopLabelMenu) {
         setIsLabelMenuOpen(false);
       }
       if (filterMenuRef.current && !filterMenuRef.current.contains(target)) {
@@ -2343,7 +2341,7 @@ const App: React.FC = () => {
   const priorityBadgeClasses: Record<Priority, string> = {
     low: 'text-blue-600 border-blue-500 bg-blue-50',
     normal: 'text-slate-600 border-slate-400 bg-white',
-    high: 'text-red-600 border-red-500 bg-white'
+    high: 'text-amber-900 border-amber-500 bg-amber-100'
   };
   const formTypeLabel = formType === 'task' ? 'Note' : 'Task';
   const activeFilterLabel = (() => {
@@ -2529,24 +2527,30 @@ const App: React.FC = () => {
                 {filteredEventCount}
               </span>
             </button>
-            {activeTab === 'event' && (
-              <div
-                className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
-                onClick={() => {
-                  if (activeDateFilters.length > 0) {
-                    setActiveDateFilters([]);
-                    setPendingDateStart(null);
-                    setPendingDateEnd(null);
-                    return;
-                  }
-                  setIsCalendarOpen(true);
-                }}
-              >
-                <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
-                <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
-                {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
-              </div>
-            )}
+              {activeTab === 'event' && (
+                <div
+                  className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
+                  onClick={() => setIsCalendarOpen(true)}
+                >
+                  <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
+                  <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
+                  {activeDateFilters.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDateFilters([]);
+                        setPendingDateStart(null);
+                        setPendingDateEnd(null);
+                      }}
+                      className="text-red-500 font-bold text-[12px] leading-none mb-1.5"
+                      aria-label="Clear selected period"
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
 
           <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
@@ -2721,200 +2725,38 @@ const App: React.FC = () => {
                   {filteredEventCount}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(true)}
+                className="ml-auto h-9 w-9 inline-flex items-center justify-center text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
+                title="Filters"
+              >
+                <i className="fas fa-gear settings-gear-spin text-[12px] text-gray-600"></i>
+              </button>
               {activeTab === 'event' && (
                 <div
-                  className="ml-auto min-w-0 flex px-2.5 py-2 items-center gap-2 text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
-                  onClick={() => {
-                    if (activeDateFilters.length > 0) {
-                      setActiveDateFilters([]);
-                      setPendingDateStart(null);
-                      setPendingDateEnd(null);
-                      return;
-                    }
-                    setIsCalendarOpen(true);
-                  }}
+                  className="min-w-0 h-9 flex px-2.5 items-center gap-2 text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
+                  onClick={() => setIsCalendarOpen(true)}
                 >
-                  <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
                   <span className="font-medium text-gray-700 truncate">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
-                  {activeDateFilters.length > 0 && <span className="text-red-500 font-bold text-[12px] leading-none mb-1.5">x</span>}
-                </div>
-              )}
-              {activeTab === 'task' && (
-                <select
-                  value={priorityFilterByType[activeTab]}
-                  onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
-                  className="ml-auto h-9 px-2.5 text-[clamp(12px,3.2vw,14px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 max-w-[42vw]"
-                >
-                  <option value="all">{t.filterAllPriorities}</option>
-                  <option value="normal">{t.prioNormal}</option>
-                  <option value="high">{t.prioHigh}</option>
-                  <option value="low">{t.prioLow}</option>
-                </select>
-              )}
-            </div>
-
-            {activeTab === 'event' && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.labelsTitle}</div>
-                  <div className="relative" ref={mobileLabelMenuRef}>
+                  {activeDateFilters.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setIsLabelMenuOpen(prev => !prev)}
-                      className="relative w-full h-10 px-2.5 pr-8 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer inline-flex items-center text-slate-900"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDateFilters([]);
+                        setPendingDateStart(null);
+                        setPendingDateEnd(null);
+                      }}
+                      className="text-red-500 font-bold text-[12px] leading-none mb-1.5"
+                      aria-label="Clear selected period"
                     >
-                      <span className="text-slate-900 truncate">
-                        {selectedLabelNames.length ? selectedLabelNames.join(', ') : t.allLabels}
-                      </span>
-                      <i className="pointer-events-none fas fa-chevron-down text-[11px] text-slate-900 absolute right-1 top-1/2 -translate-y-1/2"></i>
+                      x
                     </button>
-                    {isLabelMenuOpen && (
-                      <div className="absolute top-full left-0 mt-2 w-64 max-w-[85vw] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-[70]">
-                        <button
-                          onClick={() => { setSelectedLabelIds([]); setIsLabelMenuOpen(false); }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.length === 0 ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          {t.allLabels}
-                        </button>
-                        {labels.map(label => (
-                          <div
-                            key={label.id}
-                            className={`w-full px-3 py-2 rounded-xl text-[11px] font-black ${selectedLabelIds.includes(label.id) ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                          >
-                            <div className="w-full flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={selectedLabelIds.includes(label.id)}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setSelectedLabelIds(prev => checked
-                                    ? (prev.includes(label.id) ? prev : [...prev, label.id])
-                                    : prev.filter(labelId => labelId !== label.id)
-                                  );
-                                }}
-                                className="h-4 w-4 accent-purple-600"
-                              />
-                              <span
-                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: normalizeLabelColor(label.color) }}
-                              ></span>
-                              <div
-                                onClick={() => {
-                                  if (editingLabelId === label.id) return;
-                                  setSelectedLabelIds(prev => prev.includes(label.id)
-                                    ? prev.filter(labelId => labelId !== label.id)
-                                    : [...prev, label.id]
-                                  );
-                                }}
-                                className="flex-1 text-left truncate cursor-pointer"
-                              >
-                                {editingLabelId === label.id ? (
-                                  <input
-                                    value={editingLabelName}
-                                    onChange={(e) => setEditingLabelName(e.target.value)}
-                                    className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700"
-                                  />
-                                ) : (
-                                  label.name
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => void deleteLabel(label.id)}
-                                disabled={labelBusyId === label.id}
-                                className="h-5 w-5 inline-flex items-center justify-center"
-                                title="Delete label"
-                              >
-                                <i className="fas fa-trash text-[10px]"></i>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => startEditLabel(label)}
-                                disabled={labelBusyId === label.id}
-                                className="h-5 w-5 inline-flex items-center justify-center"
-                                title="Edit label"
-                              >
-                                <i className="fas fa-pen text-[10px]"></i>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void saveEditLabel()}
-                                disabled={editingLabelId !== label.id || labelBusyId === label.id}
-                                className="h-5 w-5 inline-flex items-center justify-center disabled:opacity-40"
-                                title="Confirm label"
-                              >
-                                <i className="fas fa-check text-[10px]"></i>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="mt-2 pt-2 border-t border-slate-200">
-                          <div className="text-[10px] font-black text-slate-400 px-2 pb-1">{t.addLabel}</div>
-                          <div className="flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-2">
-                            {LABEL_COLOR_PALETTE.map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => editingLabelId ? setEditingLabelColor(color) : setNewLabelColor(color)}
-                                className={`h-6 w-6 rounded-full border-2 flex-shrink-0 transition-all ${(editingLabelId ? editingLabelColor : newLabelColor) === color ? 'border-slate-700 scale-105' : 'border-white'}`}
-                                style={{ backgroundColor: color }}
-                                aria-label={`Color ${color}`}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              value={newLabelName}
-                              onChange={(e) => setNewLabelName(e.target.value)}
-                              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
-                              placeholder={t.labelNamePlaceholder}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void createLabel()}
-                              disabled={!normalizeLabelName(newLabelName) || labelBusyId === 'create'}
-                              className="h-9 w-9 rounded-xl text-purple-600 inline-flex items-center justify-center disabled:opacity-40"
-                              title={t.addLabel}
-                            >
-                              <i className="fas fa-check text-xs"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-
-                <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.statusLabel}</div>
-                  <select
-                    value={statusFilterByType[activeTab]}
-                    onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
-                    className="w-full h-10 px-2.5 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                  >
-                    <option value="all">{t.filterAll}</option>
-                    <option value="open">{t.filterUnresolved}</option>
-                    <option value="closed">{t.filterResolved}</option>
-                    <option value="outdated">{t.filterOverdue}</option>
-                    <option value="in_time">{t.filterInTime}</option>
-                  </select>
-                </div>
-
-                <div className="min-w-0">
-                  <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.priorityLabel}</div>
-                  <select
-                    value={priorityFilterByType[activeTab]}
-                    onChange={(e) => setPriorityFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as PriorityFilterMode }))}
-                    className="w-full h-10 px-2.5 text-[clamp(12px,3.2vw,15px)] font-semibold border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                  >
-                    <option value="all">{t.filterAllPriorities}</option>
-                    <option value="normal">{t.prioNormal}</option>
-                    <option value="high">{t.prioHigh}</option>
-                    <option value="low">{t.prioLow}</option>
-                  </select>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
           </div>
 
@@ -3131,12 +2973,34 @@ const App: React.FC = () => {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <div className={`text-lg max-[767px]:text-[17px] font-bold break-words leading-snug ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                        <div className={`text-lg max-[767px]:text-[15px] font-bold break-words leading-snug ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
                           <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
                           <span>{item.type === 'task' ? (item.title || item.text) : item.text}</span>
                         </div>
+                        {item.type === 'event' && item.subtasks?.length ? (
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleSubitems(item.id)}
+                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors"
+                              aria-label="Toggle subtasks"
+                            >
+                              <i className={`fas fa-angle-down text-[12px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
+                              <span>{formatSubtaskCountLabel(item.subtasks.length, language)}</span>
+                            </button>
+                            {expandedSubitems.has(item.id) && (
+                              <ul className="mt-2 pl-5 space-y-1">
+                                {item.subtasks.map((subtask, index) => (
+                                  <li key={`${item.id}-${index}`} className="text-sm text-slate-600 leading-tight">
+                                    {index + 1}. {subtask}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ) : null}
 
-                        <div className="mt-3 flex flex-wrap items-center gap-4">
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           {item.type === 'event' && (
                             <div
                               className="event-label-chip inline-flex items-center rounded-full border px-2 py-0.5"
@@ -3162,7 +3026,7 @@ const App: React.FC = () => {
                             </div>
                           )}
 
-                          <div className={`event-priority-chip inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
+                          <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
                             <select
                               value={item.priority}
                               onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
@@ -3223,29 +3087,6 @@ const App: React.FC = () => {
                           </div>
                         )}
 
-                        {item.type === 'event' && item.subtasks?.length ? (
-                          <div className="mt-3">
-                            <button
-                              type="button"
-                              onClick={() => toggleSubitems(item.id)}
-                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors"
-                              aria-label="Toggle subtasks"
-                            >
-                              <i className={`fas fa-angle-down text-[12px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
-                              <span>{formatSubtaskCountLabel(item.subtasks.length, language)}</span>
-                            </button>
-                            {expandedSubitems.has(item.id) && (
-                              <ul className="mt-2 pl-5 space-y-1">
-                                {item.subtasks.map((subtask, index) => (
-                                  <li key={`${item.id}-${index}`} className="text-sm text-slate-600 leading-tight">
-                                    {index + 1}. {subtask}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        ) : null}
-
                         {item.type === 'task' && item.text && item.title && (
                           <p className="mt-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">
                             {item.text}
@@ -3269,7 +3110,7 @@ const App: React.FC = () => {
                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              className="map-link-chip ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
                               aria-label="Open in Google Maps"
                               title="Open in Google Maps"
                             >

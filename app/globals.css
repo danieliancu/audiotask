@@ -124,6 +124,11 @@ html.dark .event-priority-chip i {
   color: #ffffff !important;
 }
 
+html.dark .event-priority-chip.event-priority-high select,
+html.dark .event-priority-chip.event-priority-high i {
+  color: #ffffff !important;
+}
+
 html.dark .modal-surface,
 html.dark .calendar-surface {
   background-color: #000000 !important;
@@ -164,6 +169,16 @@ html.dark .mobile-action-bar {
   box-shadow: 0 -1px 15px rgba(0, 0, 0, 0.9) !important;
 }
 
+html.dark .map-link-chip {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.dark .map-link-chip:hover {
+  background-color: #111111 !important;
+  color: #ffffff !important;
+}
+
 .font-mono {
   font-family: var(--font-mono);
 }
@@ -172,9 +187,26 @@ select:not([multiple]) option {
   padding: 6px 10px;
 }
 
+/* Remove focus contour on dropdown/radio interactions in app UI */
+select:focus,
+select:focus-visible,
+select:active,
+input[type="radio"]:focus,
+input[type="radio"]:focus-visible,
+input[type="checkbox"]:focus,
+input[type="checkbox"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .reminder-bell-ring {
   transform-origin: top center;
   animation: reminder-bell-ring 5s infinite;
+}
+
+.settings-gear-spin {
+  transform-origin: center;
+  animation: settings-gear-spin 5s linear infinite;
 }
 
 @keyframes reminder-bell-ring {
@@ -187,4 +219,15 @@ select:not([multiple]) option {
   12% { transform: rotate(-6deg); }
   14% { transform: rotate(4deg); }
   16% { transform: rotate(0deg); }
+}
+
+@keyframes settings-gear-spin {
+  0%, 80% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-gear-spin {
+    animation: none;
+  }
 }
