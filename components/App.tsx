@@ -876,6 +876,7 @@ const App: React.FC = () => {
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const labelMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileLabelMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelName, setEditingLabelName] = useState('');
   const [editingLabelColor, setEditingLabelColor] = useState<string>(DEFAULT_LABEL_COLOR);
@@ -1067,7 +1068,9 @@ const App: React.FC = () => {
     if (!isLabelMenuOpen && !isFilterMenuOpen) return;
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (labelMenuRef.current && !labelMenuRef.current.contains(target)) {
+      const insideDesktopLabelMenu = Boolean(labelMenuRef.current?.contains(target));
+      const insideMobileLabelMenu = Boolean(mobileLabelMenuRef.current?.contains(target));
+      if (!insideDesktopLabelMenu && !insideMobileLabelMenu) {
         setIsLabelMenuOpen(false);
       }
       if (filterMenuRef.current && !filterMenuRef.current.contains(target)) {
@@ -2428,7 +2431,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:sticky max-[767px]:top-0 max-[767px]:z-30">
+      <div className="max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:fixed max-[767px]:bottom-[-30px] max-[767px]:left-0 max-[767px]:w-full max-[767px]:z-50 max-[767px]:bg-white max-[767px]:shadow-[0_-1px_15px_lightgrey]">
         <div className="hidden md:flex items-center gap-3">
           <button
             disabled={isConnectingRef.current}
@@ -2754,7 +2757,7 @@ const App: React.FC = () => {
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <div className="min-w-0">
                   <div className="mb-1 text-[clamp(10px,2.9vw,11px)] font-medium text-slate-500">{t.labelsTitle}</div>
-                  <div className="relative">
+                  <div className="relative" ref={mobileLabelMenuRef}>
                     <button
                       type="button"
                       onClick={() => setIsLabelMenuOpen(prev => !prev)}
@@ -3107,7 +3110,7 @@ const App: React.FC = () => {
               >
                 {activeTab === 'event' && (
                   <div
-                    className="sticky top-0 max-[767px]:top-[90px] z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+                    className="sticky top-0 z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
                   >
                     <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                     <span>{group.dateLabel}</span>
@@ -3146,7 +3149,7 @@ const App: React.FC = () => {
                               <select
                                 value={item.labelId || ''}
                                 onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
-                                className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[13px] font-medium pr-2"
+                                className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[10px] font-medium pr-2"
                               >
                                 <option value="">No label</option>
                                 {labels.map(label => (
@@ -3163,7 +3166,7 @@ const App: React.FC = () => {
                             <select
                               value={item.priority}
                               onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                              className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[13px] font-medium pr-2"
+                              className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[10px] font-medium pr-2"
                             >
                               <option value="low">{t.prioLow}</option>
                               <option value="normal">{t.prioNormal}</option>
@@ -3183,7 +3186,7 @@ const App: React.FC = () => {
                           )}
 
                           {item.type === 'event' && isItemOverdue(item) && (
-                            <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[14px] max-[767px]:text-[13px] font-medium text-white">
+                            <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[14px] max-[767px]:text-[10px] font-medium text-white">
                               {t.outdated}
                             </span>
                           )}
@@ -3206,7 +3209,7 @@ const App: React.FC = () => {
                                 type="button"
                                 onClick={() => openReminderModal(item)}
                                 disabled={!userId}
-                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-500'}`}
                                 title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
                               >
                                 <i className={`fas fa-bell text-[12px] ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
