@@ -2960,19 +2960,41 @@ const App: React.FC = () => {
                 )}
                 {group.items.map(item => (
                   <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.02] ring-2 ring-purple-500/50 rounded-lg shadow-lg z-10 relative' : ''}`}>
-                    <div className={`flex items-start gap-3 p-4 max-[767px]:p-3 bg-[#f2f2f3] rounded-xl border border-gray-300/70 transition-all ${item.type === 'event' && item.completed ? 'opacity-60' : 'hover:shadow-sm'} ${highlightedTaskId === item.id ? 'border-purple-400' : ''}`}>
-                      {item.type === 'event' ? (
-                        <button
-                          onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
-                          className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500'}`}
-                        >
-                          {item.completed && <i className="fas fa-check text-[11px]"></i>}
-                        </button>
-                      ) : (
-                        <div className="mt-0.5 flex-shrink-0 w-6 h-6"></div>
-                      )}
-
+                    <div className={`card-icons-18 flex items-start gap-3 p-4 max-[767px]:p-3 bg-[#f2f2f3] rounded-xl border border-gray-300/70 transition-all ${item.type === 'event' && item.completed ? 'opacity-60' : 'hover:shadow-sm'} ${highlightedTaskId === item.id ? 'border-purple-400' : ''}`}>
                       <div className="flex-1 min-w-0">
+                        {item.type === 'event' && (
+                          <div className="mb-4 flex items-center gap-1.5">
+                            {item.dueTime && (
+                              <span className="h-7 inline-flex items-center gap-1 text-[16px] font-semibold text-slate-600">
+                                <i className="far fa-clock text-slate-500"></i>
+                                <span>{item.dueTime}</span>
+                              </span>
+                            )}
+                            <div className="ml-auto inline-flex items-center gap-1">
+                              <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
+                                <i className="fas fa-pen"></i>
+                              </button>
+                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                                <i className="fas fa-trash-alt"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openReminderModal(item)}
+                                disabled={!userId}
+                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-500'}`}
+                                title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
+                              >
+                                <i className={`fas fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
+                              </button>
+                              <button
+                                onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
+                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500 text-slate-500'}`}
+                              >
+                                {item.completed && <i className="fas fa-check"></i>}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <div className={`text-lg max-[767px]:text-[15px] font-bold break-words leading-snug ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
                           <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
                           <span>{item.type === 'task' ? (item.title || item.text) : item.text}</span>
@@ -3000,7 +3022,7 @@ const App: React.FC = () => {
                           </div>
                         ) : null}
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <div className="mt-5 flex flex-wrap items-center gap-2">
                           {item.type === 'event' && (
                             <div
                               className="event-label-chip inline-flex items-center rounded-full border px-2 py-0.5"
@@ -3022,7 +3044,7 @@ const App: React.FC = () => {
                                   </option>
                                 ))}
                               </select>
-                              <i className="fas fa-chevron-down text-[9px] opacity-60"></i>
+                              <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
                             </div>
                           )}
 
@@ -3036,15 +3058,15 @@ const App: React.FC = () => {
                               <option value="normal">{t.prioNormal}</option>
                               <option value="high">{t.prioHigh}</option>
                             </select>
-                            <i className="fas fa-chevron-down text-[9px] opacity-60"></i>
+                            <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
                           </div>
                           {item.type === 'task' && (
                             <div className="inline-flex items-center gap-2 ml-1">
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
-                                <i className="fas fa-pen text-[13px]"></i>
+                                <i className="fas fa-pen text-[12px]"></i>
                               </button>
                               <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
-                                <i className="fas fa-trash-alt text-[13px]"></i>
+                                <i className="fas fa-trash-alt text-[12px]"></i>
                               </button>
                             </div>
                           )}
@@ -3055,37 +3077,7 @@ const App: React.FC = () => {
                             </span>
                           )}
 
-                          {item.type === 'event' && item.dueTime && (
-                            <span className="text-[16px] max-[767px]:text-[15px] text-slate-600">{item.dueTime}</span>
-                          )}
                         </div>
-
-                        {item.type === 'event' && (
-                          <div className="mt-3 flex items-center gap-2">
-                            <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
-                              <i className="fas fa-pen text-[13px]"></i>
-                            </button>
-                            <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
-                              <i className="fas fa-trash-alt text-[13px]"></i>
-                            </button>
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => openReminderModal(item)}
-                                disabled={!userId}
-                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-500'}`}
-                                title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
-                              >
-                                <i className={`fas fa-bell text-[12px] ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
-                              </button>
-                              {item.reminderMinutesBefore !== undefined && (
-                                <span className="text-[12px] font-black text-amber-600 whitespace-nowrap">
-                                  ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
-                                </span>
-                              )}
-                            </>
-                          </div>
-                        )}
 
                         {item.type === 'task' && item.text && item.title && (
                           <p className="mt-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">
@@ -3103,18 +3095,18 @@ const App: React.FC = () => {
                           </div>
                         )}
                         {item.type === 'event' && item.location && (
-                          <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
+                          <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
                             <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
                             <span className="truncate">{item.location}</span>
                             <a
                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="map-link-chip ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              className="map-link-chip ml-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
                               aria-label="Open in Google Maps"
                               title="Open in Google Maps"
                             >
-                              <i className="fas fa-external-link-alt text-[10px]"></i>
+                              <i className="fas fa-external-link-alt"></i>
                             </a>
                           </div>
                         )}

@@ -209,6 +209,23 @@ input[type="checkbox"]:focus-visible {
   animation: settings-gear-spin 5s linear infinite;
 }
 
+.card-icons-18 i[class*="fa-"] {
+  font-size: 14px !important;
+}
+
+.card-caret-icon {
+  font-size: 6px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  position: relative;
+  top: 0;
+}
+
+.card-icons-18 i.card-caret-icon[class*="fa-"] {
+  font-size: 6px !important;
+  line-height: 1 !important;
+}
+
 @keyframes reminder-bell-ring {
   0%, 100% { transform: rotate(0deg); }
   2% { transform: rotate(16deg); }
