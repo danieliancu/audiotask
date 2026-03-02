@@ -2971,12 +2971,11 @@ const App: React.FC = () => {
                               </span>
                             )}
                             <div className="ml-auto inline-flex items-center gap-1">
-                              <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
-                                <i className="fas fa-pen"></i>
-                              </button>
-                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
-                                <i className="fas fa-trash-alt"></i>
-                              </button>
+                              {item.reminderMinutesBefore !== undefined && (
+                                <span className="mr-1 text-[12px] font-black text-amber-600 whitespace-nowrap">
+                                  ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                                </span>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => openReminderModal(item)}
@@ -2986,9 +2985,16 @@ const App: React.FC = () => {
                               >
                                 <i className={`fas fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
                               </button>
+                              <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
+                                <i className="fas fa-pen"></i>
+                              </button>
+                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                                <i className="fas fa-trash-alt"></i>
+                              </button>
                               <button
                                 onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
-                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500 text-slate-500'}`}
+                                className={`h-5 w-5 inline-flex items-center justify-center rounded-md border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500 text-slate-500'}`}
+                                style={{ marginLeft:"8px" }}
                               >
                                 {item.completed && <i className="fas fa-check"></i>}
                               </button>
@@ -3096,17 +3102,16 @@ const App: React.FC = () => {
                         )}
                         {item.type === 'event' && item.location && (
                           <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
-                            <i className="fas fa-map-marker-alt mr-2 text-[12px] text-slate-400"></i>
-                            <span className="truncate">{item.location}</span>
                             <a
                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="map-link-chip ml-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              className="inline-flex items-center gap-2 text-slate-500 hover:text-purple-600 transition-colors min-w-0"
                               aria-label="Open in Google Maps"
                               title="Open in Google Maps"
                             >
-                              <i className="fas fa-external-link-alt"></i>
+                              <i className="fas fa-map-marker-alt text-[12px] text-slate-400"></i>
+                              <span className="truncate">{item.location}</span>
                             </a>
                           </div>
                         )}
@@ -3248,10 +3253,10 @@ const App: React.FC = () => {
       {reminderModalItem && (
         <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeReminderModal}></div>
-          <div className="relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface reminder-modal relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeReminderModal}
-              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
+              className="reminder-close-btn absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
             >
               <i className="fas fa-times"></i>
             </button>
@@ -3273,7 +3278,7 @@ const App: React.FC = () => {
                     max={reminderMaxParts.days}
                     value={reminderDays}
                     onChange={(e) => setReminderDays(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                    className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
@@ -3284,7 +3289,7 @@ const App: React.FC = () => {
                     max={Number(reminderDays || '0') >= reminderMaxParts.days ? reminderMaxParts.hours : 23}
                     value={reminderHours}
                     onChange={(e) => setReminderHours(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                    className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">
@@ -3300,7 +3305,7 @@ const App: React.FC = () => {
                     }
                     value={reminderMinutes}
                     onChange={(e) => setReminderMinutes(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                    className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
                   />
                 </label>
               </div>
@@ -3311,21 +3316,21 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReminderChannel('email')}
-                    className={`rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                    className={`reminder-channel-btn rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'is-active bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
                   >
                     {t.reminderEmail}
                   </button>
                   <button
                     type="button"
                     disabled
-                    className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                    className="reminder-channel-btn is-disabled rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
                   >
                     {t.reminderSmsSoon}
                   </button>
                   <button
                     type="button"
                     disabled
-                    className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                    className="reminder-channel-btn is-disabled rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
                   >
                     {t.reminderPushSoon}
                   </button>

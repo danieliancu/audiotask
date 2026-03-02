@@ -81,11 +81,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const missingKeys: string[] = [];
     if (message.includes('QSTASH_TOKEN missing')) missingKeys.push('QSTASH_TOKEN');
     if (message.includes('NEXTAUTH_URL missing')) missingKeys.push('NEXTAUTH_URL');
+    if (message.includes('APP_URL missing')) missingKeys.push('APP_URL');
     if (message.includes('REMINDER_QUEUE_SECRET missing')) missingKeys.push('REMINDER_QUEUE_SECRET');
     if (missingKeys.length) {
       return NextResponse.json(
         {
           error: `Reminder service is not configured yet. Missing: ${missingKeys.join(', ')}.`
+        },
+        { status: 503 }
+      );
+    }
+    if (message.includes('APP_URL must be a public URL')) {
+      return NextResponse.json(
+        {
+          error: 'Reminder queue requires a public APP_URL (localhost is not supported).'
         },
         { status: 503 }
       );

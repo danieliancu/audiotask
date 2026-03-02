@@ -179,6 +179,35 @@ html.dark .map-link-chip:hover {
   color: #ffffff !important;
 }
 
+html.dark .reminder-modal .reminder-input {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .reminder-modal .reminder-channel-btn {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .reminder-modal .reminder-channel-btn.is-active {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+  border-color: #7c3aed !important;
+}
+
+html.dark .reminder-modal .reminder-channel-btn.is-disabled {
+  background-color: #111111 !important;
+  color: #cbd5e1 !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .reminder-modal .reminder-close-btn:hover {
+  background-color: #111111 !important;
+  color: #ffffff !important;
+}
+
 .font-mono {
   font-family: var(--font-mono);
 }
