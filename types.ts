@@ -5,6 +5,11 @@ export type ItemType = 'task' | 'event';
 export type Priority = 'low' | 'normal' | 'high';
 export type ReminderChannel = 'email' | 'sms' | 'push';
 
+export interface SubtaskItem {
+  text: string;
+  completed: boolean;
+}
+
 export interface TodoItem {
   id: string;
   title?: string;
@@ -19,7 +24,7 @@ export interface TodoItem {
   sortTimestamp: number; 
   type: ItemType;
   priority: Priority;
-  subtasks?: string[];
+  subtasks?: SubtaskItem[];
   reminderMinutesBefore?: number;
   reminderChannel?: ReminderChannel;
 }
@@ -43,6 +48,7 @@ export enum ToolNames {
   ADD_SUBTASK = 'add_subtask',
   EDIT_SUBTASK = 'edit_subtask',
   DELETE_SUBTASK = 'delete_subtask',
+  TOGGLE_SUBTASK = 'toggle_subtask',
   DELETE_TODO = 'delete_todo',
   TOGGLE_TODO = 'toggle_todo',
   CLEAR_COMPLETED = 'clear_completed',

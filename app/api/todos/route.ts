@@ -4,7 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
-import type { ReminderChannel } from '@/types';
+import type { ReminderChannel, SubtaskItem } from '@/types';
 import { computeTodoDueAt } from '@/lib/reminders';
 
 type DbTodoRow = {
@@ -22,10 +22,43 @@ type DbTodoRow = {
   sort_timestamp: number;
   type: 'task' | 'event';
   priority: 'low' | 'normal' | 'high';
-  subtasks: string | string[] | null;
+  subtasks: string | unknown[] | null;
   deleted_at: number | null;
   reminder_minutes_before: number | null;
   reminder_channel: ReminderChannel | null;
+};
+
+const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
+  if (value === null || value === undefined) return undefined;
+
+  let rawItems: unknown[] = [];
+  if (Array.isArray(value)) {
+    rawItems = value;
+  } else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) rawItems = parsed;
+    } catch {
+      rawItems = [];
+    }
+  }
+
+  const items = rawItems
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const text = entry.trim();
+        if (!text) return null;
+        return { text, completed: false } as SubtaskItem;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+      const raw = entry as { text?: unknown; completed?: unknown };
+      const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+      if (!text) return null;
+      return { text, completed: Boolean(raw.completed) } as SubtaskItem;
+    })
+    .filter((entry): entry is SubtaskItem => Boolean(entry));
+
+  return items.length ? items : undefined;
 };
 
 const mapRow = (row: DbTodoRow) => {
@@ -49,11 +82,7 @@ const mapRow = (row: DbTodoRow) => {
   reminderMinutesBefore: !isOverdue && row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
   reminderChannel: !isOverdue ? (row.reminder_channel ?? undefined) : undefined,
   deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
-  subtasks: Array.isArray(row.subtasks)
-    ? row.subtasks
-    : row.subtasks
-      ? JSON.parse(row.subtasks)
-      : undefined
+  subtasks: normalizeSubtasks(row.subtasks)
   });
 };
 
@@ -78,6 +107,7 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
+  const normalizedSubtasks = normalizeSubtasks(body.subtasks);
   let labelId: number | null = null;
   if (body.labelId !== undefined && body.labelId !== null && String(body.labelId).trim() !== '') {
     const parsed = Number(body.labelId);
@@ -97,7 +127,7 @@ export async function POST(request: Request) {
     sortTimestamp: Number(body.sortTimestamp) || Date.now(),
     type: body.type === 'event' ? 'event' : 'task',
     priority: body.priority === 'high' ? 'high' : body.priority === 'low' ? 'low' : 'normal',
-    subtasks: Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null,
+    subtasks: normalizedSubtasks ? JSON.stringify(normalizedSubtasks) : null,
     labelId
   };
 

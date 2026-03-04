@@ -3,6 +3,40 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import type { SubtaskItem } from '@/types';
+
+const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
+  if (value === null || value === undefined) return undefined;
+
+  let rawItems: unknown[] = [];
+  if (Array.isArray(value)) {
+    rawItems = value;
+  } else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) rawItems = parsed;
+    } catch {
+      rawItems = [];
+    }
+  }
+
+  const items = rawItems
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const text = entry.trim();
+        if (!text) return null;
+        return { text, completed: false } as SubtaskItem;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+      const raw = entry as { text?: unknown; completed?: unknown };
+      const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+      if (!text) return null;
+      return { text, completed: Boolean(raw.completed) } as SubtaskItem;
+    })
+    .filter((entry): entry is SubtaskItem => Boolean(entry));
+
+  return items.length ? items : undefined;
+};
 
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
@@ -51,8 +85,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     pushField('priority', priority);
   }
   if (body.subtasks !== undefined) {
-    const subtasks = Array.isArray(body.subtasks) ? JSON.stringify(body.subtasks) : null;
-    pushField('subtasks', subtasks);
+    const subtasks = normalizeSubtasks(body.subtasks);
+    pushField('subtasks', subtasks ? JSON.stringify(subtasks) : null);
   }
   const shouldResetReminder = (
     body.dueDate !== undefined
@@ -90,7 +124,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const item = (rows as any[])[0];
   if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const subtasks = item.subtasks ? (typeof item.subtasks === 'string' ? JSON.parse(item.subtasks) : item.subtasks) : undefined;
+  const subtasks = normalizeSubtasks(item.subtasks);
   return NextResponse.json({
     id: String(item.local_id),
     title: item.title ?? undefined,

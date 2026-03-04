@@ -117,14 +117,14 @@ export default function AppHeader({
             <div className="flex flex-col">
               <span className="font-semibold text-lg text-gray-900">{t.appTitle}</span>
               {nowLabel && (
-                <span className="text-[11px] text-gray-500" suppressHydrationWarning>
+                <span className="text-[12px] font-semibold text-gray-500" suppressHydrationWarning>
                   {nowLabel}
                 </span>
               )}
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 md:gap-3">
             <nav className="hidden md:flex items-center gap-4">
               <Link href={externalLinks.home} className="text-sm text-gray-700 hover:text-purple-600 transition-colors">
                 {t.menuHome}
@@ -178,9 +178,9 @@ export default function AppHeader({
             <Link
               href={userId ? '/settings' : '/auth'}
               className={`p-2 hover:bg-gray-100 rounded-lg transition-colors ${userId ? 'text-emerald-600' : 'text-gray-600'}`}
-              title={userId ? (userEmail || 'Logged in') : 'Login'}
+              title={userId ? (userEmail || 'Profile') : 'Login'}
             >
-              <i className={`${userId ? 'fas fa-lock' : 'far fa-user'} text-base`}></i>
+              <i className={`${userId ? 'fas fa-user' : 'far fa-user'} text-base`}></i>
             </Link>
             <Link href="/reminders" className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative text-gray-600">
               <i className="far fa-bell text-base"></i>

@@ -5,12 +5,14 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import AppHeader from './AppHeader';
 import { useSession } from 'next-auth/react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
-import { TodoItem, ToolNames, Language, ItemType, Priority, ReminderChannel } from '../types';
+import { TodoItem, ToolNames, Language, ItemType, Priority, ReminderChannel, SubtaskItem } from '../types';
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@/lib/labelColors';
 
 type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
 type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
+type MobileView = 'list' | 'calendar' | 'add';
+type CalendarVariant = 'desktop' | 'modal' | 'mobile';
 type ItemLabel = { id: string; name: string; color: string };
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
 const GUEST_STATE_STORAGE_KEY = 'voicetask.guest.state.v1';
@@ -84,7 +86,10 @@ const translations = {
     reminderErrorInvalidTime: "Invalid reminder time.",
     reminderErrorBeforeTask: "Reminder must be before task time.",
     reminderErrorSave: "Failed to save reminder",
-    reminderErrorRemove: "Failed to remove reminder"
+    reminderErrorRemove: "Failed to remove reminder",
+    filterAction: "Filter",
+    tasksForSelectedDates: "Tasks for selected dates",
+    noTasksForSelectedDates: "No tasks for selected dates"
   },
   ro: {
     tasks: "Notite",
@@ -153,7 +158,10 @@ const translations = {
     reminderErrorInvalidTime: "Timpul reminder-ului este invalid.",
     reminderErrorBeforeTask: "Reminder-ul trebuie sa fie inainte de ora task-ului.",
     reminderErrorSave: "Nu am putut salva reminder-ul",
-    reminderErrorRemove: "Nu am putut sterge reminder-ul"
+    reminderErrorRemove: "Nu am putut sterge reminder-ul",
+    filterAction: "Filtreaza",
+    tasksForSelectedDates: "Task-uri pentru zilele selectate",
+    noTasksForSelectedDates: "Nu exista task-uri pentru zilele selectate"
   },
   fr: {
     tasks: "Notes",
@@ -222,7 +230,10 @@ const translations = {
     reminderErrorInvalidTime: "Heure de rappel invalide.",
     reminderErrorBeforeTask: "Le rappel doit etre avant l'heure de la tache.",
     reminderErrorSave: "Echec de l'enregistrement du rappel",
-    reminderErrorRemove: "Echec de la suppression du rappel"
+    reminderErrorRemove: "Echec de la suppression du rappel",
+    filterAction: "Filtrer",
+    tasksForSelectedDates: "Taches pour les dates selectionnees",
+    noTasksForSelectedDates: "Aucune tache pour les dates selectionnees"
   },
   de: {
     tasks: "Notizen",
@@ -291,7 +302,10 @@ const translations = {
     reminderErrorInvalidTime: "Ungultige Erinnerungszeit.",
     reminderErrorBeforeTask: "Erinnerung muss vor der Aufgabenzeit liegen.",
     reminderErrorSave: "Erinnerung konnte nicht gespeichert werden",
-    reminderErrorRemove: "Erinnerung konnte nicht entfernt werden"
+    reminderErrorRemove: "Erinnerung konnte nicht entfernt werden",
+    filterAction: "Filtern",
+    tasksForSelectedDates: "Aufgaben fuer ausgewaehlte Tage",
+    noTasksForSelectedDates: "Keine Aufgaben fuer ausgewaehlte Tage"
   },
   es: {
     tasks: "Notas",
@@ -360,7 +374,10 @@ const translations = {
     reminderErrorInvalidTime: "Tiempo de recordatorio invalido.",
     reminderErrorBeforeTask: "El recordatorio debe ser antes de la hora de la tarea.",
     reminderErrorSave: "No se pudo guardar el recordatorio",
-    reminderErrorRemove: "No se pudo eliminar el recordatorio"
+    reminderErrorRemove: "No se pudo eliminar el recordatorio",
+    filterAction: "Filtrar",
+    tasksForSelectedDates: "Tareas para fechas seleccionadas",
+    noTasksForSelectedDates: "No hay tareas para las fechas seleccionadas"
   }
 };
 
@@ -462,6 +479,13 @@ const formatShortDateLabel = (dateKey: string, language: Language) => {
   const weekdayLabel = weekday ? weekday.charAt(0).toLocaleUpperCase(locale) + weekday.slice(1) : '';
   return `${weekdayLabel} ${dayPart}/${monthPart}`.trim();
 };
+const formatDayMonthLabel = (timestamp: number, language: Language) => {
+  const date = new Date(timestamp);
+  const day = date.toLocaleDateString(language, { day: '2-digit' });
+  const monthRaw = date.toLocaleDateString(language, { month: 'short' }).replace(/[.,]$/u, '');
+  const month = monthRaw ? `${monthRaw.charAt(0).toLocaleUpperCase(localeByLanguage[language])}${monthRaw.slice(1)}` : '';
+  return `${day} ${month}`.trim();
+};
 const dateKeyToDate = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(year, month, day);
@@ -519,18 +543,53 @@ const normalizeLocation = (value: string, language: Language) => {
   }
   return titleCaseWithLocale(cleaned, language);
 };
-const normalizeSubitems = (value: unknown) => {
+const normalizeSubitems = (value: unknown, options?: { capitalizeText?: boolean }) => {
   if (!value) return undefined;
+  const capitalizeText = options?.capitalizeText ?? true;
   const items = Array.isArray(value)
     ? value
     : typeof value === 'string'
       ? value.split(/\r?\n/)
       : [];
   const cleaned = items
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter(Boolean)
-    .map((item) => capitalize(item));
+    .map((item) => {
+      if (typeof item === 'string') {
+        const text = item.trim();
+        if (!text) return null;
+        return {
+          text: capitalizeText ? capitalize(text) : text,
+          completed: false
+        } as SubtaskItem;
+      }
+      if (!item || typeof item !== 'object') return null;
+      const raw = item as { text?: unknown; completed?: unknown };
+      const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+      if (!text) return null;
+      return {
+        text: capitalizeText ? capitalize(text) : text,
+        completed: Boolean(raw.completed)
+      } as SubtaskItem;
+    })
+    .filter((item): item is SubtaskItem => Boolean(item));
   return cleaned.length ? cleaned : undefined;
+};
+const normalizeTodoForState = (item: TodoItem): TodoItem => ({
+  ...item,
+  subtasks: normalizeSubitems(item.subtasks, { capitalizeText: false })
+});
+const normalizeTodoListForState = (value: unknown): TodoItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is TodoItem => Boolean(item) && typeof item === 'object')
+    .map((item) => normalizeTodoForState(item));
+};
+const getCompletedSubtaskCount = (subtasks?: SubtaskItem[]) => {
+  if (!subtasks?.length) return 0;
+  return subtasks.reduce((count, subtask) => count + (subtask.completed ? 1 : 0), 0);
+};
+const getSubtaskProgressPercent = (subtasks?: SubtaskItem[]) => {
+  if (!subtasks?.length) return 0;
+  return Math.round((getCompletedSubtaskCount(subtasks) / subtasks.length) * 100);
 };
 const normalizeLabelName = (value: string) => {
   const trimmed = value.trim();
@@ -580,6 +639,24 @@ const formatSubtaskCountLabel = (count: number, language: Language) => {
     case 'de': return `${count} Unteraufgaben`;
     case 'es': return `${count} subtareas`;
     default: return `${count} subtasks`;
+  }
+};
+const formatSubtaskProgressLabel = (completed: number, total: number, language: Language) => {
+  switch (language) {
+    case 'ro': return `${completed}/${total} subtaskuri`;
+    case 'fr': return `${completed}/${total} sous-taches`;
+    case 'de': return `${completed}/${total} Unteraufgaben`;
+    case 'es': return `${completed}/${total} subtareas`;
+    default: return `${completed}/${total} subtasks`;
+  }
+};
+const getNoLabelText = (language: Language) => {
+  switch (language) {
+    case 'ro': return 'Fara eticheta';
+    case 'fr': return 'Sans label';
+    case 'de': return 'Ohne Label';
+    case 'es': return 'Sin etiqueta';
+    default: return 'No label';
   }
 };
 const hexToRgba = (hex: string, alpha: number) => {
@@ -814,6 +891,95 @@ const parseStoredLabelFilters = (rawValue: unknown): string[] => {
   return [];
 };
 
+const SWIPE_DELETE_THRESHOLD = 88;
+const SWIPE_DELETE_MAX_OFFSET = 120;
+const SwipeableCard: React.FC<{
+  enabled: boolean;
+  onDelete: () => void;
+  children: React.ReactNode;
+}> = ({ enabled, onDelete, children }) => {
+  const [offsetX, setOffsetX] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const gestureRef = useRef({
+    active: false,
+    dragging: false,
+    horizontal: false,
+    startX: 0,
+    startY: 0
+  });
+
+  const resetGesture = () => {
+    gestureRef.current = {
+      active: false,
+      dragging: false,
+      horizontal: false,
+      startX: 0,
+      startY: 0
+    };
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!enabled || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    gestureRef.current = {
+      active: true,
+      dragging: false,
+      horizontal: false,
+      startX: touch.clientX,
+      startY: touch.clientY
+    };
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!enabled || !gestureRef.current.active || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - gestureRef.current.startX;
+    const dy = touch.clientY - gestureRef.current.startY;
+
+    if (!gestureRef.current.dragging) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      gestureRef.current.dragging = true;
+      gestureRef.current.horizontal = Math.abs(dx) > Math.abs(dy);
+    }
+
+    if (!gestureRef.current.horizontal) return;
+    event.preventDefault();
+    const nextOffset = dx <= 0 ? Math.max(-SWIPE_DELETE_MAX_OFFSET, dx) : Math.min(dx * 0.2, 20);
+    setOffsetX(nextOffset);
+  };
+
+  const handleTouchEnd = () => {
+    if (!enabled || !gestureRef.current.active) {
+      resetGesture();
+      return;
+    }
+
+    if (offsetX <= -SWIPE_DELETE_THRESHOLD) {
+      setOffsetX(-SWIPE_DELETE_MAX_OFFSET);
+      setIsDeleting(true);
+      window.setTimeout(() => onDelete(), 180);
+    } else {
+      setOffsetX(0);
+    }
+    resetGesture();
+  };
+
+  return (
+    <div className="relative">
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        style={{ transform: `translate3d(${offsetX}px, 0, 0)` }}
+        className={`will-change-transform transition-transform duration-200 ease-out ${isDeleting ? 'opacity-0 scale-[0.98] transition-all duration-200' : ''}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const nextIdRef = useRef(1);
@@ -882,6 +1048,8 @@ const App: React.FC = () => {
   const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<MobileView>('list');
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMobileMicModalOpen, setIsMobileMicModalOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
   const [uiNotice, setUiNotice] = useState<string | null>(null);
@@ -944,6 +1112,27 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const syncViewport = () => setIsMobileViewport(media.matches);
+    syncViewport();
+    media.addEventListener('change', syncViewport);
+    return () => media.removeEventListener('change', syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileView('list');
+      setIsFilterPanelOpen(false);
+    }
+  }, [isMobileViewport]);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    setIsCalendarOpen(false);
+  }, [isMobileViewport]);
+
+  useEffect(() => {
     todosRef.current = todos;
   }, [todos]);
   useEffect(() => () => {
@@ -984,7 +1173,7 @@ const App: React.FC = () => {
         try {
           const raw = localStorage.getItem(GUEST_STATE_STORAGE_KEY);
           const parsed = raw ? JSON.parse(raw) : null;
-          const storedTodos = Array.isArray(parsed?.todos) ? parsed.todos : [];
+          const storedTodos = normalizeTodoListForState(parsed?.todos);
           const storedLabels = Array.isArray(parsed?.labels)
             ? parsed.labels.map((label: ItemLabel) => ({ ...label, color: normalizeLabelColor((label as any).color) }))
             : [];
@@ -1037,7 +1226,7 @@ const App: React.FC = () => {
       .then(res => (res.ok ? res.json() : []))
       .then(data => {
         if (!active) return;
-        setTodos(Array.isArray(data) ? data : []);
+        setTodos(normalizeTodoListForState(data));
       })
       .catch(() => {});
     return () => { active = false; };
@@ -1267,6 +1456,23 @@ const App: React.FC = () => {
     });
     return { start: sorted[0], end: sorted[sorted.length - 1] };
   }, [activeDateFilters]);
+  const selectedDateTasks = useMemo(() => {
+    if (!activeDateFilters.length) return [];
+    const selectedKeys = new Set(activeDateFilters);
+    return todos
+      .filter((item) => item.type === 'event')
+      .filter((item) => {
+        const d = new Date(item.sortTimestamp);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        return selectedKeys.has(key);
+      })
+      .sort((a, b) => {
+        const aTime = getItemDateTime(a);
+        const bTime = getItemDateTime(b);
+        if (aTime !== bTime) return aTime - bTime;
+        return String(a.id).localeCompare(String(b.id));
+      });
+  }, [todos, activeDateFilters]);
 
   const filteredItems = useMemo(() => {
     const statusFilter = statusFilterByType[activeTab];
@@ -1488,6 +1694,14 @@ const App: React.FC = () => {
     }, 150);
     if (!isLive) setTimeout(() => setHighlightedTaskId(prev => prev === id ? null : prev), 5000);
   }, [isLive]);
+  const openSelectedDateTask = useCallback((id: string) => {
+    if (isMobileViewport) {
+      setMobileView('list');
+      setTimeout(() => scrollToTask(id, 'event'), 80);
+      return;
+    }
+    scrollToTask(id, 'event');
+  }, [isMobileViewport, scrollToTask]);
 
   const toggleSubitems = useCallback((id: string) => {
     setExpandedSubitems(prev => {
@@ -1566,7 +1780,7 @@ const App: React.FC = () => {
       if (!userId) return;
       void fetch('/api/todos', { credentials: 'include', cache: 'no-store' })
         .then(res => (res.ok ? res.json() : []))
-        .then(data => setTodos(Array.isArray(data) ? data : []))
+        .then(data => setTodos(normalizeTodoListForState(data)))
         .catch(() => {});
     };
     const scheduleRefreshTodos = () => {
@@ -1637,7 +1851,8 @@ const App: React.FC = () => {
             pendingTempUpdatesRef.current.delete(tempId);
             syncUpdate(serverItem.id, pending);
           }
-          setTodos(prev => prev.map(todo => (todo.id === tempId ? serverItem : todo)));
+          const normalizedServerItem = normalizeTodoForState(serverItem as TodoItem);
+          setTodos(prev => prev.map(todo => (todo.id === tempId ? normalizedServerItem : todo)));
           scheduleRefreshTodos();
       })
         .catch(() => {
@@ -1839,7 +2054,10 @@ const App: React.FC = () => {
           const existing = [...(todo.subtasks || [])];
           const targetIndex = oneBasedIndex - 1;
           if (targetIndex >= existing.length) return todo;
-          existing[targetIndex] = normalized[0];
+          existing[targetIndex] = {
+            ...existing[targetIndex],
+            text: normalized[0].text
+          };
           if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
           return { ...todo, subtasks: existing };
         });
@@ -1860,6 +2078,28 @@ const App: React.FC = () => {
           if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
           return { ...todo, subtasks: existing.length ? existing : undefined };
         });
+        break;
+      }
+      case ToolNames.TOGGLE_SUBTASK: {
+        const parentId = String(args.id);
+        const oneBasedIndex = Number(args.subtaskIndex);
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) break;
+        const explicitCompleted = typeof args.completed === 'boolean' ? args.completed : undefined;
+
+        updateTodo(parentId, (todo) => {
+          if (todo.type !== 'event') return todo;
+          const existing = [...(todo.subtasks || [])];
+          const targetIndex = oneBasedIndex - 1;
+          if (targetIndex >= existing.length) return todo;
+          const current = existing[targetIndex];
+          existing[targetIndex] = {
+            ...current,
+            completed: explicitCompleted ?? !current.completed
+          };
+          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
+          return { ...todo, subtasks: existing };
+        });
+        setExpandedSubitems(prev => new Set(prev).add(parentId));
         break;
       }
       case ToolNames.DELETE_TODO: {
@@ -2040,11 +2280,20 @@ const App: React.FC = () => {
   };
 
   const openMobileMicModal = useCallback(() => {
+    if (isMobileViewport) {
+      setMobileView('list');
+      if (modalMode === 'add') {
+        setModalMode(null);
+        setModalItemId(null);
+        setFormTitle('');
+        setFormSubtasks('');
+      }
+    }
     setIsMobileMicModalOpen(true);
     if (!isLive && !isConnectingRef.current) {
       void startLiveSession();
     }
-  }, [isLive, startLiveSession]);
+  }, [isLive, isMobileViewport, modalMode, startLiveSession]);
 
   const closeMobileMicModal = useCallback(() => {
     stopLiveSession();
@@ -2065,89 +2314,191 @@ const App: React.FC = () => {
     return () => { document.body.style.overflow = previousOverflow; };
   }, [isMobileMicModalOpen]);
 
-  const Calendar = ({ isModal = false }: { isModal?: boolean }) => (
-    <div className={`calendar-surface bg-white rounded-lg border border-gray-200 p-4 w-full max-w-full overflow-hidden ${isModal ? '' : 'h-full flex flex-col'}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-medium text-gray-900">
-          {currentDate.toLocaleString(language, { month: 'long', year: 'numeric' })}
-        </h2>
-        <div className="flex space-x-1">
+  useEffect(() => {
+    if (mobileView === 'list') return;
+    setIsFilterPanelOpen(false);
+  }, [mobileView]);
+
+  const Calendar = ({
+    variant = 'desktop',
+    onApply,
+    hideApplyAction = false
+  }: {
+    variant?: CalendarVariant;
+    onApply?: () => void;
+    hideApplyAction?: boolean;
+  }) => {
+    const isModal = variant === 'modal';
+    const isMobile = variant === 'mobile';
+    const locale = localeByLanguage[language];
+    const rawMonthLabel = currentDate.toLocaleDateString(language, { month: 'long', year: 'numeric' });
+    const monthLabel = rawMonthLabel
+      ? `${rawMonthLabel.charAt(0).toLocaleUpperCase(locale)}${rawMonthLabel.slice(1)}`
+      : rawMonthLabel;
+    const weekdayBaseDay = isMobile ? 3 : 4; // Sunday for mobile, Monday for desktop/modal.
+    const mobileCalendarCells = useMemo(() => {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const firstOffset = new Date(year, month, 1).getDay();
+      const currentMonthDays = new Date(year, month + 1, 0).getDate();
+      const previousMonthDays = new Date(year, month, 0).getDate();
+      const totalCells = firstOffset + currentMonthDays <= 35 ? 35 : 42;
+      const cells: Array<{ day: number; dateKey: string; isCurrentMonth: boolean }> = [];
+
+      for (let i = firstOffset - 1; i >= 0; i -= 1) {
+        const day = previousMonthDays - i;
+        const date = new Date(year, month - 1, day);
+        cells.push({ day, dateKey: buildDateKey(date), isCurrentMonth: false });
+      }
+      for (let day = 1; day <= currentMonthDays; day += 1) {
+        const date = new Date(year, month, day);
+        cells.push({ day, dateKey: buildDateKey(date), isCurrentMonth: true });
+      }
+      const trailingDays = totalCells - cells.length;
+      for (let day = 1; day <= trailingDays; day += 1) {
+        const date = new Date(year, month + 1, day);
+        cells.push({ day, dateKey: buildDateKey(date), isCurrentMonth: false });
+      }
+      return cells;
+    }, [currentDate]);
+
+    return (
+      <div className={`calendar-surface w-full max-w-full overflow-hidden border border-gray-200 bg-white ${isMobile ? 'rounded-2xl p-3 shadow-sm' : 'rounded-lg p-4'} ${variant === 'desktop' ? 'h-full flex flex-col' : ''}`}>
+        <div className={`${isMobile ? 'mb-3' : 'mb-4'} flex items-center justify-between`}>
           <button
+            type="button"
             onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className={`inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 ${isMobile ? 'h-7 w-7' : 'h-7 w-7 border-0'}`}
+            aria-label="Previous month"
           >
-            <i className="fas fa-chevron-left text-[12px] text-gray-600"></i>
+            <i className="fas fa-chevron-left text-[12px]"></i>
           </button>
+          <h2 className={`text-gray-900 ${isMobile ? 'text-[20px] font-semibold' : 'font-medium'}`}>
+            {monthLabel}
+          </h2>
           <button
+            type="button"
             onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className={`inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 ${isMobile ? 'h-7 w-7' : 'h-7 w-7 border-0'}`}
+            aria-label="Next month"
           >
-            <i className="fas fa-chevron-right text-[12px] text-gray-600"></i>
+            <i className="fas fa-chevron-right text-[12px]"></i>
           </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {(['en', 'ro', 'fr', 'de', 'es'].includes(language) ? [0,1,2,3,4,5,6] : [0]).map(i => {
-           const d = new Date(2021, 0, 4 + i).toLocaleString(language, { weekday: 'short' });
-           return <div key={i} className="text-center text-xs font-medium text-gray-500 py-1">{d.slice(0, 2)}</div>
-        })}
-      </div>
-
-      <div className={`grid grid-cols-7 ${isModal ? 'gap-1' : 'gap-0.5'}`}>
-        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} className={isModal ? 'aspect-square' : 'h-9'}></div>
-        ))}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const day = i + 1;
-          const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${day}`;
-          const dayItems = tasksByDate[dateKey] || [];
-          const isToday = new Date().getDate() === day && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
-          const isSelected = activeDateFilterSet.has(dateKey);
-          const isSelectedEdge = isSelected && (dateKey === activeDateBounds.start || dateKey === activeDateBounds.end);
-          const pendingStart = pendingDateStart === dateKey;
-          const pendingEnd = pendingDateEnd === dateKey;
-          let isPendingRange = false;
-          if (pendingDateStart && pendingDateEnd) {
-            const rangeKeys = getDateRangeKeys(pendingDateStart, pendingDateEnd);
-            isPendingRange = rangeKeys.includes(dateKey);
-          }
-
-          return (
-            <div key={day} className="flex flex-col items-center">
-              <button 
-                onClick={() => handleDateClick(dateKey)}
-                className={`relative w-full ${isModal ? 'aspect-square' : 'h-9'} rounded-lg flex items-center justify-center text-sm transition-colors ${isSelected ? `bg-purple-100 text-purple-700 font-medium ${isSelectedEdge ? 'ring-1 ring-purple-300' : ''}` : pendingStart || pendingEnd ? 'bg-purple-500 text-white' : isPendingRange ? 'bg-purple-200 text-purple-800' : isToday ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'}`}
-              >
-                {day}
-              </button>
-              <div className="mt-2 flex flex-wrap justify-center gap-1 min-h-[12px] w-full px-1">
-                {dayItems.map(item => (
-                  <button 
-                    key={item.id}
-                    title={item.text}
-                    onClick={(e) => { e.stopPropagation(); scrollToTask(item.id, item.type); }}
-                    className={`w-2 h-2 rounded-full shadow-sm transition-all duration-300 hover:scale-150 active:scale-95 ${item.type === 'task' ? 'bg-emerald-500' : 'bg-purple-500'} ${highlightedTaskId === item.id ? 'ring-2 ring-offset-2 ring-purple-500 scale-125 z-10' : 'hover:ring-1 hover:ring-slate-300'}`}
-                  />
-                ))}
+        <div className={`mb-1.5 grid grid-cols-7 ${isMobile ? 'gap-1' : 'gap-1'}`}>
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+            const dayLabel = new Date(2021, 0, weekdayBaseDay + i).toLocaleString(language, { weekday: 'short' });
+            return (
+              <div key={i} className={`text-center font-medium text-gray-500 ${isMobile ? 'py-0.5 text-[11px]' : 'py-1 text-xs'}`}>
+                {dayLabel.slice(0, 2)}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      <div className={`${isModal ? 'mt-4' : 'mt-auto'} pt-4 border-t border-gray-200`}>
-        <button
-          type="button"
-          onClick={() => { applyPendingDates(); if (isModal) setIsCalendarOpen(false); }}
-          disabled={!pendingDateStart}
-          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pendingDateStart ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-        >
-          {t.selectDates}
-        </button>
+        {isMobile ? (
+          <div className="grid grid-cols-7 gap-y-1">
+            {mobileCalendarCells.map((cell, idx) => {
+              const dayItems = tasksByDate[cell.dateKey] || [];
+              const cellDate = dateKeyToDate(cell.dateKey);
+              const now = new Date();
+              const isToday = now.getDate() === cellDate.getDate() && now.getMonth() === cellDate.getMonth() && now.getFullYear() === cellDate.getFullYear();
+              const isSelected = activeDateFilterSet.has(cell.dateKey);
+              const pendingStart = pendingDateStart === cell.dateKey;
+              const pendingEnd = pendingDateEnd === cell.dateKey;
+              let isPendingRange = false;
+              if (pendingDateStart && pendingDateEnd) {
+                const rangeKeys = getDateRangeKeys(pendingDateStart, pendingDateEnd);
+                isPendingRange = rangeKeys.includes(cell.dateKey);
+              }
+
+              return (
+                <div key={`${cell.dateKey}-${idx}`} className="flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={() => handleDateClick(cell.dateKey)}
+                    className={`relative h-8 w-8 rounded-lg text-[13px] transition-colors ${isSelected ? 'bg-[#0b1445] font-semibold text-white' : pendingStart || pendingEnd ? 'bg-purple-600 font-semibold text-white' : isPendingRange ? 'bg-purple-100 text-purple-700' : isToday ? 'bg-purple-50 text-purple-700' : cell.isCurrentMonth ? 'text-slate-800 hover:bg-slate-100' : 'text-slate-400 hover:bg-slate-100'}`}
+                  >
+                    {cell.day}
+                  </button>
+                  <div className="mt-0.5 flex min-h-[6px] flex-wrap items-center justify-center gap-[2px]">
+                    {dayItems.map((item) => (
+                      <span
+                        key={item.id}
+                        className={`h-[5px] w-[5px] rounded-full ${item.type === 'task' ? 'bg-emerald-500' : 'bg-violet-500'}`}
+                        title={item.text}
+                      ></span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={`grid grid-cols-7 ${isModal ? 'gap-1' : 'gap-0.5'}`}>
+            {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+              <div key={`empty-${i}`} className={isModal ? 'aspect-square' : 'h-9'}></div>
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${day}`;
+              const dayItems = tasksByDate[dateKey] || [];
+              const isToday = new Date().getDate() === day && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
+              const isSelected = activeDateFilterSet.has(dateKey);
+              const isSelectedEdge = isSelected && (dateKey === activeDateBounds.start || dateKey === activeDateBounds.end);
+              const pendingStart = pendingDateStart === dateKey;
+              const pendingEnd = pendingDateEnd === dateKey;
+              let isPendingRange = false;
+              if (pendingDateStart && pendingDateEnd) {
+                const rangeKeys = getDateRangeKeys(pendingDateStart, pendingDateEnd);
+                isPendingRange = rangeKeys.includes(dateKey);
+              }
+
+              return (
+                <div key={day} className="flex flex-col items-center">
+                  <button
+                    onClick={() => handleDateClick(dateKey)}
+                    className={`relative w-full ${isModal ? 'aspect-square' : 'h-9'} rounded-lg flex items-center justify-center text-sm transition-colors ${isSelected ? `bg-purple-100 text-purple-700 font-medium ${isSelectedEdge ? 'ring-1 ring-purple-300' : ''}` : pendingStart || pendingEnd ? 'bg-purple-500 text-white' : isPendingRange ? 'bg-purple-200 text-purple-800' : isToday ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    {day}
+                  </button>
+                  <div className="mt-2 flex min-h-[12px] w-full flex-wrap justify-center gap-1 px-1">
+                    {dayItems.map(item => (
+                      <button
+                        key={item.id}
+                        title={item.text}
+                        onClick={(e) => { e.stopPropagation(); scrollToTask(item.id, item.type); }}
+                        className={`h-2 w-2 rounded-full shadow-sm transition-all duration-300 hover:scale-150 active:scale-95 ${item.type === 'task' ? 'bg-emerald-500' : 'bg-purple-500'} ${highlightedTaskId === item.id ? 'ring-2 ring-offset-2 ring-purple-500 scale-125 z-10' : 'hover:ring-1 hover:ring-slate-300'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!hideApplyAction && (
+          <div className={`${isMobile ? 'mt-4' : `${isModal ? 'mt-4' : 'mt-auto'} pt-4 border-t border-gray-200`}`}>
+            <button
+              type="button"
+              onClick={() => {
+                applyPendingDates();
+                if (isModal) setIsCalendarOpen(false);
+                onApply?.();
+              }}
+              disabled={!pendingDateStart}
+              className={`w-full rounded-lg px-4 font-medium transition-colors ${isMobile ? 'py-3 text-sm' : 'py-2 text-sm'} ${pendingDateStart ? (isMobile ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md' : 'bg-purple-600 text-white hover:bg-purple-700') : 'cursor-not-allowed bg-gray-100 text-gray-400'}`}
+            >
+              {isMobile && <i className="fas fa-check mr-2 text-[11px]"></i>}
+              {t.selectDates}
+            </button>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const handleSendPrompt = async () => {
     if (!inputValue.trim()) return;
@@ -2164,6 +2515,22 @@ const App: React.FC = () => {
     setIsWriteMode(false);
   };
 
+  const resetComposerState = () => {
+    setModalMode(null);
+    setModalItemId(null);
+    setFormTitle('');
+    setFormSubtasks('');
+  };
+
+  const openCalendarPanel = () => {
+    if (isMobileViewport) {
+      resetComposerState();
+      setMobileView('calendar');
+      return;
+    }
+    setIsCalendarOpen(true);
+  };
+
   const openAddModal = () => {
     const today = new Date();
     setModalMode('add');
@@ -2178,6 +2545,13 @@ const App: React.FC = () => {
     setFormSubtasks('');
   };
 
+  const openAddPanel = () => {
+    openAddModal();
+    if (isMobileViewport) {
+      setMobileView('add');
+    }
+  };
+
   const openEditModal = (item: TodoItem) => {
     setModalMode('edit');
     setModalItemId(item.id);
@@ -2189,14 +2563,14 @@ const App: React.FC = () => {
     setFormDate(dateObj.toISOString().split('T')[0]);
     setFormTime(item.dueTime || '');
     setFormLocation(item.location || '');
-    setFormSubtasks((item.subtasks || []).join('\n'));
+    setFormSubtasks((item.subtasks || []).map(subtask => subtask.text).join('\n'));
   };
 
   const closeModal = () => {
-    setModalMode(null);
-    setModalItemId(null);
-    setFormTitle('');
-    setFormSubtasks('');
+    resetComposerState();
+    if (isMobileViewport) {
+      setMobileView('list');
+    }
   };
 
   const openReminderModal = useCallback((item: TodoItem) => {
@@ -2398,7 +2772,7 @@ const App: React.FC = () => {
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-20">
+    <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-28 md:pb-20">
       <AppHeader
         t={{
           appTitle: t.appTitle,
@@ -2429,8 +2803,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="mobile-action-bar max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50 max-[767px]:fixed max-[767px]:bottom-[-30px] max-[767px]:left-0 max-[767px]:w-full max-[767px]:z-50 max-[767px]:bg-white max-[767px]:shadow-[0_-1px_15px_lightgrey]">
-        <div className="hidden md:flex items-center gap-3">
+      <div className="mobile-action-bar hidden md:block max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-3">
           <button
             disabled={isConnectingRef.current}
             onClick={startLiveSession}
@@ -2442,7 +2816,7 @@ const App: React.FC = () => {
 
           <button
             type="button"
-            onClick={openAddModal}
+            onClick={openAddPanel}
             className="flex items-center gap-2 px-5 py-3 bg-gradient-to-br from-purple-500 to-indigo-500 text-white rounded-lg hover:shadow-md transition-all"
             aria-label="Create item"
             title="Create item"
@@ -2475,42 +2849,34 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        <div className="md:hidden">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              disabled={isConnectingRef.current}
-              onClick={openMobileMicModal}
-              className={`w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center">
-                <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-white text-base`}></i>
-              </div>
-              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionVoiceCommand}</span>
-            </button>
-
-            <button
-              onClick={() => setIsCalendarOpen(true)}
-              className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
-                <i className="fas fa-calendar-alt text-white text-base"></i>
-              </div>
-              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionCalendar}</span>
-            </button>
-
-            <button
-              onClick={() => { setIsWriteMode(false); openAddModal(); }}
-              className="w-full flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
-                <i className="fas fa-pen text-white text-base"></i>
-              </div>
-              <span className="text-[clamp(9px,2.7vw,12px)] leading-tight whitespace-nowrap text-gray-600">{t.actionAdd}</span>
-            </button>
-          </div>
-        </div>
       </div>
+
+      <nav className="mobile-action-bar md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white px-2 py-2 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
+        <div className="max-w-md mx-auto grid grid-cols-3 gap-1">
+          <button
+            disabled={isConnectingRef.current}
+            onClick={openMobileMicModal}
+            className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''} ${mobileView === 'list' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-[19px] ${mobileView === 'list' ? 'text-white' : (isLive ? 'text-red-500' : '')}`}></i>
+            <span className="text-[11px] leading-none">{t.actionVoiceCommand}</span>
+          </button>
+          <button
+            onClick={openCalendarPanel}
+            className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${mobileView === 'calendar' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <i className="far fa-calendar-alt text-[19px]"></i>
+            <span className="text-[11px] leading-none">{t.actionCalendar}</span>
+          </button>
+          <button
+            onClick={() => { setIsWriteMode(false); openAddPanel(); }}
+            className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${mobileView === 'add' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <i className="fas fa-plus text-[19px]"></i>
+            <span className="text-[11px] leading-none">{t.actionAdd}</span>
+          </button>
+        </div>
+      </nav>
 
       <main className="max-w-7xl mx-auto px-4 lg:grid lg:grid-cols-5 lg:gap-6">
         <div className="hidden md:flex lg:col-span-5 items-center justify-between gap-3 pb-3 border-b border-gray-200 mb-4">
@@ -2530,7 +2896,7 @@ const App: React.FC = () => {
               {activeTab === 'event' && (
                 <div
                   className="flex px-3 py-2 items-center gap-2 text-sm cursor-pointer border border-gray-300 rounded-lg bg-white"
-                  onClick={() => setIsCalendarOpen(true)}
+                  onClick={openCalendarPanel}
                 >
                   <i className="far fa-calendar-alt text-[12px] text-gray-600"></i>
                   <span className="font-medium text-gray-700">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
@@ -2711,7 +3077,7 @@ const App: React.FC = () => {
         </div>
 
         <section className="space-y-6 md:space-y-0 lg:col-span-3">
-          <div className="md:hidden pb-3 border-b border-gray-200">
+          <div className={`md:hidden pb-3 border-b border-gray-200 ${mobileView !== 'list' ? 'hidden' : ''}`}>
             <div className="flex items-center gap-2 min-w-0">
               <button onClick={() => setActiveTab('task')} className={`relative px-3 py-2 rounded-lg text-[clamp(13px,3.4vw,15px)] leading-none whitespace-nowrap transition-colors ${activeTab === 'task' ? 'bg-purple-100 text-purple-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {t.tasks}
@@ -2725,21 +3091,18 @@ const App: React.FC = () => {
                   {filteredEventCount}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={() => setIsFilterPanelOpen(true)}
-                className="ml-auto h-9 w-9 inline-flex items-center justify-center text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
-                title="Filters"
-              >
-                <i className="fas fa-gear settings-gear-spin text-[12px] text-gray-600"></i>
-              </button>
-              {activeTab === 'event' && (
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
                 <div
-                  className="min-w-0 h-9 flex px-2.5 items-center gap-2 text-[clamp(12px,3.1vw,14px)] cursor-pointer border border-gray-300 rounded-lg bg-white"
-                  onClick={() => setIsCalendarOpen(true)}
+                  className="h-11 flex-1 flex items-center px-3.5 gap-2 border border-gray-300 rounded-xl bg-white shadow-sm"
+                  onClick={() => {
+                    if (activeTab !== 'event') setActiveTab('event');
+                    openCalendarPanel();
+                  }}
                 >
-                  <span className="font-medium text-gray-700 truncate">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
-                  {activeDateFilters.length > 0 && (
+                  <span className="font-medium text-gray-700 text-[15px] truncate">{activeDateFilters.length > 0 ? selectedDateLabel : t.selectPeriod}</span>
+                  {activeDateFilters.length > 0 ? (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -2748,18 +3111,30 @@ const App: React.FC = () => {
                         setPendingDateStart(null);
                         setPendingDateEnd(null);
                       }}
-                      className="text-red-500 font-bold text-[12px] leading-none mb-1.5"
+                      className="ml-auto h-6 w-6 inline-flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100"
                       aria-label="Clear selected period"
                     >
-                      x
+                      <i className="fas fa-times text-[11px]"></i>
                     </button>
+                  ) : (
+                    <span className="ml-auto h-6 w-6 inline-flex items-center justify-center text-gray-300">
+                      <i className="fas fa-times text-[11px]"></i>
+                    </span>
                   )}
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setIsFilterPanelOpen(true)}
+                  className="h-11 shrink-0 rounded-xl border border-gray-300 bg-white px-3 text-[13px] font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                >
+                  {t.filterAction}
+                </button>
+              </div>
             </div>
 
           </div>
 
+          {mobileView === 'list' && (
           <div style={{ marginTop:0 }} className={`fixed inset-0 z-[80] min-[768px]:hidden transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-slate-900/35" onClick={() => setIsFilterPanelOpen(false)}></div>
             <aside className={`absolute right-0 top-0 bottom-0 w-[88%] max-w-[360px] bg-white shadow-2xl overflow-y-auto transition-transform duration-300 ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -2934,9 +3309,203 @@ const App: React.FC = () => {
               </div>
             </aside>
           </div>
+          )}
 
 
-          <div className="space-y-4">
+          {mobileView === 'calendar' && (
+            <div className="md:hidden pb-3">
+              <div className="mb-3 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMobileView('list')}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">{t.actionCalendar}</span>
+                <span className="w-8"></span>
+              </div>
+              <div>
+                <Calendar variant="mobile" hideApplyAction />
+                <button
+                  type="button"
+                  onClick={applyPendingDates}
+                  disabled={!pendingDateStart}
+                  className={`mt-3 w-full rounded-2xl px-4 py-2.5 text-sm font-semibold transition-colors ${pendingDateStart ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md' : 'cursor-not-allowed bg-gray-100 text-gray-400'}`}
+                >
+                  <i className="fas fa-check mr-2 text-[11px]"></i>
+                  {t.selectDates}
+                </button>
+
+                <div className="mt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {t.tasksForSelectedDates}
+                    </h3>
+                    <span className="inline-flex min-w-[24px] items-center justify-center rounded-full bg-violet-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      {selectedDateTasks.length}
+                    </span>
+                  </div>
+
+                  {selectedDateTasks.length === 0 ? (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-slate-500">
+                      {t.noTasksForSelectedDates}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedDateTasks.map((item) => (
+                        <button
+                          key={`selected-${item.id}`}
+                          type="button"
+                          onClick={() => openSelectedDateTask(item.id)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="inline-flex min-w-[54px] items-center justify-center rounded-xl bg-violet-100 px-2 py-3 text-[13px] font-semibold text-violet-700">
+                              {item.dueTime || '--:--'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[18px] font-medium text-slate-900">
+                                {item.text}
+                              </div>
+                              <div className="mt-1 text-[13px] text-slate-500">
+                                {formatDayMonthLabel(item.sortTimestamp, language)}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileView === 'add' && (
+            <div className="md:hidden pb-6">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">{t.actionAdd}</span>
+                <button
+                  type="button"
+                  onClick={saveModal}
+                  className="h-8 px-3 inline-flex items-center justify-center rounded-xl bg-purple-600 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
+                >
+                  {t.save}
+                </button>
+              </div>
+
+              <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-black uppercase tracking-widest text-slate-600">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="mb-1 text-[10px] text-slate-400">Type</div>
+                      <select
+                        value={formType}
+                        onChange={(e) => setFormType(e.target.value as ItemType)}
+                        className="w-full bg-transparent appearance-none border-0 px-0 py-0 text-xs font-bold text-slate-700 outline-none"
+                        aria-label="Item type"
+                      >
+                        <option value="task">Note</option>
+                        <option value="event">Task</option>
+                      </select>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="mb-1 text-[10px] text-slate-400">{t.priorityLabel}</div>
+                      <select
+                        value={formPriority}
+                        onChange={(e) => setFormPriority(e.target.value as Priority)}
+                        className="w-full bg-transparent appearance-none border-0 px-0 py-0 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="low">{t.prioLow}</option>
+                        <option value="normal">{t.prioNormal}</option>
+                        <option value="high">{t.prioHigh}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {formType === 'task' && (
+                    <input
+                      autoFocus
+                      type="text"
+                      className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="Titlu..."
+                    />
+                  )}
+
+                  <textarea
+                    className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20 min-h-[140px] resize-none"
+                    value={formText}
+                    onChange={(e) => setFormText(e.target.value)}
+                    placeholder={formType === 'task' ? 'Text...' : 'Descriere...'}
+                  />
+
+                  {formType === 'event' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                          {t.subevents}
+                        </label>
+                        <textarea
+                          className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20 min-h-[90px] resize-none"
+                          value={formSubtasks}
+                          onChange={(e) => setFormSubtasks(e.target.value)}
+                          placeholder={t.subitemsPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                          {t.location}
+                        </label>
+                        <input
+                          type="text"
+                          className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20"
+                          value={formLocation}
+                          onChange={(e) => setFormLocation(e.target.value)}
+                          placeholder="Ex: Splaiul Unirii 45"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
+                          value={formDate}
+                          onChange={(e) => setFormDate(e.target.value)}
+                        />
+                        <input
+                          type="time"
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
+                          value={formTime}
+                          onChange={(e) => setFormTime(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={saveModal}
+                    className="w-full bg-purple-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-md active:scale-95 transition-all"
+                  >
+                    {t.save}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={`space-y-4 ${mobileView !== 'list' ? 'max-[767px]:hidden' : ''}`}>
             {filteredItems.length === 0 ? (
               <div className="py-10 flex flex-col items-center">
                 <div className="py-24 text-center flex flex-col items-center opacity-10">
@@ -2952,121 +3521,231 @@ const App: React.FC = () => {
               >
                 {activeTab === 'event' && (
                   <div
-                    className="sticky top-0 z-10 py-2 bg-gray-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+                    className="sticky top-0 z-10 py-2 bg-gray-50 flex items-center gap-2 text-lg font-bold text-gray-700"
                   >
                     <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                     <span>{group.dateLabel}</span>
                   </div>
                 )}
                 {group.items.map(item => (
-                  <div key={item.id} id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.02] ring-2 ring-purple-500/50 rounded-lg shadow-lg z-10 relative' : ''}`}>
-                    <div className={`card-icons-18 flex items-start gap-3 p-4 max-[767px]:p-3 bg-[#f2f2f3] rounded-xl border border-gray-300/70 transition-all ${item.type === 'event' && item.completed ? 'opacity-60' : 'hover:shadow-sm'} ${highlightedTaskId === item.id ? 'border-purple-400' : ''}`}>
-                      <div className="flex-1 min-w-0">
-                        {item.type === 'event' && (
-                          <div className="mb-4 flex items-center gap-1.5">
-                            {item.dueTime && (
-                              <span className="h-7 inline-flex items-center gap-1 text-[16px] font-semibold text-slate-600">
-                                <i className="far fa-clock text-slate-500"></i>
-                                <span>{item.dueTime}</span>
+                  <SwipeableCard
+                    key={item.id}
+                    enabled={isMobileViewport}
+                    onDelete={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })}
+                  >
+                  <div id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.02] ring-2 ring-purple-500/50 rounded-lg shadow-lg z-10 relative' : ''}`}>
+                    <div className={`card-icons-18 p-4 max-[767px]:p-3 bg-[#f2f2f3] rounded-xl border border-gray-300/70 transition-all ${item.type === 'event' && item.completed ? 'opacity-60' : 'hover:shadow-sm'} ${highlightedTaskId === item.id ? 'border-purple-400' : ''}`}>
+                      {item.type === 'event' ? (
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
+                            className={`mt-.5 h-6 w-6 inline-flex items-center justify-center rounded-[4px] border transition-all ${item.completed ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-transparent'}`}
+                            aria-label={item.completed ? 'Mark task as open' : 'Mark task as done'}
+                          >
+                            {item.completed && <i className="fas fa-check text-[9px]"></i>}
+                          </button>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`inline-flex items-center gap-1.5 text-[14px] max-[767px]:text-[14px] font-semibold ${item.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                <i className="far fa-clock text-[14px] text-slate-400"></i>
+                                <span>{item.dueTime || '--:--'}</span>
                               </span>
-                            )}
-                            <div className="ml-auto inline-flex items-center gap-1">
-                              {item.reminderMinutesBefore !== undefined && (
-                                <span className="mr-1 text-[12px] font-black text-amber-600 whitespace-nowrap">
-                                  ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                              <div className="inline-flex items-center gap-0.5">
+                                {item.reminderMinutesBefore !== undefined && (
+                                  <span className="mr-1 text-[11px] font-bold text-amber-600 whitespace-nowrap">
+                                    ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openReminderModal(item)}
+                                  disabled={!userId}
+                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-400'}`}
+                                  title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
+                                >
+                                  <i className={`far fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
+                                </button>
+                                <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 transition-colors">
+                                  <i className="fas fa-pen text-[13px]"></i>
+                                </button>
+                                <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-500 hover:text-red-600 transition-colors">
+                                  <i className="fas fa-trash-alt text-[13px]"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className={`mt-2 text-[18px] max-[767px]:text-[14px] font-semibold break-words leading-[1.15] ${item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                              <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
+                              <span>{item.text}</span>
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {isMobileViewport ? (
+                                <>
+                                  <div
+                                    className="inline-flex items-center rounded-lg border px-2 py-0.5"
+                                    style={{
+                                      backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#ffffff',
+                                      borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
+                                      color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : '#0f172a'
+                                    }}
+                                  >
+                                    <select
+                                      value={item.labelId || ''}
+                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                      className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[11px] font-semibold pr-2"
+                                    >
+                                      <option value="">{getNoLabelText(language)}</option>
+                                      {labels.map(label => (
+                                        <option key={label.id} value={label.id}>
+                                          {label.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <i className="card-caret-icon fas fa-chevron-down text-[8px] opacity-60"></i>
+                                  </div>
+                                  <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-lg border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
+                                    <select
+                                      value={item.priority}
+                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
+                                      className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[11px] font-semibold pr-2"
+                                    >
+                                      <option value="low">{t.prioLow}</option>
+                                      <option value="normal">{t.prioNormal}</option>
+                                      <option value="high">{t.prioHigh}</option>
+                                    </select>
+                                    <i className="card-caret-icon fas fa-chevron-down text-[8px] opacity-60"></i>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div
+                                    className="event-label-chip inline-flex items-center rounded-full border px-2 py-0.5"
+                                    style={{
+                                      backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#e2e8f0',
+                                      borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
+                                      color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : '#64748b'
+                                    }}
+                                  >
+                                    <select
+                                      value={item.labelId || ''}
+                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                      className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] font-medium pr-2"
+                                    >
+                                      <option value="">{getNoLabelText(language)}</option>
+                                      {labels.map(label => (
+                                        <option key={label.id} value={label.id}>
+                                          {label.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
+                                  </div>
+                                  <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
+                                    <select
+                                      value={item.priority}
+                                      onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
+                                      className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] font-medium pr-2"
+                                    >
+                                      <option value="low">{t.prioLow}</option>
+                                      <option value="normal">{t.prioNormal}</option>
+                                      <option value="high">{t.prioHigh}</option>
+                                    </select>
+                                    <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
+                                  </div>
+                                </>
+                              )}
+
+                              {isItemOverdue(item) && (
+                                <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[11px] font-medium text-white">
+                                  {t.outdated}
                                 </span>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => openReminderModal(item)}
-                                disabled={!userId}
-                                className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-500'}`}
-                                title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
-                              >
-                                <i className={`fas fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
-                              </button>
-                              <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
-                                <i className="fas fa-pen"></i>
-                              </button>
-                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
-                                <i className="fas fa-trash-alt"></i>
-                              </button>
-                              <button
-                                onClick={() => executeTool(ToolNames.TOGGLE_TODO, { id: item.id })}
-                                className={`h-5 w-5 inline-flex items-center justify-center rounded-md border transition-all ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-transparent border-slate-500 text-slate-500'}`}
-                                style={{ marginLeft:"8px" }}
-                              >
-                                {item.completed && <i className="fas fa-check"></i>}
-                              </button>
                             </div>
-                          </div>
-                        )}
-                        <div className={`text-lg max-[767px]:text-[15px] font-bold break-words leading-snug ${item.type === 'event' && item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                          <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
-                          <span>{item.type === 'task' ? (item.title || item.text) : item.text}</span>
-                        </div>
-                        {item.type === 'event' && item.subtasks?.length ? (
-                          <div className="mt-3">
-                            <button
-                              type="button"
-                              onClick={() => toggleSubitems(item.id)}
-                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors"
-                              aria-label="Toggle subtasks"
-                            >
-                              <i className={`fas fa-angle-down text-[12px] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
-                              <span>{formatSubtaskCountLabel(item.subtasks.length, language)}</span>
-                            </button>
-                            {expandedSubitems.has(item.id) && (
-                              <ul className="mt-2 pl-5 space-y-1">
-                                {item.subtasks.map((subtask, index) => (
-                                  <li key={`${item.id}-${index}`} className="text-sm text-slate-600 leading-tight">
-                                    {index + 1}. {subtask}
-                                  </li>
-                                ))}
-                              </ul>
+
+                            {item.subtasks?.length ? (
+                              <div className="mt-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSubitems(item.id)}
+                                    className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-600"
+                                    aria-label="Toggle subtasks"
+                                  >
+                                    <span>{formatSubtaskProgressLabel(getCompletedSubtaskCount(item.subtasks), item.subtasks.length, language)}</span>
+                                    <i className={`fas fa-angle-down text-[11px] text-[#6f48ff] transition-transform ${expandedSubitems.has(item.id) ? 'rotate-180' : ''}`}></i>
+                                  </button>
+                                  <span className="text-[12px] font-semibold text-[#6f48ff]">
+                                    {getSubtaskProgressPercent(item.subtasks)}%
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-300/90">
+                                  <div
+                                    className="h-full bg-slate-900 transition-all duration-300"
+                                    style={{ width: `${getSubtaskProgressPercent(item.subtasks)}%` }}
+                                  ></div>
+                                </div>
+
+                                {expandedSubitems.has(item.id) && (
+                                  <ul className="mt-2.5 space-y-2">
+                                    {item.subtasks.map((subtask, index) => (
+                                      <li key={`${item.id}-${index}`} className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => executeTool(ToolNames.TOGGLE_SUBTASK, { id: item.id, subtaskIndex: index + 1 })}
+                                          className={`h-[12px] w-[12px] min-w-[12px] inline-flex items-center justify-center rounded-[4px] border text-[11px] font-semibold transition-all ${subtask.completed ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-600'}`}
+                                          aria-label={`Toggle subtask ${index + 1}`}
+                                        >
+                                          {index + 1}
+                                        </button>
+                                        <span className={`text-[16px] max-[767px]:text-[12px] leading-tight ${subtask.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                          {subtask.text}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ) : null}
+
+                            {item.location && (
+                              <div className="mt-3 flex items-center text-[14px] max-[767px]:text-[14px] font-medium text-slate-500">
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 text-slate-500 hover:text-purple-600 transition-colors min-w-0"
+                                  aria-label="Open in Google Maps"
+                                  title="Open in Google Maps"
+                                >
+                                  <i className="far fa-compass text-[13px] text-slate-500"></i>
+                                  <span className={item.completed ? 'line-through' : ''}>{item.location}</span>
+                                </a>
+                              </div>
                             )}
                           </div>
-                        ) : null}
-
-                        <div className="mt-5 flex flex-wrap items-center gap-2">
-                          {item.type === 'event' && (
-                            <div
-                              className="event-label-chip inline-flex items-center rounded-full border px-2 py-0.5"
-                              style={{
-                                backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#e2e8f0',
-                                borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
-                                color: item.labelId ? normalizeLabelColor(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR) : '#64748b'
-                              }}
-                            >
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-w-0">
+                          <div className="text-lg max-[767px]:text-[15px] font-bold break-words leading-snug text-slate-900">
+                            <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
+                            <span>{item.title || item.text}</span>
+                          </div>
+                          <div className="mt-5 flex flex-wrap items-center gap-2">
+                            <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
                               <select
-                                value={item.labelId || ''}
-                                onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                value={item.priority}
+                                onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
                                 className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[10px] font-medium pr-2"
                               >
-                                <option value="">No label</option>
-                                {labels.map(label => (
-                                  <option key={label.id} value={label.id}>
-                                    {label.name}
-                                  </option>
-                                ))}
+                                <option value="low">{t.prioLow}</option>
+                                <option value="normal">{t.prioNormal}</option>
+                                <option value="high">{t.prioHigh}</option>
                               </select>
                               <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
                             </div>
-                          )}
-
-                          <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
-                            <select
-                              value={item.priority}
-                              onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, priority: e.target.value as Priority })}
-                              className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] max-[767px]:text-[10px] font-medium pr-2"
-                            >
-                              <option value="low">{t.prioLow}</option>
-                              <option value="normal">{t.prioNormal}</option>
-                              <option value="high">{t.prioHigh}</option>
-                            </select>
-                            <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
-                          </div>
-                          {item.type === 'task' && (
                             <div className="inline-flex items-center gap-2 ml-1">
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
                                 <i className="fas fa-pen text-[12px]"></i>
@@ -3075,22 +3754,12 @@ const App: React.FC = () => {
                                 <i className="fas fa-trash-alt text-[12px]"></i>
                               </button>
                             </div>
+                          </div>
+                          {item.text && item.title && (
+                            <p className="mt-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">
+                              {item.text}
+                            </p>
                           )}
-
-                          {item.type === 'event' && isItemOverdue(item) && (
-                            <span className="inline-flex items-center rounded-full border border-red-300 bg-red-500 px-2 py-0.5 text-[14px] max-[767px]:text-[10px] font-medium text-white">
-                              {t.outdated}
-                            </span>
-                          )}
-
-                        </div>
-
-                        {item.type === 'task' && item.text && item.title && (
-                          <p className="mt-3 text-sm max-[767px]:text-[12px] font-semibold text-slate-600 whitespace-pre-wrap">
-                            {item.text}
-                          </p>
-                        )}
-                        {item.type === 'task' && (
                           <div className="mt-2 flex items-center text-sm max-[767px]:text-[12px] font-semibold text-slate-500">
                             <i className="far fa-clock mr-2 text-[12px] text-slate-400"></i>
                             <span>
@@ -3099,25 +3768,11 @@ const App: React.FC = () => {
                               {new Date(item.createdAt).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' })}
                             </span>
                           </div>
-                        )}
-                        {item.type === 'event' && item.location && (
-                          <div className="mt-2 flex items-center text-sm font-semibold text-slate-500">
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-slate-500 hover:text-purple-600 transition-colors min-w-0"
-                              aria-label="Open in Google Maps"
-                              title="Open in Google Maps"
-                            >
-                              <i className="fas fa-map-marker-alt text-[12px] text-slate-400"></i>
-                              <span className="truncate">{item.location}</span>
-                            </a>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                  </SwipeableCard>
                 ))}
               </div>
             ))}
@@ -3132,7 +3787,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Add/Edit Modal */}
-      {modalMode && (
+      {modalMode && !(isMobileViewport && mobileView === 'add' && modalMode === 'add') && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeModal}></div>
           <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
@@ -3414,7 +4069,7 @@ const App: React.FC = () => {
             >
               <i className="fas fa-times"></i>
             </button>
-            <Calendar isModal />
+            <Calendar variant="modal" />
           </div>
         </div>
       )}
