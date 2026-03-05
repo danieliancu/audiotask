@@ -68,16 +68,49 @@ const translations: Record<Language, {
 const languageNames: Record<Language, string> = { en: 'English', ro: 'Romana', fr: 'Francais', de: 'Deutsch', es: 'Espanol' };
 const languageFlags: Record<Language, string> = { en: 'US', ro: 'RO', fr: 'FR', de: 'DE', es: 'ES' };
 
-const formatDuration = (totalMs: number) => {
-  const minutesTotal = Math.max(0, Math.floor(totalMs / 60000));
+const formatDurationWords = (totalMinutes: number, language: Language) => {
+  const minutesTotal = Math.max(0, Math.floor(totalMinutes));
   const days = Math.floor(minutesTotal / (24 * 60));
   const hours = Math.floor((minutesTotal % (24 * 60)) / 60);
   const minutes = minutesTotal % 60;
-  const parts: string[] = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
-  return parts.join(' ');
+  const useDaysAndHours = minutesTotal >= 24 * 60;
+  const shouldUseRomanianDeForHourMinute = (value: number) => {
+    const abs = Math.abs(value);
+    if (abs < 20) return false;
+    const lastTwo = abs % 100;
+    return !(lastTwo > 0 && lastTwo < 20);
+  };
+  const formatUnit = (value: number, unit: 'day' | 'hour' | 'minute') => {
+    switch (language) {
+      case 'ro': {
+        if (unit === 'day') return value === 1 ? 'o zi' : `${value} zile`;
+        if (unit === 'hour') return value === 1 ? 'o ora' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de ore` : `${value} ore`);
+        return value === 1 ? 'un minut' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de minute` : `${value} minute`);
+      }
+      case 'fr': {
+        if (unit === 'day') return value === 1 ? '1 jour' : `${value} jours`;
+        if (unit === 'hour') return value === 1 ? '1 heure' : `${value} heures`;
+        return value === 1 ? '1 minute' : `${value} minutes`;
+      }
+      case 'de': {
+        if (unit === 'day') return value === 1 ? '1 Tag' : `${value} Tage`;
+        if (unit === 'hour') return value === 1 ? '1 Stunde' : `${value} Stunden`;
+        return value === 1 ? '1 Minute' : `${value} Minuten`;
+      }
+      case 'es': {
+        if (unit === 'day') return value === 1 ? '1 dia' : `${value} dias`;
+        if (unit === 'hour') return value === 1 ? '1 hora' : `${value} horas`;
+        return value === 1 ? '1 minuto' : `${value} minutos`;
+      }
+      default: {
+        if (unit === 'day') return value === 1 ? '1 day' : `${value} days`;
+        if (unit === 'hour') return value === 1 ? '1 hour' : `${value} hours`;
+        return value === 1 ? '1 minute' : `${value} minutes`;
+      }
+    }
+  };
+  if (useDaysAndHours) return `${formatUnit(days, 'day')}, ${formatUnit(hours, 'hour')}`;
+  return `${formatUnit(hours, 'hour')}, ${formatUnit(minutes, 'minute')}`;
 };
 
 export default function RemindersPage() {
@@ -201,7 +234,7 @@ export default function RemindersPage() {
 </p>
 <p className="text-xs font-semibold text-slate-500">
   <i className="far fa-clock mr-2 text-[11px] opacity-70"></i>
-  {t.before}: {item.reminderMinutesBefore}m
+  {t.before}: {formatDurationWords(item.reminderMinutesBefore, pageLanguage)}
 </p>
 <p className="text-xs font-semibold text-slate-500">
   <i className="far fa-calendar mr-2 text-[11px] opacity-70"></i>
@@ -209,7 +242,7 @@ export default function RemindersPage() {
 </p>
 <p className="text-xs font-black text-purple-600">
   <i className="far fa-bell mr-2 text-[11px] opacity-70"></i>
-  {t.remaining}: {formatDuration(item.dueAt - Date.now())}
+  {t.remaining}: {formatDurationWords(Math.floor((item.dueAt - Date.now()) / 60000), pageLanguage)}
 </p>
                 </div>
               </div>

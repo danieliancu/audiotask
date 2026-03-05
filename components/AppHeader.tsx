@@ -23,6 +23,7 @@ type Props = {
   setLanguage: (lang: Language) => void;
   languageNames: Record<Language, string>;
   languageFlags: Record<Language, string>;
+  onHomeClick?: () => void;
   nowLabel?: string;
   userId?: string;
   userEmail?: string | null;
@@ -42,6 +43,7 @@ export default function AppHeader({
   setLanguage,
   languageNames,
   languageFlags,
+  onHomeClick,
   nowLabel,
   userId,
   userEmail,
@@ -51,6 +53,10 @@ export default function AppHeader({
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
   const [reminderCount, setReminderCount] = useState(0);
+  const currentLanguageName = languageNames[language] ?? language.toUpperCase();
+  const currentLanguageFlag = languageFlags[language] ?? '';
+  const otherLanguages = (Object.entries(languageNames) as Array<[Language, string]>)
+    .filter(([code]) => code !== language);
 
   const refreshTrashCount = useCallback(() => {
     if (!userId) {
@@ -110,7 +116,7 @@ export default function AppHeader({
     <>
       <header className="max-w-7xl mx-auto px-4 pt-4">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" onClick={onHomeClick} className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">VT</span>
             </div>
@@ -144,20 +150,22 @@ export default function AppHeader({
                   onClick={() => setIsLanguageMenuOpen(prev => !prev)}
                   className="flex items-center gap-1 text-sm text-gray-700 hover:text-purple-600 transition-colors"
                 >
-                  <span>{t.languages}</span>
+                  <span>{currentLanguageFlag}</span>
+                  <span>{currentLanguageName}</span>
                   <i className="fas fa-chevron-down text-[11px]"></i>
                 </button>
                 {isLanguageMenuOpen && (
                   <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg p-1 z-50">
-                    {Object.entries(languageNames).map(([code, name]) => (
+                    {otherLanguages.map(([code, name]) => (
                       <button
                         key={code}
-                        onClick={() => { setLanguage(code as Language); setIsLanguageMenuOpen(false); }}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                          language === code ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        onClick={() => { setLanguage(code); setIsLanguageMenuOpen(false); }}
+                        className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors text-gray-700 hover:bg-gray-50"
                       >
-                        {name}
+                        <span className="inline-flex items-center gap-2">
+                          <span>{languageFlags[code]}</span>
+                          <span>{name}</span>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -220,19 +228,17 @@ export default function AppHeader({
 
               <div>
                 <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
-                  <span className="flex items-center"><i className="fas fa-globe mr-2"></i> {t.languages}</span>
+                  <span className="flex items-center"><i className="fas fa-globe mr-2"></i> {currentLanguageFlag} {currentLanguageName}</span>
                 </div>
                 <div className="mt-3 flex flex-col space-y-2">
-                  {Object.entries(languageNames).map(([code, name]) => (
+                  {otherLanguages.map(([code, name]) => (
                     <button 
                       key={code} 
-                      onClick={() => { setLanguage(code as Language); setIsMenuOpen(false); }}
-                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${
-                        language === code ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }`}
+                      onClick={() => { setLanguage(code); setIsMenuOpen(false); }}
+                      className="flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     >
                       <span>{name}</span>
-                      <span>{languageFlags[code as Language]}</span>
+                      <span>{languageFlags[code]}</span>
                     </button>
                   ))}
                 </div>

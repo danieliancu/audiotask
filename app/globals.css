@@ -5,6 +5,7 @@
 body {
   font-family: var(--font-sans);
 }
+
 html.dark {
   color-scheme: dark;
 }
@@ -139,6 +140,11 @@ html.dark .modal-type-chip,
 html.dark .modal-priority-chip {
   background-color: #000000 !important;
   color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+html.dark .mobile-add-select-surface {
+  background-color: #111111 !important;
   border-color: #ffffff !important;
 }
 

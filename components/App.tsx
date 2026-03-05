@@ -11,7 +11,7 @@ import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@
 
 type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
 type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
-type MobileView = 'list' | 'calendar' | 'add';
+type MobileView = 'list' | 'calendar' | 'add' | 'edit' | 'reminder';
 type CalendarVariant = 'desktop' | 'modal' | 'mobile';
 type ItemLabel = { id: string; name: string; color: string };
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
@@ -612,16 +612,49 @@ const splitMinutesToDhm = (value: number) => {
   const minutes = remainingAfterDays % 60;
   return { days, hours, minutes };
 };
-const formatRemainingDuration = (totalMs: number) => {
+const formatRemainingDuration = (totalMs: number, language: Language) => {
   const minutesTotal = Math.max(0, Math.floor(totalMs / 60000));
   const days = Math.floor(minutesTotal / (24 * 60));
   const hours = Math.floor((minutesTotal % (24 * 60)) / 60);
   const minutes = minutesTotal % 60;
-  const parts: string[] = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
-  return parts.join(' ');
+  const useDaysAndHours = minutesTotal >= 24 * 60;
+  const shouldUseRomanianDeForHourMinute = (value: number) => {
+    const abs = Math.abs(value);
+    if (abs < 20) return false;
+    const lastTwo = abs % 100;
+    return !(lastTwo > 0 && lastTwo < 20);
+  };
+  const formatUnit = (value: number, unit: 'day' | 'hour' | 'minute') => {
+    switch (language) {
+      case 'ro': {
+        if (unit === 'day') return value === 1 ? 'o zi' : `${value} zile`;
+        if (unit === 'hour') return value === 1 ? 'o ora' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de ore` : `${value} ore`);
+        return value === 1 ? 'un minut' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de minute` : `${value} minute`);
+      }
+      case 'fr': {
+        if (unit === 'day') return value === 1 ? '1 jour' : `${value} jours`;
+        if (unit === 'hour') return value === 1 ? '1 heure' : `${value} heures`;
+        return value === 1 ? '1 minute' : `${value} minutes`;
+      }
+      case 'de': {
+        if (unit === 'day') return value === 1 ? '1 Tag' : `${value} Tage`;
+        if (unit === 'hour') return value === 1 ? '1 Stunde' : `${value} Stunden`;
+        return value === 1 ? '1 Minute' : `${value} Minuten`;
+      }
+      case 'es': {
+        if (unit === 'day') return value === 1 ? '1 dia' : `${value} dias`;
+        if (unit === 'hour') return value === 1 ? '1 hora' : `${value} horas`;
+        return value === 1 ? '1 minuto' : `${value} minutos`;
+      }
+      default: {
+        if (unit === 'day') return value === 1 ? '1 day' : `${value} days`;
+        if (unit === 'hour') return value === 1 ? '1 hour' : `${value} hours`;
+        return value === 1 ? '1 minute' : `${value} minutes`;
+      }
+    }
+  };
+  if (useDaysAndHours) return `${formatUnit(days, 'day')}, ${formatUnit(hours, 'hour')}`;
+  return `${formatUnit(hours, 'hour')}, ${formatUnit(minutes, 'minute')}`;
 };
 const formatSubtaskCountLabel = (count: number, language: Language) => {
   if (count === 1) {
@@ -1062,6 +1095,7 @@ const App: React.FC = () => {
   const liveSessionRef = useRef<any>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const nextStartTimeRef = useRef<number>(0);
+  const assistantSpeakingUntilRef = useRef<number>(0);
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isConnectingRef = useRef(false);
@@ -1510,7 +1544,9 @@ const App: React.FC = () => {
       })
       .sort((a, b) => {
         if (activeTab === 'task') {
-          return b.createdAt - a.createdAt;
+          if (a.sortTimestamp !== b.sortTimestamp) return b.sortTimestamp - a.sortTimestamp;
+          if (a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
+          return String(b.id).localeCompare(String(a.id));
         }
         const aTime = getItemDateTime(a);
         const bTime = getItemDateTime(b);
@@ -1518,6 +1554,37 @@ const App: React.FC = () => {
         return String(a.id).localeCompare(String(b.id));
       });
   }, [todos, activeTab, statusFilterByType, priorityFilterByType, activeDateFilters, activeDateFilterSet, selectedLabelIds]);
+  const visibleEventItemIdSet = useMemo(() => {
+    const statusFilter = statusFilterByType.event;
+    const priorityFilter = priorityFilterByType.event;
+    let base = todos.filter(item => item.type === 'event');
+    if (activeDateFilters.length) {
+      base = base.filter(item => {
+        const d = new Date(item.sortTimestamp);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        return activeDateFilterSet.has(key);
+      });
+    }
+    const filtered = base
+      .filter(item => {
+        if (!selectedLabelIds.length) return true;
+        return Boolean(item.labelId && selectedLabelIds.includes(item.labelId));
+      })
+      .filter(item => {
+        if (statusFilter === 'closed') return item.completed;
+        if (statusFilter === 'open') return !item.completed;
+        if (statusFilter === 'outdated') return isItemOverdue(item);
+        if (statusFilter === 'in_time') return !item.completed && !isItemOverdue(item);
+        return true;
+      })
+      .filter(item => {
+        if (priorityFilter === 'low') return item.priority === 'low';
+        if (priorityFilter === 'normal') return item.priority === 'normal';
+        if (priorityFilter === 'high') return item.priority === 'high';
+        return true;
+      });
+    return new Set(filtered.map(item => item.id));
+  }, [todos, statusFilterByType.event, priorityFilterByType.event, activeDateFilters, activeDateFilterSet, selectedLabelIds]);
 
   const groupedItems = useMemo(() => {
     if (activeTab === 'task') {
@@ -1682,12 +1749,15 @@ const App: React.FC = () => {
     }
   }, [userId, editingLabelId]);
 
-  const scrollToTask = useCallback((id: string, type: ItemType) => {
+  const scrollToTask = useCallback((id: string, type: ItemType, options?: { preserveDateFilters?: boolean }) => {
+    const preserveDateFilters = Boolean(options?.preserveDateFilters);
     setActiveTab(type);
     setHighlightedTaskId(id);
-    setActiveDateFilters([]); // Clear date filter when jumping to a specific task
-    setPendingDateStart(null);
-    setPendingDateEnd(null);
+    if (!preserveDateFilters) {
+      setActiveDateFilters([]); // Clear date filter when jumping to a specific task
+      setPendingDateStart(null);
+      setPendingDateEnd(null);
+    }
     setTimeout(() => {
       const el = document.getElementById(`todo-${id}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1695,13 +1765,14 @@ const App: React.FC = () => {
     if (!isLive) setTimeout(() => setHighlightedTaskId(prev => prev === id ? null : prev), 5000);
   }, [isLive]);
   const openSelectedDateTask = useCallback((id: string) => {
+    if (!visibleEventItemIdSet.has(id)) return;
     if (isMobileViewport) {
       setMobileView('list');
-      setTimeout(() => scrollToTask(id, 'event'), 80);
+      setTimeout(() => scrollToTask(id, 'event', { preserveDateFilters: true }), 80);
       return;
     }
-    scrollToTask(id, 'event');
-  }, [isMobileViewport, scrollToTask]);
+    scrollToTask(id, 'event', { preserveDateFilters: true });
+  }, [isMobileViewport, scrollToTask, visibleEventItemIdSet]);
 
   const toggleSubitems = useCallback((id: string) => {
     setExpandedSubitems(prev => {
@@ -1944,7 +2015,11 @@ const App: React.FC = () => {
         const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
         const relativeOffsetFromUser = inferRelativeDateOffset(lastUserCommandRef.current);
         const forcedRelativeTs = relativeOffsetFromUser !== null ? todayStart + (relativeOffsetFromUser * 86400000) : null;
-        const newTs = (parsedDate ? (forcedRelativeTs ?? parsedDate.timestamp) : existing.sortTimestamp);
+        const requestedSortTimestamp = args.sortTimestamp !== undefined ? Number(args.sortTimestamp) : null;
+        const hasRequestedSortTimestamp = requestedSortTimestamp !== null && Number.isFinite(requestedSortTimestamp);
+        const newTs = hasRequestedSortTimestamp
+          ? requestedSortTimestamp
+          : (parsedDate ? (forcedRelativeTs ?? parsedDate.timestamp) : existing.sortTimestamp);
         const newType = existing.type;
         const isNote = newType === 'task';
         if (!isNote && parsedDate?.usedFallback && args.date !== undefined) {
@@ -1995,7 +2070,7 @@ const App: React.FC = () => {
           location: newLocation,
           subtasks: newSubtasks,
           priority: (args.priority as Priority) || existing.priority,
-          sortTimestamp: isNote ? existing.createdAt : newTs
+          sortTimestamp: newTs
         };
         const payload: Record<string, unknown> = {};
         if (args.title !== undefined) payload.title = nextTodo.title ?? null;
@@ -2004,6 +2079,8 @@ const App: React.FC = () => {
         if (args.date !== undefined && !isNote) {
           payload.sortTimestamp = nextTodo.sortTimestamp;
           payload.dueDate = nextTodo.dueDate ?? null;
+        } else if (hasRequestedSortTimestamp) {
+          payload.sortTimestamp = nextTodo.sortTimestamp;
         }
         if (args.time !== undefined) payload.dueTime = isNote ? null : nextTodo.dueTime ?? null;
         if (args.location !== undefined) payload.location = isNote ? null : nextTodo.location ?? null;
@@ -2014,7 +2091,7 @@ const App: React.FC = () => {
           payload.dueTime = null;
           payload.location = null;
           payload.subtasks = null;
-          payload.sortTimestamp = existing.createdAt;
+          payload.sortTimestamp = nextTodo.sortTimestamp;
         }
         if (args.priority !== undefined) payload.priority = nextTodo.priority;
         setTodos(prev => prev.map(todo => (todo.id === editId ? nextTodo : todo)));
@@ -2141,6 +2218,28 @@ const App: React.FC = () => {
     return "OK";
   }, [language, activeTab, userId]);
 
+  const moveNoteCard = useCallback((id: string, direction: 'up' | 'down', visibleNotes: TodoItem[]) => {
+    const currentIndex = visibleNotes.findIndex(item => item.id === id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= visibleNotes.length) return;
+
+    const currentItem = visibleNotes[currentIndex];
+    const targetItem = visibleNotes[targetIndex];
+    let currentSortTimestamp = Number(targetItem.sortTimestamp);
+    let targetSortTimestamp = Number(currentItem.sortTimestamp);
+
+    if (!Number.isFinite(currentSortTimestamp) || !Number.isFinite(targetSortTimestamp)) return;
+    if (currentSortTimestamp === targetSortTimestamp) {
+      const base = Date.now();
+      currentSortTimestamp = direction === 'up' ? base + 1 : base - 1;
+      targetSortTimestamp = base;
+    }
+
+    executeTool(ToolNames.EDIT_TODO, { id: currentItem.id, sortTimestamp: currentSortTimestamp });
+    executeTool(ToolNames.EDIT_TODO, { id: targetItem.id, sortTimestamp: targetSortTimestamp });
+  }, [executeTool]);
+
   const stopLiveSession = useCallback(() => {
     isLiveRef.current = false;
     if (liveSessionRef.current) { try { liveSessionRef.current.close(); } catch(e) {} liveSessionRef.current = null; }
@@ -2154,6 +2253,7 @@ const App: React.FC = () => {
     audioSourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
     audioSourcesRef.current.clear();
     nextStartTimeRef.current = 0;
+    assistantSpeakingUntilRef.current = 0;
     setIsLive(false);
     isConnectingRef.current = false;
     setTranscription('');
@@ -2176,6 +2276,7 @@ const App: React.FC = () => {
     isLiveRef.current = true;
     setIsLive(true);
     setTranscription('');
+    assistantSpeakingUntilRef.current = 0;
     resetInactivityTimer();
     
     const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
@@ -2183,7 +2284,13 @@ const App: React.FC = () => {
     inputAudioContextRef.current = inputCtx;
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
       mediaStreamRef.current = stream;
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -2194,6 +2301,11 @@ const App: React.FC = () => {
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
             scriptProcessorRef.current = scriptProcessor;
             scriptProcessor.onaudioprocess = (e) => {
+              const outputCtx = audioContextRef.current;
+              if (outputCtx && outputCtx.currentTime < assistantSpeakingUntilRef.current) {
+                resetInactivityTimer();
+                return;
+              }
               const inputData = e.inputBuffer.getChannelData(0);
               let sum = 0;
               for(let i=0; i<inputData.length; i++) sum += inputData[i]*inputData[i];
@@ -2227,14 +2339,21 @@ const App: React.FC = () => {
               const base64Audio = part.inlineData?.data;
               if (base64Audio && audioContextRef.current) {
                 const ctx = audioContextRef.current;
-                nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
                 const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
                 const source = ctx.createBufferSource();
                 source.buffer = audioBuffer;
                 source.connect(ctx.destination);
-                source.addEventListener('ended', () => { audioSourcesRef.current.delete(source); });
-                source.start(nextStartTimeRef.current);
-                nextStartTimeRef.current += audioBuffer.duration;
+                source.addEventListener('ended', () => {
+                  audioSourcesRef.current.delete(source);
+                  if (audioSourcesRef.current.size === 0) {
+                    assistantSpeakingUntilRef.current = 0;
+                  }
+                });
+                const scheduledStart = Math.max(nextStartTimeRef.current, ctx.currentTime);
+                const scheduledEnd = scheduledStart + audioBuffer.duration;
+                source.start(scheduledStart);
+                nextStartTimeRef.current = scheduledEnd;
+                assistantSpeakingUntilRef.current = Math.max(assistantSpeakingUntilRef.current, scheduledEnd + 0.08);
                 audioSourcesRef.current.add(source);
               }
             });
@@ -2262,6 +2381,7 @@ const App: React.FC = () => {
               audioSourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
               audioSourcesRef.current.clear();
               nextStartTimeRef.current = 0;
+              assistantSpeakingUntilRef.current = 0;
               setHighlightedTaskId(null);
             }
           },
@@ -2564,6 +2684,9 @@ const App: React.FC = () => {
     setFormTime(item.dueTime || '');
     setFormLocation(item.location || '');
     setFormSubtasks((item.subtasks || []).map(subtask => subtask.text).join('\n'));
+    if (isMobileViewport) {
+      setMobileView('edit');
+    }
   };
 
   const closeModal = () => {
@@ -2590,12 +2713,18 @@ const App: React.FC = () => {
     setReminderChannel(item.reminderChannel ?? 'email');
     setReminderError('');
     setReminderModalItemId(item.id);
-  }, [userId, showUiNotice, getReminderLoginRequiredMessage]);
+    if (isMobileViewport) {
+      setMobileView('reminder');
+    }
+  }, [userId, showUiNotice, getReminderLoginRequiredMessage, isMobileViewport]);
 
   const closeReminderModal = useCallback(() => {
     setReminderModalItemId(null);
     setReminderError('');
-  }, []);
+    if (isMobileViewport) {
+      setMobileView('list');
+    }
+  }, [isMobileViewport]);
 
   const saveReminder = useCallback(async () => {
     if (!reminderModalItemId) return;
@@ -2770,6 +2899,17 @@ const App: React.FC = () => {
     ? extractMeaningfulFilterWord(t.filterAll, language).toLocaleLowerCase(language)
     : mobileStatusLabel;
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
+  const handleHomeLogoClick = useCallback(() => {
+    if (!isMobileViewport) return;
+    if (mobileView === 'add') {
+      closeModal();
+      return;
+    }
+    if (mobileView === 'calendar') {
+      setMobileView('list');
+      setIsCalendarOpen(false);
+    }
+  }, [isMobileViewport, mobileView, closeModal]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-28 md:pb-20">
@@ -2789,6 +2929,7 @@ const App: React.FC = () => {
         setLanguage={handleLanguageChange}
         languageNames={languageNames}
         languageFlags={languageFlags}
+        onHomeClick={handleHomeLogoClick}
         nowLabel={nowLabel}
         userId={userId}
         userEmail={session?.user?.email}
@@ -2806,9 +2947,9 @@ const App: React.FC = () => {
       <div className="mobile-action-bar hidden md:block max-w-7xl mx-auto px-4 mb-4 pb-3 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-3">
           <button
-            disabled={isConnectingRef.current}
+            disabled={isConnectingRef.current && !isLive}
             onClick={startLiveSession}
-            className={`w-[200px] shrink-0 flex items-center justify-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-[200px] shrink-0 flex items-center justify-center gap-2 px-5 py-3 text-white rounded-lg transition-all ${isLive ? 'bg-gradient-to-br from-red-600 to-pink-600' : 'bg-gradient-to-br from-red-500 to-pink-500 hover:shadow-md'} ${isConnectingRef.current && !isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-base`}></i>
             <span className="text-sm">{isLive ? t.stopListening : t.actionVoiceCommand}</span>
@@ -2854,9 +2995,9 @@ const App: React.FC = () => {
       <nav className="mobile-action-bar md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white px-2 py-2 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
         <div className="max-w-md mx-auto grid grid-cols-3 gap-1">
           <button
-            disabled={isConnectingRef.current}
+            disabled={isConnectingRef.current && !isLive}
             onClick={openMobileMicModal}
-            className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${isConnectingRef.current ? 'opacity-50 cursor-not-allowed' : ''} ${mobileView === 'list' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+            className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors ${isConnectingRef.current && !isLive ? 'opacity-50 cursor-not-allowed' : ''} ${mobileView === 'list' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
           >
             <i className={`fas ${isLive ? 'fa-stop' : 'fa-microphone'} text-[19px] ${mobileView === 'list' ? 'text-white' : (isLive ? 'text-red-500' : '')}`}></i>
             <span className="text-[11px] leading-none">{t.actionVoiceCommand}</span>
@@ -3332,7 +3473,7 @@ const App: React.FC = () => {
                   type="button"
                   onClick={applyPendingDates}
                   disabled={!pendingDateStart}
-                  className={`mt-3 w-full rounded-2xl px-4 py-2.5 text-sm font-semibold transition-colors ${pendingDateStart ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md' : 'cursor-not-allowed bg-gray-100 text-gray-400'}`}
+                  className={`mt-3 w-full rounded-2xl border px-4 py-2.5 text-sm font-semibold transition-colors ${pendingDateStart ? 'border-violet-500 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md' : 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-400'}`}
                 >
                   <i className="fas fa-check mr-2 text-[11px]"></i>
                   {t.selectDates}
@@ -3354,28 +3495,40 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {selectedDateTasks.map((item) => (
-                        <button
-                          key={`selected-${item.id}`}
-                          type="button"
-                          onClick={() => openSelectedDateTask(item.id)}
-                          className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="inline-flex min-w-[54px] items-center justify-center rounded-xl bg-violet-100 px-2 py-3 text-[13px] font-semibold text-violet-700">
-                              {item.dueTime || '--:--'}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-[18px] font-medium text-slate-900">
-                                {item.text}
+                      {selectedDateTasks.map((item) => {
+                        const statusPill = item.completed ? 'Realizat' : (isItemOverdue(item) ? 'Depasit' : null);
+                        return (
+                          <button
+                            key={`selected-${item.id}`}
+                            type="button"
+                            onClick={() => openSelectedDateTask(item.id)}
+                            className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="inline-flex min-w-[54px] items-center justify-center rounded-xl bg-violet-100 px-2 py-3 text-[13px] font-semibold text-violet-700">
+                                {item.dueTime || '--:--'}
                               </div>
-                              <div className="mt-1 text-[13px] text-slate-500">
-                                {formatDayMonthLabel(item.sortTimestamp, language)}
+                              <div className="min-w-0">
+                                <div className="truncate text-[18px] font-medium text-slate-900">
+                                  {item.text}
+                                </div>
+                                <div className="mt-1 text-[13px] text-slate-500">
+                                  {formatDayMonthLabel(item.sortTimestamp, language)}
+                                </div>
+                                {statusPill && (
+                                  <div className="mt-1.5">
+                                    <span
+                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-white ${statusPill === 'Realizat' ? 'border-emerald-300 bg-emerald-500' : 'border-red-300 bg-red-500'}`}
+                                    >
+                                      {statusPill}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -3407,7 +3560,7 @@ const App: React.FC = () => {
               <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-black uppercase tracking-widest text-slate-600">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <div className="mb-1 text-[10px] text-slate-400">Type</div>
                       <select
                         value={formType}
@@ -3419,7 +3572,7 @@ const App: React.FC = () => {
                         <option value="event">Task</option>
                       </select>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <div className="mb-1 text-[10px] text-slate-400">{t.priorityLabel}</div>
                       <select
                         value={formPriority}
@@ -3505,6 +3658,242 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {mobileView === 'edit' && modalMode === 'edit' && (
+            <div className="md:hidden pb-6">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">
+                  {formTypeLabel}{modalItemId ? ` #${modalItemId}` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={saveModal}
+                  className="h-8 px-3 inline-flex items-center justify-center rounded-xl bg-purple-600 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
+                >
+                  {t.save}
+                </button>
+              </div>
+
+              <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-black uppercase tracking-widest text-slate-600">
+                    <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="mb-1 text-[10px] text-slate-400">Type</div>
+                      <div className="text-xs font-bold text-slate-700">{formTypeLabel}</div>
+                    </div>
+                    <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="mb-1 text-[10px] text-slate-400">{t.priorityLabel}</div>
+                      <select
+                        value={formPriority}
+                        onChange={(e) => setFormPriority(e.target.value as Priority)}
+                        className="w-full bg-transparent appearance-none border-0 px-0 py-0 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="low">{t.prioLow}</option>
+                        <option value="normal">{t.prioNormal}</option>
+                        <option value="high">{t.prioHigh}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {formType === 'task' && (
+                    <input
+                      autoFocus
+                      type="text"
+                      className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="Titlu..."
+                    />
+                  )}
+
+                  <textarea
+                    className="text-base font-bold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20 min-h-[140px] resize-none"
+                    value={formText}
+                    onChange={(e) => setFormText(e.target.value)}
+                    placeholder={formType === 'task' ? 'Text...' : 'Descriere...'}
+                  />
+
+                  {formType === 'event' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                          {t.subevents}
+                        </label>
+                        <textarea
+                          className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20 min-h-[90px] resize-none"
+                          value={formSubtasks}
+                          onChange={(e) => setFormSubtasks(e.target.value)}
+                          placeholder={t.subitemsPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">
+                          {t.location}
+                        </label>
+                        <input
+                          type="text"
+                          className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-700 focus:ring-2 focus:ring-purple-500/20"
+                          value={formLocation}
+                          onChange={(e) => setFormLocation(e.target.value)}
+                          placeholder="Ex: Splaiul Unirii 45"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
+                          value={formDate}
+                          onChange={(e) => setFormDate(e.target.value)}
+                        />
+                        <input
+                          type="time"
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
+                          value={formTime}
+                          onChange={(e) => setFormTime(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={saveModal}
+                    className="w-full bg-purple-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-md active:scale-95 transition-all"
+                  >
+                    {t.save}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileView === 'reminder' && reminderModalItem && (
+            <div className="md:hidden pb-6">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={closeReminderModal}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">{t.reminderTitle}</span>
+                <span className="w-8"></span>
+              </div>
+
+              <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="space-y-4">
+                  <p className="text-sm font-semibold text-slate-600">
+                    {t.reminderNotifyBefore}: <span className="font-black text-slate-800">{reminderModalItem.text}</span>
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      {t.reminderDays}
+                      <input
+                        type="number"
+                        min={0}
+                        max={reminderMaxParts.days}
+                        value={reminderDays}
+                        onChange={(e) => setReminderDays(e.target.value)}
+                        className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                      />
+                    </label>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      {t.reminderHours}
+                      <input
+                        type="number"
+                        min={0}
+                        max={Number(reminderDays || '0') >= reminderMaxParts.days ? reminderMaxParts.hours : 23}
+                        value={reminderHours}
+                        onChange={(e) => setReminderHours(e.target.value)}
+                        className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                      />
+                    </label>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      {t.reminderMinutes}
+                      <input
+                        type="number"
+                        min={0}
+                        max={
+                          Number(reminderDays || '0') >= reminderMaxParts.days
+                          && Number(reminderHours || '0') >= reminderMaxParts.hours
+                            ? reminderMaxParts.minutes
+                            : 59
+                        }
+                        value={reminderMinutes}
+                        onChange={(e) => setReminderMinutes(e.target.value)}
+                        className="reminder-input mt-2 w-full rounded-xl border border-slate-300 bg-[#f8f9fb] px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{t.reminderChannel}</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setReminderChannel('email')}
+                        className={`reminder-channel-btn rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border ${reminderChannel === 'email' ? 'is-active bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                      >
+                        {t.reminderEmail}
+                      </button>
+                      <button
+                        type="button"
+                        disabled
+                        className="reminder-channel-btn is-disabled rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                      >
+                        {t.reminderSmsSoon}
+                      </button>
+                      <button
+                        type="button"
+                        disabled
+                        className="reminder-channel-btn is-disabled rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 bg-slate-100 text-slate-400"
+                      >
+                        {t.reminderPushSoon}
+                      </button>
+                    </div>
+                  </div>
+
+                  {reminderError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                      {reminderError}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={saveReminder}
+                      disabled={isReminderSaving || reminderMaxMinutes <= 0}
+                      className="bg-purple-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md disabled:opacity-60"
+                    >
+                      {t.reminderSave}
+                    </button>
+                    {reminderModalItem.reminderMinutesBefore !== undefined && (
+                      <button
+                        type="button"
+                        onClick={removeReminder}
+                        disabled={isReminderSaving}
+                        className="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 disabled:opacity-60"
+                      >
+                        {t.reminderRemove}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className={`space-y-4 ${mobileView !== 'list' ? 'max-[767px]:hidden' : ''}`}>
             {filteredItems.length === 0 ? (
               <div className="py-10 flex flex-col items-center">
@@ -3527,7 +3916,7 @@ const App: React.FC = () => {
                     <span>{group.dateLabel}</span>
                   </div>
                 )}
-                {group.items.map(item => (
+                {group.items.map((item, itemIndex) => (
                   <SwipeableCard
                     key={item.id}
                     enabled={isMobileViewport}
@@ -3555,7 +3944,7 @@ const App: React.FC = () => {
                               <div className="inline-flex items-center gap-0.5">
                                 {item.reminderMinutesBefore !== undefined && (
                                   <span className="mr-1 text-[11px] font-bold text-amber-600 whitespace-nowrap">
-                                    ~ {formatRemainingDuration(getItemDateTime(item) - Date.now())}
+                                    ~ {formatRemainingDuration(getItemDateTime(item) - Date.now(), language)}
                                   </span>
                                 )}
                                 <button
@@ -3585,7 +3974,7 @@ const App: React.FC = () => {
                               {isMobileViewport ? (
                                 <>
                                   <div
-                                    className="inline-flex items-center rounded-lg border px-2 py-0.5"
+                                    className="event-label-chip inline-flex items-center rounded-lg border px-2 py-0.5"
                                     style={{
                                       backgroundColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.15) : '#ffffff',
                                       borderColor: item.labelId ? hexToRgba(labelById.get(item.labelId)?.color ?? DEFAULT_LABEL_COLOR, 0.35) : '#cbd5e1',
@@ -3728,7 +4117,29 @@ const App: React.FC = () => {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex-1 min-w-0">
+                        <div className="relative flex-1 min-w-0 pr-7">
+                          <div className="absolute right-0 top-0 inline-flex flex-col items-center">
+                            <button
+                              type="button"
+                              onClick={() => moveNoteCard(item.id, 'up', group.items)}
+                              disabled={itemIndex === 0}
+                              className="h-4 w-4 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition-colors disabled:cursor-default disabled:opacity-30"
+                              aria-label="Move note up"
+                              title="Move up"
+                            >
+                              <i className="fas fa-chevron-up text-[8px]"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveNoteCard(item.id, 'down', group.items)}
+                              disabled={itemIndex === group.items.length - 1}
+                              className="h-4 w-4 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition-colors disabled:cursor-default disabled:opacity-30"
+                              aria-label="Move note down"
+                              title="Move down"
+                            >
+                              <i className="fas fa-chevron-down text-[8px]"></i>
+                            </button>
+                          </div>
                           <div className="text-lg max-[767px]:text-[15px] font-bold break-words leading-snug text-slate-900">
                             <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
                             <span>{item.title || item.text}</span>
@@ -3787,7 +4198,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Add/Edit Modal */}
-      {modalMode && !(isMobileViewport && mobileView === 'add' && modalMode === 'add') && (
+      {modalMode && !(isMobileViewport && ((mobileView === 'add' && modalMode === 'add') || (mobileView === 'edit' && modalMode === 'edit'))) && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeModal}></div>
           <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
@@ -3905,7 +4316,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {reminderModalItem && (
+      {reminderModalItem && !(isMobileViewport && mobileView === 'reminder') && (
         <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeReminderModal}></div>
           <div className="modal-surface reminder-modal relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
