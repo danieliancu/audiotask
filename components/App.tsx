@@ -11,7 +11,7 @@ import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@
 
 type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
 type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
-type MobileView = 'list' | 'calendar' | 'add' | 'edit' | 'reminder';
+type MobileView = 'list' | 'calendar' | 'add' | 'edit' | 'reminder' | 'search';
 type CalendarVariant = 'desktop' | 'modal' | 'mobile';
 type ItemLabel = { id: string; name: string; color: string };
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
@@ -36,6 +36,13 @@ const translations = {
     dateLabel: "Date",
     timeLabel: "Time",
     searchPlaceholder: "Search tasks or say a command...",
+    searchTitle: "Search",
+    searchTermPlaceholder: "Search term",
+    searchTypeLabel: "In",
+    searchAction: "Search",
+    searchResults: "Results",
+    searchNoResults: "No results found",
+    searchHint: "Enter a term and press Search",
     filterAll: "All tasks",
     filterAllPriorities: "All priorities",
     stopListening: "Stop",
@@ -108,6 +115,13 @@ const translations = {
     dateLabel: "Data",
     timeLabel: "Ora",
     searchPlaceholder: "Caută sarcini sau zi o comandă...",
+    searchTitle: "Cautare",
+    searchTermPlaceholder: "Termen cautat",
+    searchTypeLabel: "In",
+    searchAction: "Cautare",
+    searchResults: "Rezultate",
+    searchNoResults: "Nu am gasit rezultate",
+    searchHint: "Introdu un termen si apasa Cautare",
     filterAll: "Toate taskurile",
     filterAllPriorities: "Toate prioritatile",
     stopListening: "Opreste",
@@ -180,6 +194,13 @@ const translations = {
     dateLabel: "Date",
     timeLabel: "Heure",
     searchPlaceholder: "Rechercher ou parler...",
+    searchTitle: "Recherche",
+    searchTermPlaceholder: "Terme recherche",
+    searchTypeLabel: "Dans",
+    searchAction: "Rechercher",
+    searchResults: "Resultats",
+    searchNoResults: "Aucun resultat",
+    searchHint: "Saisissez un terme puis appuyez sur Rechercher",
     filterAll: "Toutes les tâches",
     filterAllPriorities: "Toutes les priorités",
     stopListening: "Arreter",
@@ -252,6 +273,13 @@ const translations = {
     dateLabel: "Datum",
     timeLabel: "Uhrzeit",
     searchPlaceholder: "Suchen oder Befehl sagen...",
+    searchTitle: "Suche",
+    searchTermPlaceholder: "Suchbegriff",
+    searchTypeLabel: "In",
+    searchAction: "Suchen",
+    searchResults: "Ergebnisse",
+    searchNoResults: "Keine Ergebnisse gefunden",
+    searchHint: "Suchbegriff eingeben und auf Suchen klicken",
     filterAll: "Alle Aufgaben",
     filterAllPriorities: "Alle Prioritäten",
     stopListening: "Stoppen",
@@ -324,6 +352,13 @@ const translations = {
     dateLabel: "Fecha",
     timeLabel: "Hora",
     searchPlaceholder: "Buscar tareas o decir un comando...",
+    searchTitle: "Buscar",
+    searchTermPlaceholder: "Termino de busqueda",
+    searchTypeLabel: "En",
+    searchAction: "Buscar",
+    searchResults: "Resultados",
+    searchNoResults: "No se encontraron resultados",
+    searchHint: "Introduce un termino y pulsa Buscar",
     filterAll: "Todas las tareas",
     filterAllPriorities: "Todas las prioridades",
     stopListening: "Detener",
@@ -508,6 +543,11 @@ const normalizeRomanianNumberWord = (word: string) => word
   .toLocaleLowerCase('ro-RO')
   .normalize('NFD')
   .replace(/\p{M}/gu, '');
+const normalizeSearchText = (value: string) => value
+  .toLocaleLowerCase()
+  .normalize('NFD')
+  .replace(/\p{M}/gu, '')
+  .trim();
 const normalizeLocation = (value: string, language: Language) => {
   let cleaned = value.trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ');
   if (language === 'ro') {
@@ -1051,6 +1091,11 @@ const App: React.FC = () => {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [reminderModalItemId, setReminderModalItemId] = useState<string | null>(null);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState<ItemType>('task');
+  const [searchResults, setSearchResults] = useState<TodoItem[]>([]);
+  const [searchHasExecuted, setSearchHasExecuted] = useState(false);
   const [reminderDays, setReminderDays] = useState('0');
   const [reminderHours, setReminderHours] = useState('0');
   const [reminderMinutes, setReminderMinutes] = useState('10');
@@ -1158,6 +1203,12 @@ const App: React.FC = () => {
     if (!isMobileViewport) {
       setMobileView('list');
       setIsFilterPanelOpen(false);
+    }
+  }, [isMobileViewport]);
+
+  useEffect(() => {
+    if (isMobileViewport) {
+      setIsSearchModalOpen(false);
     }
   }, [isMobileViewport]);
 
@@ -1554,38 +1605,6 @@ const App: React.FC = () => {
         return String(a.id).localeCompare(String(b.id));
       });
   }, [todos, activeTab, statusFilterByType, priorityFilterByType, activeDateFilters, activeDateFilterSet, selectedLabelIds]);
-  const visibleEventItemIdSet = useMemo(() => {
-    const statusFilter = statusFilterByType.event;
-    const priorityFilter = priorityFilterByType.event;
-    let base = todos.filter(item => item.type === 'event');
-    if (activeDateFilters.length) {
-      base = base.filter(item => {
-        const d = new Date(item.sortTimestamp);
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        return activeDateFilterSet.has(key);
-      });
-    }
-    const filtered = base
-      .filter(item => {
-        if (!selectedLabelIds.length) return true;
-        return Boolean(item.labelId && selectedLabelIds.includes(item.labelId));
-      })
-      .filter(item => {
-        if (statusFilter === 'closed') return item.completed;
-        if (statusFilter === 'open') return !item.completed;
-        if (statusFilter === 'outdated') return isItemOverdue(item);
-        if (statusFilter === 'in_time') return !item.completed && !isItemOverdue(item);
-        return true;
-      })
-      .filter(item => {
-        if (priorityFilter === 'low') return item.priority === 'low';
-        if (priorityFilter === 'normal') return item.priority === 'normal';
-        if (priorityFilter === 'high') return item.priority === 'high';
-        return true;
-      });
-    return new Set(filtered.map(item => item.id));
-  }, [todos, statusFilterByType.event, priorityFilterByType.event, activeDateFilters, activeDateFilterSet, selectedLabelIds]);
-
   const groupedItems = useMemo(() => {
     if (activeTab === 'task') {
       return [{ key: 'notes', dateLabel: t.tasks, items: filteredItems }];
@@ -1764,15 +1783,28 @@ const App: React.FC = () => {
     }, 150);
     if (!isLive) setTimeout(() => setHighlightedTaskId(prev => prev === id ? null : prev), 5000);
   }, [isLive]);
-  const openSelectedDateTask = useCallback((id: string) => {
-    if (!visibleEventItemIdSet.has(id)) return;
+  const focusEventInMain = useCallback((item: TodoItem) => {
+    if (item.type !== 'event') return;
+    const itemDate = new Date(item.sortTimestamp);
+    const itemDateKey = buildDateKey(itemDate);
+    setActiveTab('event');
+    setCurrentDate(new Date(itemDate.getFullYear(), itemDate.getMonth(), 1));
+    setActiveDateFilters([itemDateKey]);
+    setPendingDateStart(null);
+    setPendingDateEnd(null);
+    setStatusFilterByType(prev => (prev.event === 'all' ? prev : { ...prev, event: 'all' }));
+    setPriorityFilterByType(prev => (prev.event === 'all' ? prev : { ...prev, event: 'all' }));
+    setSelectedLabelIds([]);
     if (isMobileViewport) {
       setMobileView('list');
-      setTimeout(() => scrollToTask(id, 'event', { preserveDateFilters: true }), 80);
+      setTimeout(() => scrollToTask(item.id, 'event', { preserveDateFilters: true }), 80);
       return;
     }
-    scrollToTask(id, 'event', { preserveDateFilters: true });
-  }, [isMobileViewport, scrollToTask, visibleEventItemIdSet]);
+    scrollToTask(item.id, 'event', { preserveDateFilters: true });
+  }, [isMobileViewport, scrollToTask]);
+  const openSelectedDateTask = useCallback((item: TodoItem) => {
+    focusEventInMain(item);
+  }, [focusEventInMain]);
 
   const toggleSubitems = useCallback((id: string) => {
     setExpandedSubitems(prev => {
@@ -2642,6 +2674,110 @@ const App: React.FC = () => {
     setFormSubtasks('');
   };
 
+  const runSearch = useCallback(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchHasExecuted(false);
+      setSearchResults([]);
+      return;
+    }
+    const normalizedQuery = normalizeSearchText(query);
+    const matched = todos
+      .filter(item => item.type === searchType)
+      .filter(item => {
+        const labelName = item.labelId ? (labelNameById.get(item.labelId) ?? '') : '';
+        const subtasksText = item.subtasks?.map(subtask => subtask.text).join(' ') ?? '';
+        const source = [
+          item.id,
+          item.title ?? '',
+          item.text,
+          item.location ?? '',
+          item.dueDate ?? '',
+          item.dueTime ?? '',
+          labelName,
+          subtasksText
+        ].join(' ');
+        return normalizeSearchText(source).includes(normalizedQuery);
+      })
+      .sort((a, b) => {
+        if (searchType === 'task') {
+          if (a.sortTimestamp !== b.sortTimestamp) return b.sortTimestamp - a.sortTimestamp;
+          if (a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
+          return String(b.id).localeCompare(String(a.id));
+        }
+        const aTime = getItemDateTime(a);
+        const bTime = getItemDateTime(b);
+        if (aTime !== bTime) return aTime - bTime;
+        return String(a.id).localeCompare(String(b.id));
+      });
+    setSearchResults(matched);
+    setSearchHasExecuted(true);
+  }, [searchQuery, searchType, todos, labelNameById]);
+
+  const openSearchPanel = useCallback(() => {
+    resetComposerState();
+    setSearchType(activeTab);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchHasExecuted(false);
+    setIsCalendarOpen(false);
+    setIsFilterPanelOpen(false);
+    setIsFilterMenuOpen(false);
+    setIsLabelMenuOpen(false);
+    if (isMobileViewport) {
+      setMobileView('search');
+      return;
+    }
+    setIsSearchModalOpen(true);
+  }, [activeTab, isMobileViewport]);
+
+  const closeSearchPanel = useCallback(() => {
+    setIsSearchModalOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchHasExecuted(false);
+    if (isMobileViewport) {
+      setMobileView('list');
+    }
+  }, [isMobileViewport]);
+
+  const openSearchResult = useCallback((item: TodoItem) => {
+    closeSearchPanel();
+    if (item.type === 'event') {
+      focusEventInMain(item);
+      return;
+    }
+    if (isMobileViewport) {
+      setTimeout(() => scrollToTask(item.id, item.type), 80);
+      return;
+    }
+    scrollToTask(item.id, item.type);
+  }, [closeSearchPanel, focusEventInMain, isMobileViewport, scrollToTask]);
+
+  const getSearchItemSubtitle = useCallback((item: TodoItem) => {
+    if (item.type === 'event') {
+      const dateLabel = new Date(item.sortTimestamp).toLocaleDateString(language, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      return item.dueTime ? `${dateLabel} • ${item.dueTime}` : dateLabel;
+    }
+    const createdAtDate = new Date(item.createdAt);
+    const dateLabel = createdAtDate.toLocaleDateString(language, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    const timeLabel = createdAtDate.toLocaleTimeString(language, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      hourCycle: 'h23'
+    });
+    return `${dateLabel} • ${timeLabel}`;
+  }, [language]);
+
   const openCalendarPanel = () => {
     if (isMobileViewport) {
       resetComposerState();
@@ -2899,17 +3035,27 @@ const App: React.FC = () => {
     ? extractMeaningfulFilterWord(t.filterAll, language).toLocaleLowerCase(language)
     : mobileStatusLabel;
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
+  const isSearchActionDisabled = !searchQuery.trim();
+  const searchTypeLabel = searchType === 'task' ? t.tasks : t.events;
   const handleHomeLogoClick = useCallback(() => {
     if (!isMobileViewport) return;
-    if (mobileView === 'add') {
+    if (mobileView === 'add' || mobileView === 'edit') {
       closeModal();
+      return;
+    }
+    if (mobileView === 'reminder') {
+      closeReminderModal();
+      return;
+    }
+    if (mobileView === 'search') {
+      closeSearchPanel();
       return;
     }
     if (mobileView === 'calendar') {
       setMobileView('list');
       setIsCalendarOpen(false);
     }
-  }, [isMobileViewport, mobileView, closeModal]);
+  }, [isMobileViewport, mobileView, closeModal, closeReminderModal, closeSearchPanel]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-28 md:pb-20">
@@ -3033,6 +3179,15 @@ const App: React.FC = () => {
               <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                 {filteredEventCount}
               </span>
+            </button>
+            <button
+              type="button"
+              onClick={openSearchPanel}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 transition-colors hover:bg-gray-50"
+              aria-label={t.searchTitle}
+              title={t.searchTitle}
+            >
+              <i className="fas fa-search text-[13px]"></i>
             </button>
               {activeTab === 'event' && (
                 <div
@@ -3231,6 +3386,15 @@ const App: React.FC = () => {
                 <span className="absolute -top-[5px] -right-[5px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] text-white leading-none tracking-normal">
                   {filteredEventCount}
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={openSearchPanel}
+                className="h-9 w-9 inline-flex items-center justify-center text-gray-600 transition-colors hover:bg-gray-50"
+                aria-label={t.searchTitle}
+                title={t.searchTitle}
+              >
+                <i className="fas fa-search text-[12px]"></i>
               </button>
             </div>
             <div className="mt-3">
@@ -3501,7 +3665,7 @@ const App: React.FC = () => {
                           <button
                             key={`selected-${item.id}`}
                             type="button"
-                            onClick={() => openSelectedDateTask(item.id)}
+                            onClick={() => openSelectedDateTask(item)}
                             className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
                           >
                             <div className="flex items-center gap-3">
@@ -3889,6 +4053,103 @@ const App: React.FC = () => {
                       </button>
                     )}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileView === 'search' && (
+            <div className="md:hidden pb-6">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={closeSearchPanel}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">{t.searchTitle}</span>
+                <span className="w-8"></span>
+              </div>
+
+              <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="space-y-4">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSearchHasExecuted(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isSearchActionDisabled) runSearch();
+                    }}
+                    placeholder={t.searchTermPlaceholder}
+                    className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                  />
+
+                  <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{t.searchTypeLabel}</div>
+                    <select
+                      value={searchType}
+                      onChange={(e) => {
+                        setSearchType(e.target.value as ItemType);
+                        setSearchHasExecuted(false);
+                      }}
+                      className="w-full bg-transparent appearance-none border-0 px-0 py-0 text-xs font-bold text-slate-700 outline-none"
+                    >
+                      <option value="task">{t.tasks}</option>
+                      <option value="event">{t.events}</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={runSearch}
+                    disabled={isSearchActionDisabled}
+                    className={`w-full rounded-xl px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${isSearchActionDisabled ? 'cursor-not-allowed border border-gray-300 bg-gray-100 text-gray-400' : 'bg-purple-600 text-white shadow-md active:scale-95'}`}
+                  >
+                    {t.searchAction}
+                  </button>
+
+                  {!searchHasExecuted ? (
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-500">
+                      {t.searchHint}
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-500">
+                      {t.searchNoResults}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                        {t.searchResults}: {searchResults.length} • {searchTypeLabel}
+                      </div>
+                      {searchResults.map(item => {
+                        const itemTitle = item.type === 'task' ? (item.title || item.text) : item.text;
+                        const itemDescription = item.type === 'task' && item.title ? item.text : '';
+                        return (
+                          <button
+                            key={`search-mobile-${item.id}`}
+                            type="button"
+                            onClick={() => openSearchResult(item)}
+                            className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="truncate text-sm font-bold text-slate-900">{itemTitle}</div>
+                              <span className="text-[11px] font-semibold text-slate-400">#{item.id}</span>
+                            </div>
+                            {itemDescription && (
+                              <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>
+                            )}
+                            <div className="mt-1 text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -4429,6 +4690,102 @@ const App: React.FC = () => {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSearchModalOpen && (
+        <div className="fixed inset-0 z-[76] flex items-start justify-center p-4 pt-4 md:pt-8">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeSearchPanel}></div>
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeSearchPanel}
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+
+            <div className="mb-5">
+              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{t.searchTitle}</div>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchHasExecuted(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isSearchActionDisabled) runSearch();
+                }}
+                placeholder={t.searchTermPlaceholder}
+                className="text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none w-full px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+              />
+
+              <div className="mobile-add-select-surface rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{t.searchTypeLabel}</div>
+                <select
+                  value={searchType}
+                  onChange={(e) => {
+                    setSearchType(e.target.value as ItemType);
+                    setSearchHasExecuted(false);
+                  }}
+                  className="w-full bg-transparent appearance-none border-0 px-0 py-0 text-xs font-bold text-slate-700 outline-none"
+                >
+                  <option value="task">{t.tasks}</option>
+                  <option value="event">{t.events}</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={runSearch}
+                disabled={isSearchActionDisabled}
+                className={`w-full rounded-xl px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${isSearchActionDisabled ? 'cursor-not-allowed border border-gray-300 bg-gray-100 text-gray-400' : 'bg-purple-600 text-white shadow-md active:scale-95'}`}
+              >
+                {t.searchAction}
+              </button>
+
+              {!searchHasExecuted ? (
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-500">
+                  {t.searchHint}
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-500">
+                  {t.searchNoResults}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                    {t.searchResults}: {searchResults.length} • {searchTypeLabel}
+                  </div>
+                  {searchResults.map(item => {
+                    const itemTitle = item.type === 'task' ? (item.title || item.text) : item.text;
+                    const itemDescription = item.type === 'task' && item.title ? item.text : '';
+                    return (
+                      <button
+                        key={`search-desktop-${item.id}`}
+                        type="button"
+                        onClick={() => openSearchResult(item)}
+                        className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-colors hover:bg-slate-50"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate text-sm font-bold text-slate-900">{itemTitle}</div>
+                          <span className="text-[11px] font-semibold text-slate-400">#{item.id}</span>
+                        </div>
+                        {itemDescription && (
+                          <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>
+                        )}
+                        <div className="mt-1 text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
