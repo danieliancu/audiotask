@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -109,8 +109,18 @@ const formatDurationWords = (totalMinutes: number, language: Language) => {
       }
     }
   };
-  if (useDaysAndHours) return `${formatUnit(days, 'day')}, ${formatUnit(hours, 'hour')}`;
-  return `${formatUnit(hours, 'hour')}, ${formatUnit(minutes, 'minute')}`;
+  if (useDaysAndHours) {
+    const parts = [
+      days > 0 ? formatUnit(days, 'day') : '',
+      hours > 0 ? formatUnit(hours, 'hour') : ''
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : formatUnit(0, 'hour');
+  }
+  const parts = [
+    hours > 0 ? formatUnit(hours, 'hour') : '',
+    minutes > 0 ? formatUnit(minutes, 'minute') : ''
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : formatUnit(0, 'minute');
 };
 
 export default function RemindersPage() {

@@ -117,8 +117,8 @@ export default function AppHeader({
       <header className="max-w-7xl mx-auto px-4 pt-4">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
           <Link href="/" onClick={onHomeClick} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">VT</span>
+            <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-200 bg-white flex items-center justify-center">
+              <img src="/favicon.ico" alt={t.appTitle} className="h-7 w-7 object-contain" />
             </div>
             <div className="flex flex-col">
               <span className="font-semibold text-lg text-gray-900">{t.appTitle}</span>

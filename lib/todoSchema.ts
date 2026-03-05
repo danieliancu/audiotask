@@ -67,6 +67,12 @@ export function ensureTodoTrashSchema() {
       await pool.query("ALTER TABLE todos ADD COLUMN reminder_channel ENUM('email','sms','push') NULL DEFAULT NULL");
     }
 
+    const [dueEndTimeRows] = await pool.query("SHOW COLUMNS FROM todos LIKE 'due_end_time'");
+    const hasDueEndTime = Array.isArray(dueEndTimeRows) && dueEndTimeRows.length > 0;
+    if (!hasDueEndTime) {
+      await pool.query('ALTER TABLE todos ADD COLUMN due_end_time VARCHAR(10) NULL DEFAULT NULL AFTER due_time');
+    }
+
     await pool.query(`
       UPDATE todos t
       JOIN (

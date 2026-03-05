@@ -67,6 +67,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (body.createdAt !== undefined) pushField('created_at', Number(body.createdAt));
   if (body.dueDate !== undefined) pushField('due_date', body.dueDate ?? null);
   if (body.dueTime !== undefined) pushField('due_time', body.dueTime ?? null);
+  if (body.dueEndTime !== undefined) pushField('due_end_time', body.dueEndTime ?? null);
   if (body.location !== undefined) pushField('location', body.location ?? null);
   if (body.sortTimestamp !== undefined) pushField('sort_timestamp', Number(body.sortTimestamp));
   if (body.labelId !== undefined) {
@@ -91,6 +92,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const shouldResetReminder = (
     body.dueDate !== undefined
     || body.dueTime !== undefined
+    || body.dueEndTime !== undefined
     || body.sortTimestamp !== undefined
     || body.completed !== undefined
     || body.type !== undefined
@@ -134,6 +136,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     createdAt: Number(item.created_at),
     dueDate: item.due_date ?? undefined,
     dueTime: item.due_time ?? undefined,
+    dueEndTime: item.due_end_time ?? undefined,
     location: item.location ?? undefined,
     sortTimestamp: Number(item.sort_timestamp),
     type: item.type,

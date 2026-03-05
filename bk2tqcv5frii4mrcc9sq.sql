@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: bk2tqcv5frii4mrcc9sq-mysql.services.clever-cloud.com:21125
--- Generation Time: Feb 12, 2026 at 02:14 PM
+-- Generation Time: Mar 05, 2026 at 02:24 PM
 -- Server version: 8.4.7-7
 -- PHP Version: 8.2.30
 
@@ -24,54 +24,174 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `labels`
+--
+
+CREATE TABLE `labels` (
+  `id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `color` varchar(7) NOT NULL DEFAULT '#2563EB',
+  `created_at` bigint NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `labels`
+--
+
+INSERT INTO `labels` (`id`, `user_id`, `name`, `color`, `created_at`) VALUES
+(8, 2, 'Work', '#DC2626', 1770930438222),
+(14, 2, 'Fun', '#7C3AED', 1770982120713),
+(15, 2, 'Family', '#D97706', 1771067365428);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `reminder_jobs`
+--
+
+CREATE TABLE `reminder_jobs` (
+  `id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `todo_id` bigint NOT NULL,
+  `channel` enum('email','sms','push') NOT NULL,
+  `scheduled_for` bigint NOT NULL,
+  `status` enum('scheduled','sent','failed','canceled') NOT NULL DEFAULT 'scheduled',
+  `provider_job_id` varchar(255) DEFAULT NULL,
+  `error_message` varchar(512) DEFAULT NULL,
+  `attempts` int NOT NULL DEFAULT '0',
+  `created_at` bigint NOT NULL,
+  `sent_at` bigint DEFAULT NULL,
+  `canceled_at` bigint DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `reminder_jobs`
+--
+
+INSERT INTO `reminder_jobs` (`id`, `user_id`, `todo_id`, `channel`, `scheduled_for`, `status`, `provider_job_id`, `error_message`, `attempts`, `created_at`, `sent_at`, `canceled_at`) VALUES
+(25, 2, 90, 'email', 1771005000000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNCtiJEh1uTy6ZuzU98xnHmPhTPPsSvCYw58hHKGudke', NULL, 0, 1770988417216, NULL, 1770988433922),
+(26, 2, 90, 'email', 1771005000000, 'canceled', 'msg_7YoJxFpwkEy5zBp2S6u63kjJK6BH8dYDPeMM5VQo3S1LNJf7mPgXN', NULL, 0, 1770988438255, NULL, 1770988539161),
+(27, 2, 90, 'email', 1771003800000, 'canceled', 'msg_7YoJxFpwkEy5zBp2W1ee88Tn58oihA7eaFNMfmi8koCipu7WbeJj8', NULL, 0, 1770988539205, NULL, 1770989356487),
+(28, 2, 90, 'email', 1771003800000, 'canceled', 'msg_7YoJxFpwkEy6sUx67besCpsxnXBupRtUmwf5FLZmC1qJRbvXMKJ9J', NULL, 0, 1770989356523, NULL, 1770990921315),
+(32, 2, 90, 'email', 1771005000000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNC1RACo4KFcWS1Sgyj7JpiEBNZhFfmSfiCK5YVuYTAn', NULL, 0, 1770990967763, NULL, 1770991090014),
+(33, 2, 90, 'email', 1771003800000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNCtiJE9XrCjSQiedBVvpyk8Y6joGh3rKgRW9niTE38F', NULL, 0, 1770991287644, NULL, 1770992474695),
+(34, 2, 90, 'email', 1771002000000, 'canceled', 'msg_7YoJxFpwkEy6sUx4uzNh7MVDkRLkwUtpnRANwopE5DoyqeEMWX9aF', NULL, 0, 1770992494847, NULL, 1770997136809),
+(35, 2, 84, 'email', 1771051800000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNC1RADwowqthsCM8jzXNYbVLDA3LoC5FwAGYFb8UcCJ', NULL, 0, 1770992653402, NULL, 1770993530554),
+(36, 2, 84, 'email', 1771051800000, 'sent', 'msg_7YoJxFpwkEy5zBp3B5GCKBQVxyT4zcLgpf6Y5EK8mNMoCyFcifbCf', NULL, 1, 1770993592354, 1771051802142, NULL),
+(37, 2, 90, 'email', 1771003800000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNB882APriuzg4JHcznWzeWBAaPBQwANfVe6X4s5Vb52', NULL, 1, 1770997151375, 1771003802368, NULL),
+(38, 2, 102, 'email', 1771074600000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNB8829kh3A9ZLASPe1HQYqH3r58BzgD2VgyVmDbgTh3', NULL, 1, 1771067289310, 1771074600944, NULL),
+(41, 2, 103, 'email', 1771084200000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNC1RABg3Q6APaeWA7rYvuQDyZJ3ntWcQSoDaxuTB5c2', NULL, 0, 1771072572354, NULL, 1771072583301),
+(43, 2, 103, 'email', 1771083000000, 'canceled', 'msg_26hZCxZCuWyyTWPmSVBrNCtiJFF4CDxSswz25qzwvZ9PmzupcxqJFWuZY8BwsPS', NULL, 0, 1771072657699, NULL, 1771079752307),
+(47, 2, 97, 'email', 1771145400000, 'canceled', 'msg_7YoJxFpwkEy6sUx5WJz21Qk1pZVVBLtwfLiqG1jMZ8MKN6UnU4G3s', NULL, 0, 1771072935074, NULL, 1771073172802),
+(56, 2, 103, 'email', 1771083000000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNB8829qJc8mtBbS9VQ3rikBVjy8VYJu7jQUYdDVe75J', NULL, 1, 1771081611533, 1771083001046, NULL),
+(63, 2, 116, 'email', 1771662600000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNCtiJFKWXA2VheasvuYD1W2pSckeUnMZKvp7Fr1XuUM', NULL, 1, 1771608663513, 1771662602510, NULL),
+(64, 2, 118, 'email', 1771661700000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNC1RACJGtezq1xL7QxmUa37EDj69gDn1TJ2oRYMNjRq', NULL, 1, 1771608837913, 1771661702356, NULL),
+(65, 2, 134, 'email', 1772442000000, 'canceled', 'msg_7YoJxFpwkEy6sUx673bUkZjnUFKLVNUYLkyFNdvJmR3zKRoeg9rFS', NULL, 0, 1771930556483, NULL, 1772440199426),
+(66, 2, 132, 'email', 1771948800000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNB882AvGZNPR3VQmiCtA8TPswnjysKUUcD7gDCNnD56', NULL, 1, 1771930628628, 1771948801828, NULL),
+(72, 2, 97, 'email', 1772473800000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNB882BWkAx6Ne4emEp4r53C8Lc4gGhcxBnjmYSSRr4D', NULL, 1, 1772466515483, 1772473801214, NULL),
+(75, 2, 156, 'email', 1772559900000, 'sent', 'msg_26hZCxZCuWyyTWPmSVBrNC1RACrgHVWXK8BPmzuLpLcJdEmiM2Rz7e8BwkwfVxc', NULL, 1, 1772552911765, 1772559901194, NULL),
+(77, 2, 154, 'email', 1772873400000, 'scheduled', 'msg_26hZCxZCuWyyTWPmSVBrNC1RACup7aQKRkn8xmDpPQ5B8XUxkRFTiVZxL2suQ9d', NULL, 0, 1772651749871, NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `todos`
 --
 
 CREATE TABLE `todos` (
   `id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
+  `local_id` bigint NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `text` text COLLATE utf8mb4_general_ci NOT NULL,
   `completed` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` bigint NOT NULL,
   `due_date` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `due_time` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `due_end_time` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `location` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `sort_timestamp` bigint NOT NULL,
   `type` enum('task','event') COLLATE utf8mb4_general_ci NOT NULL,
   `priority` enum('low','normal','high') COLLATE utf8mb4_general_ci NOT NULL,
   `subtasks` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
-  `deleted_at` bigint DEFAULT NULL
+  `deleted_at` bigint DEFAULT NULL,
+  `label_id` bigint DEFAULT NULL,
+  `reminder_minutes_before` int DEFAULT NULL,
+  `reminder_channel` enum('email','sms','push') COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ;
 
 --
 -- Dumping data for table `todos`
 --
 
-INSERT INTO `todos` (`id`, `user_id`, `text`, `completed`, `created_at`, `due_date`, `due_time`, `location`, `sort_timestamp`, `type`, `priority`, `subtasks`, `deleted_at`) VALUES
-(12, 2, 'De luat diplomele', 0, 1770144936770, '06 februarie 2026', '11:00', NULL, 1770336000000, 'task', 'normal', NULL, NULL),
-(15, 2, 'De făcut cont la BCR', 1, 1770145174261, '05 februarie 2026', NULL, NULL, 1770249600000, 'task', 'normal', NULL, NULL),
-(23, 2, 'Programare la dentist', 1, 1770302589412, '06 februarie 2026', '13:00', 'Emil Racoviță 2', 1770336000000, 'event', 'high', NULL, 1770901032531),
-(25, 2, 'De plătit impozite prin ghișeul.ro', 0, 1770303999074, '06 februarie 2026', NULL, NULL, 1770336000000, 'task', 'normal', '[\"Locuință la sălcuța\",\"Teren la Petrăchioaia\"]', NULL),
-(28, 2, 'Întâlnire cu Cristina', 1, 1770312021789, '05 februarie 2026', '19:30', 'Vălsănești, 68', 1770249600000, 'task', 'normal', '[\"Luat hainele curate\",\"De vorbit despre firmă\"]', NULL),
-(33, 4, 'Alimente', 0, 1770313340921, '05 februarie 2026', NULL, NULL, 1770313340921, 'task', 'normal', NULL, NULL),
-(35, 2, 'De virat bani pt benzină în mașina lui Claudiu, prin BCR.', 0, 1770315241204, '06 februarie 2026', NULL, NULL, 1770336000000, 'task', 'normal', NULL, NULL),
-(38, 2, 'De luat ochelarii din mașină', 1, 1770419178552, '07 februarie 2026', '06:00', NULL, 1770422400000, 'task', 'normal', NULL, NULL),
-(40, 2, 'Banner sus pentru Helloromania.UK', 0, 1770471345953, '08 februarie 2026', '13:00', NULL, 1770508800000, 'event', 'normal', NULL, 1770902714827),
-(42, 2, 'Trimis antigravity lui Răzvan', 1, 1770480323838, '07 februarie 2026', NULL, NULL, 1770480323838, 'task', 'high', NULL, NULL),
-(45, 2, 'De luat copii de acolo', 1, 1770480437917, '07 februarie 2026', '18:00', 'Shopping Center', 1770422400000, 'event', 'high', NULL, NULL),
-(46, 2, 'Verificat plugin-ul jetpack pentru targetzerotraining.co.uk', 1, 1770480572422, '07 februarie 2026', '16:08', NULL, 1770422400000, 'event', 'high', NULL, NULL),
-(47, 2, 'Shopping', 0, 1770486588259, 'February 08, 2026', '11:00', NULL, 1770508800000, 'event', 'normal', '[\"Cumpără suport\",\"De cumpărat pantalon și bluză\",\"De cumpărat bandă dublu adezivă\"]', NULL),
-(51, 2, 'Cursuri cu Ștefan Piolet', 1, 1770488640158, '08 februarie 2026', '09:00', NULL, 1770508800000, 'event', 'normal', NULL, NULL),
-(53, 3, 'De plecat la muncă', 0, 1770496239086, '08 februarie 2026', '07:00', 'University Hospital South End On Sea', 1770508800000, 'event', 'normal', NULL, NULL),
-(54, 3, 'Să fac mâncare', 0, 1770496343400, '12 februarie 2026', NULL, NULL, 1770854400000, 'task', 'normal', NULL, NULL),
-(55, 2, 'De făcut biroul pentru sufragerie', 1, 1770549018488, '08 februarie 2026', '14:00', NULL, 1770508800000, 'event', 'normal', NULL, NULL),
-(56, 2, 'Shopping Amazon', 1, 1770555913356, '10 februarie 2026', '10:00', NULL, 1770681600000, 'event', 'normal', NULL, NULL),
-(58, 2, 'De luat copiii', 1, 1770659055095, 'February 09, 2026', '20:30', 'Garons', 1770595200000, 'event', 'normal', NULL, NULL),
-(60, 2, 'South and Tech meetup', 0, 1770714023936, '19 februarie 2026', '19:00', 'South And Sea', 1771459200000, 'event', 'normal', NULL, NULL),
-(62, 4, 'Întâlnirea cu Nea Petrică', 0, 1770821247929, '11 februarie 2026', '15:00', NULL, 1770768000000, 'event', 'normal', '[\"14:00 - întâlnire cu doamna Diana\",\"16:00 - întâlnire cu Nea Petrică\",\"17:00 - întâlnire cu Nea Vasilică\"]', NULL),
-(63, 2, 'Intalnire cu Alex', 0, 1770897368170, '19 februarie 2026', '18:00', 'Londra', 1771459200000, 'event', 'normal', NULL, NULL),
-(65, 2, 'De luat copiii de la spital', 0, 1770903279128, '12 februarie 2026', '17:00', 'South Kent University Hospital', 1770854400000, 'event', 'normal', NULL, NULL),
-(66, 2, 'Întâlnire', 0, 1770903314479, '12 februarie 2026', '16:00', 'Southend Hospital', 1770854400000, 'event', 'normal', NULL, 1770903371015);
+INSERT INTO `todos` (`id`, `user_id`, `local_id`, `title`, `text`, `completed`, `created_at`, `due_date`, `due_time`, `due_end_time`, `location`, `sort_timestamp`, `type`, `priority`, `subtasks`, `deleted_at`, `label_id`, `reminder_minutes_before`, `reminder_channel`) VALUES
+(25, 2, 1, 'De plătit impozite prin ghișeul.ro', 'De plătit impozite prin ghișeul.ro', 0, 1770303999074, NULL, NULL, NULL, NULL, 1772391155133, 'task', 'high', NULL, NULL, NULL, NULL, NULL),
+(33, 4, 1, 'Alimente', 'Alimente', 0, 1770313340921, NULL, NULL, NULL, NULL, 1770313340921, 'task', 'normal', NULL, 1771671115682, NULL, NULL, NULL),
+(35, 2, 2, 'De virat bani pt benzină în mașina lui Claudiu, prin BCR.', '', 0, 1770315241204, NULL, NULL, NULL, NULL, 1770303999074, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(53, 3, 1, NULL, 'De plecat la muncă', 0, 1770496239086, '08 februarie 2026', '07:00', NULL, 'University Hospital South End On Sea', 1770508800000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(54, 3, 2, 'Să fac mâncare', 'Să fac mâncare', 0, 1770496343400, NULL, NULL, NULL, NULL, 1770496343400, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(56, 2, 3, NULL, 'Shopping Amazon', 1, 1770555913356, '10 februarie 2026', '10:00', NULL, NULL, 1770681600000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(58, 2, 4, NULL, 'De luat copiii', 1, 1770659055095, 'February 09, 2026', '13:15', NULL, 'Garons', 1770595200000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(60, 2, 5, NULL, 'South and Tech meetup', 0, 1770714023936, 'February 19, 2026', '19:00', NULL, 'Southend on Sea', 1771459200000, 'event', 'normal', NULL, 1772381872508, NULL, NULL, NULL),
+(62, 4, 2, NULL, 'Întâlnirea cu Nea Petrică', 0, 1770821247929, '11 februarie 2026', '15:00', NULL, NULL, 1770768000000, 'event', 'normal', '[\"14:00 - întâlnire cu doamna Diana\",\"16:00 - întâlnire cu Nea Petrică\",\"17:00 - întâlnire cu Nea Vasilică\"]', 1771671248327, NULL, NULL, NULL),
+(63, 2, 6, NULL, 'Intalnire cu Alex', 0, 1770897368170, '19 februarie 2026', '18:00', NULL, 'Londra', 1771459200000, 'event', 'high', NULL, 1772368329001, 14, NULL, NULL),
+(65, 2, 7, NULL, 'De luat copiii de la spital', 1, 1770903279128, '12 februarie 2026', '17:00', NULL, 'South Kent University Hospital', 1770854400000, 'event', 'high', '[\"De ajuns acolo\",\"De mers acasa\"]', NULL, NULL, NULL, NULL),
+(69, 2, 9, NULL, 'Meeting online pentru printare 3d', 1, 1770910355756, '12 februarie 2026', '18:00', NULL, NULL, 1770854400000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
+(71, 2, 10, 'De luat Oliver', 'De luat Oliver de la Glenn acasă', 1, 1770918352321, 'February 13, 2026', '07:30', NULL, NULL, 1770940800000, 'event', 'high', NULL, NULL, 8, NULL, NULL),
+(84, 2, 23, NULL, 'Întâlnire cu Ștefan Piolet', 1, 1770970608387, '14 februarie 2026', '07:00', NULL, NULL, 1771027200000, 'event', 'normal', '[\"De rezolvat functiile javascript\",\"De dat test\"]', NULL, NULL, NULL, NULL),
+(90, 2, 29, NULL, 'Plimbare pana la mare', 1, 1770975666819, 'February 13, 2026', '18:00', NULL, NULL, 1770940800000, 'event', 'normal', NULL, NULL, 14, NULL, NULL),
+(97, 2, 33, NULL, 'Instalare noul device imprimanta 3D', 0, 1770993400640, '05 martie 2026', '18:00', NULL, NULL, 1772668800000, 'event', 'normal', NULL, NULL, 8, NULL, NULL),
+(98, 2, 34, NULL, 'Verificare electricitate acasă', 1, 1770998202712, '13 februarie 2026', '17:30', NULL, NULL, 1770940800000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(102, 2, 38, NULL, 'Înot cu Harry', 1, 1771067117731, '14 februarie 2026', '13:40', NULL, 'Garon Swimming Pool', 1771027200000, 'event', 'normal', NULL, NULL, 15, NULL, NULL),
+(103, 2, 39, NULL, 'Tuns pentru Patrick la Tony and Guy', 1, 1771067176175, 'February 14, 2026', '16:00', NULL, 'Royal Mall', 1771027200000, 'event', 'normal', NULL, NULL, 15, NULL, NULL),
+(105, 2, 41, NULL, 'Cod pentru Velvet Drivers', 1, 1771079547666, '02 martie 2026', '17:00', NULL, NULL, 1772409600000, 'event', 'normal', NULL, NULL, 8, NULL, NULL),
+(108, 2, 44, NULL, 'Ieșit afară cu drona', 1, 1771082274624, '22 februarie 2026', '12:00', NULL, NULL, 1771718400000, 'event', 'normal', NULL, 1772466444307, NULL, NULL, NULL),
+(109, 2, 45, 'AWS Services', 'AM instalat un serviciu nou la AWS, pe contul reminders@voicetask.net.\nEste free pana pe 15 August 2026 (6 luni) in limita a 200 de dolari.\nEste pentru proiectul ai-code-master.vercel.app', 0, 1771152162109, NULL, NULL, NULL, NULL, 1770315241204, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(112, 2, 48, NULL, 'De cumpărat medicamente', 1, 1771170316261, '20 februarie 2026', NULL, NULL, 'Tesco', 1771545600000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
+(115, 2, 51, NULL, 'Service pentru Dacia', 1, 1771262036698, '25 februarie 2026', '08:00', NULL, NULL, 1771977600000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
+(116, 2, 52, NULL, 'Call online cu Ștefan Piolet', 1, 1771608611282, 'February 21, 2026', '09:00', NULL, NULL, 1771632000000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(118, 2, 54, NULL, 'De dus Maria la înot', 1, 1771608822623, 'February 21, 2026', '08:45', NULL, NULL, 1771632000000, 'event', 'normal', NULL, 1772466453211, NULL, NULL, NULL),
+(119, 2, 55, 'De verificat zboruri in Romania', '', 0, 1771611979020, NULL, NULL, NULL, NULL, 1771152162109, 'task', 'high', NULL, NULL, NULL, NULL, NULL),
+(120, 2, 56, 'Am instalat AWS pe contul de email de munca gratis 6 luni, pt baze de date serverless.', 'Este pentru proiectul ai-code-master.vercel.app', 0, 1771612029508, NULL, NULL, NULL, NULL, 1771612029508, 'task', 'high', NULL, 1772307941376, NULL, NULL, NULL),
+(121, 2, 57, 'De rezolvat pașaportul lui Patrick', '', 0, 1771612181251, NULL, NULL, NULL, NULL, 1771611979020, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(122, 2, 58, NULL, 'Întâlnire cu Alex. la stratfod', 1, 1771616781128, 'February 22, 2026', '11:00', NULL, NULL, 1771718400000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(123, 4, 3, 'Maioneză', 'maioneză', 0, 1771671125800, NULL, NULL, NULL, NULL, 1771671125800, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(124, 4, 4, 'Gel', 'salina un gel', 0, 1771671130928, NULL, NULL, NULL, NULL, 1771671130928, 'task', 'normal', NULL, 1771671151284, NULL, NULL, NULL),
+(125, 4, 5, 'Oua', 'oua', 0, 1771671132772, NULL, NULL, NULL, NULL, 1771671132772, 'task', 'normal', NULL, 1771671147537, NULL, NULL, NULL),
+(126, 4, 6, 'Ulei', 'ulei', 0, 1771671133358, NULL, NULL, NULL, NULL, 1771671133358, 'task', 'normal', NULL, 1771671145479, NULL, NULL, NULL),
+(127, 4, 7, 'Cartofi', 'cartofi', 0, 1771671133897, NULL, NULL, NULL, NULL, 1771671133897, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(128, 4, 8, 'Alimente', 'Lista de alimente', 0, 1771671187282, NULL, NULL, NULL, NULL, 1771671187282, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(130, 2, 60, NULL, 'De anulat abonamentul Linkedin for free!!!!!!', 0, 1771779731264, '21 martie 2026', NULL, NULL, NULL, 1774051200000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
+(131, 2, 61, 'Am adaugat abonament Premium la Linkedin. De anulat.', 'este deja rezervat și la task uri', 0, 1771779779011, NULL, NULL, NULL, NULL, 1771612181251, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(132, 2, 62, NULL, 'Contactat Simona pentru semnătură electronică pentru schimbare Cod CAEN', 0, 1771833418160, '05 martie 2026', '17:00', NULL, NULL, 1772668800000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(133, 2, 63, NULL, 'Telefon cu Ema.', 1, 1771928345975, '26 februarie 2026', '16:30', NULL, NULL, 1772064000000, 'event', 'normal', '[\"Vorbesc din masina\"]', NULL, NULL, NULL, NULL),
+(134, 2, 64, NULL, 'Pașapoarte copii', 1, 1771930534552, '03 martie 2026', '09:00', NULL, 'London', 1772496000000, 'event', 'normal', '[]', NULL, 15, NULL, NULL),
+(135, 2, 65, NULL, 'Întâlnire cu Leo', 0, 1771943427541, '25 februarie 2026', '17:00', NULL, 'Chockwell Park', 1771977600000, 'event', 'normal', NULL, 1772105462853, NULL, NULL, NULL),
+(136, 2, 66, NULL, 'Curs cu Stefan Piolet', 1, 1772105150638, '01 martie 2026', '08:00', NULL, NULL, 1772323200000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(137, 2, 67, NULL, 'De luat medicamente de la Tesco.', 1, 1772118746835, '26 februarie 2026', '17:00', NULL, 'Tesco Southend', 1772064000000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(138, 2, 68, 'Aplicații în lucru', '- ride4kids\n- hacks chatGPT (prompt deocamdata)\n- cod functions pt Stefan (cursuri.net, aistudio deocamdata)\n- ceasuri Mihaela (Lovable)\n- fucking velvetul curului', 0, 1772307738066, NULL, NULL, NULL, NULL, 1771779779011, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(139, 2, 69, NULL, 'Întâlnire cu Mati din Franța', 1, 1772361541654, '01 martie 2026', '17:00', NULL, 'Southend On Sea', 1772323200000, 'event', 'high', '[\"De vorbit despre aplicatie\",\"De rezolvat cu statutul lui Razvan\",\"De stabilit întâlnirea viitoare\"]', NULL, 8, NULL, NULL),
+(140, 2, 70, 'Nota noua', 'vreau ceva aici', 0, 1772378289010, NULL, NULL, NULL, NULL, 1772378289010, 'task', 'normal', '[\"Unu\",\"Doi\"]', 1772378555384, NULL, NULL, NULL),
+(141, 2, 71, NULL, 'De luat concediu pentru marți, pentru pașapoarte', 1, 1772389781114, '02 martie 2026', '08:00', NULL, 'Chelmsford', 1772409600000, 'event', 'high', NULL, NULL, 8, NULL, NULL),
+(142, 2, 72, 'Rezolvare aplicatie VoiceTask', '- ora inceput / ora sfarsit\n\n- la notite sa fie spatiul de scris mai mare si sa ai basic de edit pe texte.\n\n\n\n\n__________________________________________\n- să poți da stop oricând la ascultare, și pe desktop\n- cand vorbește înapoi, să se oprească din modul de ascultare\n- sa se poata muta cardurile de la notite sus/jos\n- sa nu mai scrie \"Limbi\" la limbi\n- cand alegi o zi din calendar \"rapid\" sa nu se mai reseteze selectia de calendar\n- la lista scurta de la calendar - pills cu Realizat/Depasit daca e cazul\n- la reminder schimbat \"inainte cu\", sunt 1440minute\n- la mobil, de inlocuit modalurile cu ecrane la edit si alarma\n- de adus tool de search', 0, 1772391155133, NULL, NULL, NULL, NULL, 1772668800000, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(143, 2, 73, 'Lista de servicii platite', '- Suno\n- Youtube premium\n- Clever DB\n- Meshy AI\n- Linkedin\n- AWS (gratis 6 luni - il folosesc la ai-master-code)\n- Romarg\n- Telefon Romania', 0, 1772391500080, NULL, NULL, NULL, NULL, 1772307738066, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
+(144, 2, 74, NULL, 'Concert cargo', 0, 1772393793297, '13 martie 2026', '19:00', NULL, 'Scala London', 1773360000000, 'event', 'normal', '[]', NULL, 14, NULL, NULL),
+(145, 2, 75, NULL, 'JavaScript plus database pentru Ștefan', 0, 1772396819179, '05 martie 2026', '12:00', NULL, NULL, 1772668800000, 'event', 'normal', NULL, 1772697807224, 8, NULL, NULL),
+(146, 2, 76, NULL, 'De făcut modificările indicate de Fayz', 1, 1772396888509, '02 martie 2026', '08:15', NULL, NULL, 1772409600000, 'event', 'low', NULL, NULL, NULL, NULL, NULL),
+(147, 10, 1, NULL, 'Pian', 0, 1772405334735, '16 mars 2026', '18:00', NULL, 'Conservatoire Cachan', 1773615600000, 'event', 'normal', '[\"Audition piano salle rameau\"]', NULL, NULL, NULL, NULL),
+(148, 10, 2, NULL, 'Cours de danse', 0, 1772405556075, 'March 02, 2026', NULL, NULL, NULL, 1772406000000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(149, 2, 77, NULL, 'De plătit amenda', 0, 1772474053723, '05 martie 2026', NULL, NULL, 'Chelmsford', 1772668800000, 'event', 'high', '[{\"text\":\"Un subtask\",\"completed\":false},{\"text\":\"Doua subtaskuri\",\"completed\":false}]', 1772697836549, NULL, NULL, NULL),
+(150, 2, 78, 'Întâlnire pentru velvet', 'Întâlnire pentru velvet', 1, 1772474498168, '02 martie 2026', '21:00', NULL, NULL, 1772409600000, 'event', 'normal', NULL, NULL, 8, NULL, NULL),
+(151, 2, 79, 'Sa cumpar lapte si oua', 'sa cumpar lapte si oua', 0, 1772474517414, NULL, NULL, NULL, NULL, 1772474517414, 'task', 'normal', NULL, 1772486757217, NULL, NULL, NULL),
+(152, 2, 80, NULL, 'Sedinta', 0, 1772474518345, '02 martie 2026', '19:00', NULL, NULL, 1772409600000, 'event', 'normal', NULL, 1772474548447, NULL, NULL, NULL),
+(153, 2, 81, NULL, 'Adam la înot', 0, 1772547176318, '07 martie 2026', '13:45', NULL, 'Garrons', 1772841600000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(154, 2, 82, NULL, 'Maria la înot', 0, 1772547200258, '07 martie 2026', '09:00', NULL, 'Garrons', 1772841600000, 'event', 'normal', NULL, NULL, NULL, 10, 'email'),
+(155, 2, 83, NULL, 'De returnat dulap la ikea', 0, 1772551481877, '07 martie 2026', NULL, NULL, 'Ikea Lakeside', 1772841600000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(156, 2, 84, NULL, 'De sunat cofe', 1, 1772552894844, '03 martie 2026', '18:15', NULL, NULL, 1772496000000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(157, 2, 85, 'De verificat pașapoartele băieților', 'De verificat pașapoartele băieților', 0, 1772634290699, '04 aprilie 2026', NULL, NULL, NULL, 1775257200000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
+(158, 2, 86, NULL, 'Mini League pentru Adam', 0, 1772647143578, '14 martie 2026', '14:00', NULL, 'Garons', 1773446400000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
+(159, 2, 87, NULL, 'Task pentru astăzi la 8', 0, 1772694474556, '05 martie 2026', '08:00', '16:00', NULL, 1772668800000, 'event', 'normal', '[{\"text\":\"Verificat react nativ\",\"completed\":false},{\"text\":\"De plătit amenda de parcare\",\"completed\":false},{\"text\":\"Pentru Velvet Drivers\",\"completed\":false},{\"text\":\"Bază de date pentru Ștefan\",\"completed\":false},{\"text\":\"De plătit telefonul pentru România\",\"completed\":false},{\"text\":\"De găsit bilet pentru România\",\"completed\":false},{\"text\":\"De plătit Romarg\",\"completed\":false}]', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -98,7 +218,8 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `email`, `name`, `image`, `password_hash`, `provider`, `provider_account_id`, `created_at`, `updated_at`) VALUES
 (2, 'dani.iancu@yahoo.com', 'Daniel Iancu', NULL, '$2b$10$Qhu9Q.2iiTzTQEGlJPxCTOyYRbRR7KFEIqVNSifewb7CgOXFKysru', 'credentials', NULL, '2026-02-03 17:34:37', '2026-02-03 17:34:37'),
 (3, 'ioanaiancu15@gmail.com', 'Ioana', NULL, '$2b$10$xFsfgqoy1ELGzx1GNFNEEeUkwmdOFXWm4UUB1sOBjvYLiFx9THvja', 'credentials', NULL, '2026-02-05 15:40:44', '2026-02-05 15:40:44'),
-(4, 'claudiuiancu2008@gmail.com', 'Claudiu', NULL, '$2b$10$KVi5Hzw6hZeDerAA0SUWTOuqtVzBgWMmDjATp2AuR44nM.Rhzckz6', 'credentials', NULL, '2026-02-05 17:18:50', '2026-02-05 17:18:50');
+(4, 'claudiuiancu2008@gmail.com', 'Claudiu', NULL, '$2b$10$KVi5Hzw6hZeDerAA0SUWTOuqtVzBgWMmDjATp2AuR44nM.Rhzckz6', 'credentials', NULL, '2026-02-05 17:18:50', '2026-02-05 17:18:50'),
+(10, 'alexia_kin@hotmail.fr', 'Zamfir Maria', NULL, '$2b$10$wUa/EFvMfRvDlI2Bkv64AeJilpRR7/jyJCJl1IU5AXNla3GqQWvyG', 'credentials', NULL, '2026-03-01 22:46:55', '2026-03-01 22:46:55');
 
 -- --------------------------------------------------------
 
@@ -110,35 +231,57 @@ CREATE TABLE `user_settings` (
   `user_id` bigint NOT NULL,
   `active_tab` enum('task','event') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'task',
   `language` varchar(10) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'en',
+  `color_scheme` varchar(10) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'light',
   `active_date_filters` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   `filter_task` varchar(20) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'all',
   `filter_event` varchar(20) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'all',
   `calendar_month` varchar(7) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `default_language` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `default_active_tab` enum('task','event') COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `default_show_subtasks` tinyint(1) NOT NULL DEFAULT '0'
+  `default_show_subtasks` tinyint(1) NOT NULL DEFAULT '0',
+  `default_font_size` enum('small','normal','large') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'normal'
 ) ;
 
 --
 -- Dumping data for table `user_settings`
 --
 
-INSERT INTO `user_settings` (`user_id`, `active_tab`, `language`, `active_date_filters`, `filter_task`, `filter_event`, `calendar_month`, `default_language`, `default_active_tab`, `default_show_subtasks`) VALUES
-(2, 'event', 'ro', '[\"2026-1-12\",\"2026-1-13\",\"2026-1-14\",\"2026-1-15\",\"2026-1-16\",\"2026-1-17\",\"2026-1-18\",\"2026-1-19\"]', 'all', 'all', '2026-02', 'ro', 'event', 1),
-(3, 'task', 'ro', '[]', 'all', 'all', '2026-02', NULL, NULL, 0),
-(4, 'event', 'ro', '[]', 'all', 'all', '2026-02', 'ro', 'task', 1);
+INSERT INTO `user_settings` (`user_id`, `active_tab`, `language`, `color_scheme`, `active_date_filters`, `filter_task`, `filter_event`, `calendar_month`, `default_language`, `default_active_tab`, `default_show_subtasks`, `default_font_size`) VALUES
+(2, 'event', 'ro', 'light', '[\"2026-2-1\",\"2026-2-2\",\"2026-2-3\",\"2026-2-4\",\"2026-2-5\",\"2026-2-6\",\"2026-2-7\"]', 'all|all', 'open|all', '2026-03', NULL, NULL, 1, 'small'),
+(3, 'task', 'ro', 'light', '[]', 'all|all', 'all|all', '2026-02', NULL, NULL, 0, 'normal'),
+(4, 'task', 'ro', 'light', '[]', 'all|all', 'all|all', '2026-02', 'ro', 'task', 1, 'normal'),
+(10, 'event', 'fr', 'light', '[\"2026-2-12\",\"2026-2-13\",\"2026-2-14\",\"2026-2-15\",\"2026-2-16\",\"2026-2-17\",\"2026-2-18\",\"2026-2-19\",\"2026-2-20\",\"2026-2-21\"]', 'all|all', 'all|all', '2026-03', NULL, NULL, 0, 'normal');
 
 --
 -- Indexes for dumped tables
 --
 
 --
+-- Indexes for table `labels`
+--
+ALTER TABLE `labels`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_user_label_name` (`user_id`,`name`),
+  ADD KEY `idx_labels_user` (`user_id`);
+
+--
+-- Indexes for table `reminder_jobs`
+--
+ALTER TABLE `reminder_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_reminder_jobs_due` (`status`,`scheduled_for`),
+  ADD KEY `idx_reminder_jobs_todo` (`todo_id`),
+  ADD KEY `fk_reminder_jobs_user` (`user_id`);
+
+--
 -- Indexes for table `todos`
 --
 ALTER TABLE `todos`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_todos_user_local_id` (`user_id`,`local_id`),
   ADD KEY `fk_todos_user` (`user_id`),
-  ADD KEY `idx_todos_user_deleted` (`user_id`,`deleted_at`);
+  ADD KEY `idx_todos_user_deleted` (`user_id`,`deleted_at`),
+  ADD KEY `idx_todos_label` (`label_id`);
 
 --
 -- Indexes for table `users`
@@ -159,6 +302,18 @@ ALTER TABLE `user_settings`
 --
 
 --
+-- AUTO_INCREMENT for table `labels`
+--
+ALTER TABLE `labels`
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+
+--
+-- AUTO_INCREMENT for table `reminder_jobs`
+--
+ALTER TABLE `reminder_jobs`
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=78;
+
+--
 -- AUTO_INCREMENT for table `todos`
 --
 ALTER TABLE `todos`
@@ -168,16 +323,30 @@ ALTER TABLE `todos`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Constraints for dumped tables
 --
 
 --
+-- Constraints for table `labels`
+--
+ALTER TABLE `labels`
+  ADD CONSTRAINT `fk_labels_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `reminder_jobs`
+--
+ALTER TABLE `reminder_jobs`
+  ADD CONSTRAINT `fk_reminder_jobs_todo` FOREIGN KEY (`todo_id`) REFERENCES `todos` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_reminder_jobs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `todos`
 --
 ALTER TABLE `todos`
+  ADD CONSTRAINT `fk_todos_label` FOREIGN KEY (`label_id`) REFERENCES `labels` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_todos_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --

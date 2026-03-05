@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS todos (
   created_at BIGINT NOT NULL,
   due_date VARCHAR(32),
   due_time VARCHAR(10),
+  due_end_time VARCHAR(10),
   location VARCHAR(255),
   sort_timestamp BIGINT NOT NULL,
   type ENUM('task','event') NOT NULL,

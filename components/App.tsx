@@ -35,6 +35,7 @@ const translations = {
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Time",
+    endTimeLabel: "End time",
     searchPlaceholder: "Search tasks or say a command...",
     searchTitle: "Search",
     searchTermPlaceholder: "Search term",
@@ -102,19 +103,20 @@ const translations = {
     tasks: "Notite",
     events: "Taskuri",
     clear: "Curăță",
-    listening: "Se ascultă...",
-    placeholder: "Scrie o comandă...",
+    listening: "Se asculta...",
+    placeholder: "Scrie o comanda...",
     noTasks: "Nicio notita gasita",
     noEvents: "Niciun task gasit",
-    settings: "Setări",
-    language: "Limbă",
+    settings: "Setari",
+    language: "Limba",
     languages: "Limbi",
     close: "Închide",
     appTitle: "VoiceTask",
     idLabel: "ID",
     dateLabel: "Data",
     timeLabel: "Ora",
-    searchPlaceholder: "Caută sarcini sau zi o comandă...",
+    endTimeLabel: "Ora sfarsit",
+    searchPlaceholder: "Cauta sarcini sau zi o comanda...",
     searchTitle: "Cautare",
     searchTermPlaceholder: "Termen cautat",
     searchTypeLabel: "In",
@@ -126,34 +128,34 @@ const translations = {
     filterAllPriorities: "Toate prioritatile",
     stopListening: "Opreste",
     statusLabel: "Status",
-    actionVoiceCommand: "Comandă vocală",
+    actionVoiceCommand: "Comanda vocala",
     actionCalendar: "Calendar",
-    actionAdd: "Adăugare",
+    actionAdd: "Adaugare",
     filterResolved: "Bifate",
     filterUnresolved: "Active",
     filterOverdue: "Depășite",
     filterInTime: "În timp",
-    filterLow: "Prioritate mică",
-    filterNormal: "Prioritate normală",
+    filterLow: "Prioritate mica",
+    filterNormal: "Prioritate normala",
     filterHigh: "Prioritate mare",
     priorityLabel: "Prioritate",
     labelsTitle: "Etichete",
     allLabels: "Toate etichetele",
-    addLabel: "Adaugă etichetă...",
-    labelNamePlaceholder: "Nume etichetă",
-    prioLow: "Mică",
-    prioNormal: "Normală",
+    addLabel: "Adauga eticheta...",
+    labelNamePlaceholder: "Nume eticheta",
+    prioLow: "Mica",
+    prioNormal: "Normala",
     prioHigh: "Mare",
     outdated: "Depasit",
-    save: "Salvează",
-    clearFilter: "Resetează data",
-    selectDates: "Selectează aceste date",
-    selectPeriod: "Selectează o perioadă",
+    save: "Salveaza",
+    clearFilter: "Reseteaza data",
+    selectDates: "Selecteaza aceste date",
+    selectPeriod: "Selecteaza o perioada",
     location: "Locație",
     subtasks: "Subtask-uri",
     subevents: "Subevenimente",
     subitemsPlaceholder: "Câte unul pe linie",
-    menuHome: "Acasă",
+    menuHome: "Acasa",
     menuBlog: "Blog",
     menuFeatures: "Funcționalități",
     menuPricing: "Prețuri",
@@ -193,6 +195,7 @@ const translations = {
     idLabel: "ID",
     dateLabel: "Date",
     timeLabel: "Heure",
+    endTimeLabel: "Heure de fin",
     searchPlaceholder: "Rechercher ou parler...",
     searchTitle: "Recherche",
     searchTermPlaceholder: "Terme recherche",
@@ -272,6 +275,7 @@ const translations = {
     idLabel: "ID",
     dateLabel: "Datum",
     timeLabel: "Uhrzeit",
+    endTimeLabel: "Endzeit",
     searchPlaceholder: "Suchen oder Befehl sagen...",
     searchTitle: "Suche",
     searchTermPlaceholder: "Suchbegriff",
@@ -351,6 +355,7 @@ const translations = {
     idLabel: "ID",
     dateLabel: "Fecha",
     timeLabel: "Hora",
+    endTimeLabel: "Hora de fin",
     searchPlaceholder: "Buscar tareas o decir un comando...",
     searchTitle: "Buscar",
     searchTermPlaceholder: "Termino de busqueda",
@@ -417,11 +422,11 @@ const translations = {
 };
 
 const languageFlags: Record<Language, string> = {
-  en: "🇺🇸",
-  ro: "🇷🇴",
-  fr: "🇫🇷",
-  de: "🇩🇪",
-  es: "🇪🇸"
+  en: "US",
+  ro: "RO",
+  fr: "FR",
+  de: "DE",
+  es: "ES"
 };
 
 const languageNames: Record<Language, string> = {
@@ -476,7 +481,7 @@ const localeByLanguage: Record<Language, string> = {
 };
 const smallWordsByLanguage: Record<Language, Set<string>> = {
   en: new Set(['a', 'an', 'and', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to']),
-  ro: new Set(['a', 'al', 'ale', 'ai', 'cu', 'de', 'din', 'fara', 'fără', 'in', 'în', 'la', 'pe', 'pentru', 'si', 'și', 'spre', 'sau', 'ori']),
+  ro: new Set(['a', 'al', 'ale', 'ai', 'cu', 'de', 'din', 'fara', 'fara', 'in', 'în', 'la', 'pe', 'pentru', 'si', '?i', 'spre', 'sau', 'ori']),
   fr: new Set(['a', 'à', 'au', 'aux', 'd', 'de', 'des', 'du', 'en', 'et', 'l', 'la', 'le', 'les', 'ou']),
   de: new Set(['am', 'an', 'auf', 'bei', 'das', 'der', 'die', 'im', 'in', 'mit', 'oder', 'und', 'von', 'zu', 'für']),
   es: new Set(['a', 'al', 'con', 'de', 'del', 'el', 'en', 'la', 'las', 'los', 'o', 'por', 'para', 'y'])
@@ -553,8 +558,8 @@ const normalizeLocation = (value: string, language: Language) => {
   if (language === 'ro') {
     cleaned = cleaned.replace(/^\s*(aleea|alea)\s+/i, '');
     cleaned = cleaned.replace(/^\s*(strada|str\.?)\s+/i, '');
-    cleaned = cleaned.replace(/\b(num[ăa]r(ul|u)?|nr\.?)\s+(\d+)\b/gi, '$3');
-    cleaned = cleaned.replace(/\b(num[ăa]r(ul|u)?|nr\.?)\s+([^\d\W]+)\b/gi, (match, _label, _suffix, rawWord) => {
+    cleaned = cleaned.replace(/\b(num[aa]r(ul|u)?|nr\.?)\s+(\d+)\b/gi, '$3');
+    cleaned = cleaned.replace(/\b(num[aa]r(ul|u)?|nr\.?)\s+([^\d\W]+)\b/gi, (match, _label, _suffix, rawWord) => {
       const key = normalizeRomanianNumberWord(rawWord);
       const map: Record<string, string> = {
         un: '1',
@@ -612,6 +617,28 @@ const normalizeSubitems = (value: unknown, options?: { capitalizeText?: boolean 
     })
     .filter((item): item is SubtaskItem => Boolean(item));
   return cleaned.length ? cleaned : undefined;
+};
+const mergeSubitemsWithExistingCompletion = (nextSubitems: SubtaskItem[] | undefined, existingSubitems?: SubtaskItem[]) => {
+  if (!nextSubitems?.length) return undefined;
+  if (!existingSubitems?.length) return nextSubitems;
+
+  const completionByText = new Map<string, boolean[]>();
+  existingSubitems.forEach((subitem) => {
+    const key = subitem.text.trim().toLocaleLowerCase();
+    if (!completionByText.has(key)) completionByText.set(key, []);
+    completionByText.get(key)!.push(Boolean(subitem.completed));
+  });
+
+  return nextSubitems.map((subitem) => {
+    const key = subitem.text.trim().toLocaleLowerCase();
+    const queue = completionByText.get(key);
+    if (!queue?.length) return subitem;
+    const preservedCompleted = queue.shift();
+    return {
+      ...subitem,
+      completed: Boolean(preservedCompleted)
+    };
+  });
 };
 const normalizeTodoForState = (item: TodoItem): TodoItem => ({
   ...item,
@@ -693,8 +720,18 @@ const formatRemainingDuration = (totalMs: number, language: Language) => {
       }
     }
   };
-  if (useDaysAndHours) return `${formatUnit(days, 'day')}, ${formatUnit(hours, 'hour')}`;
-  return `${formatUnit(hours, 'hour')}, ${formatUnit(minutes, 'minute')}`;
+  if (useDaysAndHours) {
+    const parts = [
+      days > 0 ? formatUnit(days, 'day') : '',
+      hours > 0 ? formatUnit(hours, 'hour') : ''
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : formatUnit(0, 'hour');
+  }
+  const parts = [
+    hours > 0 ? formatUnit(hours, 'hour') : '',
+    minutes > 0 ? formatUnit(minutes, 'minute') : ''
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : formatUnit(0, 'minute');
 };
 const formatSubtaskCountLabel = (count: number, language: Language) => {
   if (count === 1) {
@@ -879,8 +916,9 @@ function isItemOverdue(item: TodoItem): boolean {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   if (item.sortTimestamp < todayStart) return true;
   if (item.sortTimestamp > todayStart) return false;
-  if (!item.dueTime) return false;
-  const [hStr, mStr] = item.dueTime.split(':');
+  const overdueTimeValue = item.dueEndTime || item.dueTime;
+  if (!overdueTimeValue) return false;
+  const [hStr, mStr] = overdueTimeValue.split(':');
   const hours = Number(hStr);
   const minutes = Number(mStr);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
@@ -902,6 +940,12 @@ function getItemDateTime(item: TodoItem): number {
     }
   }
   return new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes).getTime();
+}
+
+function formatEventTimeRange(item: Pick<TodoItem, 'dueTime' | 'dueEndTime'>): string {
+  const start = item.dueTime || '--:--';
+  if (!item.dueEndTime) return start;
+  return `${start}-${item.dueEndTime}`;
 }
 
 function normalizeDueTime(value: unknown): string | undefined {
@@ -1108,6 +1152,7 @@ const App: React.FC = () => {
   const [formText, setFormText] = useState('');
   const [formDate, setFormDate] = useState('');
   const [formTime, setFormTime] = useState('');
+  const [formEndTime, setFormEndTime] = useState('');
   const [formLocation, setFormLocation] = useState('');
   const [formSubtasks, setFormSubtasks] = useState('');
   const [labels, setLabels] = useState<ItemLabel[]>([]);
@@ -1966,6 +2011,7 @@ const App: React.FC = () => {
     switch (name) {
       case ToolNames.ADD_TODO: {
         const normalizedTime = normalizeDueTime(args.time);
+        const normalizedEndTime = normalizedTime ? normalizeDueTime(args.endTime) : undefined;
         const isNote = ((args.type as ItemType) || 'task') === 'task';
         const parsedDate = parseTaskDate(args.date);
         const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
@@ -1998,6 +2044,7 @@ const App: React.FC = () => {
           createdAt: Date.now(),
           dueDate: isNote ? undefined : new Date(ts).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }),
           dueTime: isNote ? undefined : normalizedTime,
+          dueEndTime: isNote ? undefined : normalizedEndTime,
           location: isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined),
           subtasks: normalizedSubtasks,
           sortTimestamp: isNote ? Date.now() : ts,
@@ -2072,9 +2119,12 @@ const App: React.FC = () => {
           ? (isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined))
           : existing.location;
         const newSubtasks = args.subtasks !== undefined
-          ? (isNote ? undefined : normalizeSubitems(args.subtasks))
+          ? (isNote ? undefined : mergeSubitemsWithExistingCompletion(normalizeSubitems(args.subtasks), existing.subtasks))
           : existing.subtasks;
         const normalizedTime = args.time !== undefined ? normalizeDueTime(args.time) : existing.dueTime;
+        const normalizedEndTime = args.endTime !== undefined
+          ? (normalizedTime ? normalizeDueTime(args.endTime) : undefined)
+          : (args.time !== undefined && !normalizedTime ? undefined : existing.dueEndTime);
         const eventTextFromTitle = !isNote && args.text === undefined && args.title !== undefined
           ? String(args.title)
           : undefined;
@@ -2099,6 +2149,7 @@ const App: React.FC = () => {
           completed: isNote ? false : existing.completed,
           dueDate: isNote ? undefined : (args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate),
           dueTime: isNote ? undefined : normalizedTime,
+          dueEndTime: isNote ? undefined : normalizedEndTime,
           location: newLocation,
           subtasks: newSubtasks,
           priority: (args.priority as Priority) || existing.priority,
@@ -2115,12 +2166,16 @@ const App: React.FC = () => {
           payload.sortTimestamp = nextTodo.sortTimestamp;
         }
         if (args.time !== undefined) payload.dueTime = isNote ? null : nextTodo.dueTime ?? null;
+        if (args.endTime !== undefined || (args.time !== undefined && !nextTodo.dueTime)) {
+          payload.dueEndTime = isNote ? null : nextTodo.dueEndTime ?? null;
+        }
         if (args.location !== undefined) payload.location = isNote ? null : nextTodo.location ?? null;
         if (args.subtasks !== undefined) payload.subtasks = isNote ? null : nextTodo.subtasks ?? null;
         if (isNote) {
           payload.completed = false;
           payload.dueDate = null;
           payload.dueTime = null;
+          payload.dueEndTime = null;
           payload.location = null;
           payload.subtasks = null;
           payload.sortTimestamp = nextTodo.sortTimestamp;
@@ -2671,6 +2726,7 @@ const App: React.FC = () => {
     setModalMode(null);
     setModalItemId(null);
     setFormTitle('');
+    setFormEndTime('');
     setFormSubtasks('');
   };
 
@@ -2694,6 +2750,7 @@ const App: React.FC = () => {
           item.location ?? '',
           item.dueDate ?? '',
           item.dueTime ?? '',
+          item.dueEndTime ?? '',
           labelName,
           subtasksText
         ].join(' ');
@@ -2761,7 +2818,8 @@ const App: React.FC = () => {
         month: '2-digit',
         year: 'numeric'
       });
-      return item.dueTime ? `${dateLabel} • ${item.dueTime}` : dateLabel;
+      const startTime = item.dueTime || '--:--';
+      return `${dateLabel}\n${startTime}${item.dueEndTime ? `\n${item.dueEndTime}` : ''}`;
     }
     const createdAtDate = new Date(item.createdAt);
     const dateLabel = createdAtDate.toLocaleDateString(language, {
@@ -2797,6 +2855,7 @@ const App: React.FC = () => {
     setFormText('');
     setFormDate(today.toISOString().split('T')[0]);
     setFormTime('');
+    setFormEndTime('');
     setFormLocation('');
     setFormSubtasks('');
   };
@@ -2818,6 +2877,7 @@ const App: React.FC = () => {
     const dateObj = new Date(item.sortTimestamp);
     setFormDate(dateObj.toISOString().split('T')[0]);
     setFormTime(item.dueTime || '');
+    setFormEndTime(item.dueEndTime || '');
     setFormLocation(item.location || '');
     setFormSubtasks((item.subtasks || []).map(subtask => subtask.text).join('\n'));
     if (isMobileViewport) {
@@ -2952,6 +3012,7 @@ const App: React.FC = () => {
         text: formType === 'task' ? formText : formText,
         date: formType === 'event' ? formDate : null,
         time: formType === 'event' ? (formTime || null) : null,
+        endTime: formType === 'event' ? (formTime && formEndTime ? formEndTime : null) : null,
         location: formType === 'event' ? (formLocation || null) : null,
         priority: formPriority,
         subtasks: formType === 'event' ? formSubtasks : null,
@@ -2964,6 +3025,7 @@ const App: React.FC = () => {
         type: formType,
         date: formType === 'event' ? formDate : null,
         time: formType === 'event' ? (formTime || null) : null,
+        endTime: formType === 'event' ? (formTime && formEndTime ? formEndTime : null) : null,
         location: formType === 'event' ? (formLocation || null) : null,
         priority: formPriority,
         subtasks: formType === 'event' ? formSubtasks : null
@@ -3668,9 +3730,10 @@ const App: React.FC = () => {
                             onClick={() => openSelectedDateTask(item)}
                             className="w-full rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99]"
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="inline-flex min-w-[54px] items-center justify-center rounded-xl bg-violet-100 px-2 py-3 text-[13px] font-semibold text-violet-700">
-                                {item.dueTime || '--:--'}
+                            <div className="flex items-start gap-3">
+                              <div className="inline-flex min-w-[54px] h-[40px] flex-col items-center justify-start rounded-xl bg-violet-100 px-2 py-1.5 text-[12px] font-semibold leading-tight text-violet-700">
+                                <span>{item.dueTime || '--:--'}</span>
+                                <span className={item.dueEndTime ? '' : 'select-none opacity-0'}>{item.dueEndTime || (item.dueTime || '--:--')}</span>
                               </div>
                               <div className="min-w-0">
                                 <div className="truncate text-[18px] font-medium text-slate-900">
@@ -3793,7 +3856,7 @@ const App: React.FC = () => {
                           placeholder="Ex: Splaiul Unirii 45"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <input
                           type="date"
                           className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
@@ -3804,7 +3867,20 @@ const App: React.FC = () => {
                           type="time"
                           className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
                           value={formTime}
-                          onChange={(e) => setFormTime(e.target.value)}
+                          onChange={(e) => {
+                            const nextValue = e.target.value;
+                            setFormTime(nextValue);
+                            if (!nextValue) setFormEndTime('');
+                          }}
+                        />
+                        <input
+                          type="time"
+                          disabled={!formTime}
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                          value={formEndTime}
+                          onChange={(e) => setFormEndTime(e.target.value)}
+                          aria-label={t.endTimeLabel}
+                          title={t.endTimeLabel}
                         />
                       </div>
                     </>
@@ -3909,7 +3985,7 @@ const App: React.FC = () => {
                           placeholder="Ex: Splaiul Unirii 45"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <input
                           type="date"
                           className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
@@ -3920,7 +3996,20 @@ const App: React.FC = () => {
                           type="time"
                           className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none"
                           value={formTime}
-                          onChange={(e) => setFormTime(e.target.value)}
+                          onChange={(e) => {
+                            const nextValue = e.target.value;
+                            setFormTime(nextValue);
+                            if (!nextValue) setFormEndTime('');
+                          }}
+                        />
+                        <input
+                          type="time"
+                          disabled={!formTime}
+                          className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                          value={formEndTime}
+                          onChange={(e) => setFormEndTime(e.target.value)}
+                          aria-label={t.endTimeLabel}
+                          title={t.endTimeLabel}
                         />
                       </div>
                     </>
@@ -4130,6 +4219,9 @@ const App: React.FC = () => {
                       {searchResults.map(item => {
                         const itemTitle = item.type === 'task' ? (item.title || item.text) : item.text;
                         const itemDescription = item.type === 'task' && item.title ? item.text : '';
+                        const eventDateLabel = item.type === 'event'
+                          ? new Date(item.sortTimestamp).toLocaleDateString(language, { day: '2-digit', month: '2-digit', year: 'numeric' })
+                          : '';
                         return (
                           <button
                             key={`search-mobile-${item.id}`}
@@ -4144,7 +4236,17 @@ const App: React.FC = () => {
                             {itemDescription && (
                               <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>
                             )}
-                            <div className="mt-1 text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                            {item.type === 'event' ? (
+                              <div className="mt-1 flex items-start gap-2">
+                                <div className="inline-flex min-w-[54px] h-[40px] flex-col items-center justify-start rounded-xl bg-violet-100 px-2 py-1.5 text-[11px] font-semibold leading-tight text-violet-700">
+                                  <span>{item.dueTime || '--:--'}</span>
+                                  <span className={item.dueEndTime ? '' : 'select-none opacity-0'}>{item.dueEndTime || (item.dueTime || '--:--')}</span>
+                                </div>
+                                <div className="min-w-0 text-[11px] text-slate-500">{eventDateLabel}</div>
+                              </div>
+                            ) : (
+                              <div className="mt-1 whitespace-pre-line text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                            )}
                           </button>
                         );
                       })}
@@ -4200,7 +4302,7 @@ const App: React.FC = () => {
                             <div className="flex items-center justify-between gap-2">
                               <span className={`inline-flex items-center gap-1.5 text-[14px] max-[767px]:text-[14px] font-semibold ${item.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                                 <i className="far fa-clock text-[14px] text-slate-400"></i>
-                                <span>{item.dueTime || '--:--'}</span>
+                                <span>{formatEventTimeRange(item)}</span>
                               </span>
                               <div className="inline-flex items-center gap-0.5">
                                 {item.reminderMinutesBefore !== undefined && (
@@ -4561,7 +4663,20 @@ const App: React.FC = () => {
                       type="time"
                       className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none w-32"
                       value={formTime}
-                      onChange={(e) => setFormTime(e.target.value)}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setFormTime(nextValue);
+                        if (!nextValue) setFormEndTime('');
+                      }}
+                    />
+                    <input
+                      type="time"
+                      disabled={!formTime}
+                      className="text-xs font-bold bg-[#f8f9fb] border border-slate-300 rounded-xl px-4 py-2 outline-none w-32 disabled:cursor-not-allowed disabled:opacity-60"
+                      value={formEndTime}
+                      onChange={(e) => setFormEndTime(e.target.value)}
+                      aria-label={t.endTimeLabel}
+                      title={t.endTimeLabel}
                     />
                   </>
                 )}
@@ -4766,6 +4881,9 @@ const App: React.FC = () => {
                   {searchResults.map(item => {
                     const itemTitle = item.type === 'task' ? (item.title || item.text) : item.text;
                     const itemDescription = item.type === 'task' && item.title ? item.text : '';
+                    const eventDateLabel = item.type === 'event'
+                      ? new Date(item.sortTimestamp).toLocaleDateString(language, { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      : '';
                     return (
                       <button
                         key={`search-desktop-${item.id}`}
@@ -4780,7 +4898,17 @@ const App: React.FC = () => {
                         {itemDescription && (
                           <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>
                         )}
-                        <div className="mt-1 text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                        {item.type === 'event' ? (
+                          <div className="mt-1 flex items-start gap-2">
+                            <div className="inline-flex min-w-[54px] h-[40px] flex-col items-center justify-start rounded-xl bg-violet-100 px-2 py-1.5 text-[11px] font-semibold leading-tight text-violet-700">
+                              <span>{item.dueTime || '--:--'}</span>
+                              <span className={item.dueEndTime ? '' : 'select-none opacity-0'}>{item.dueEndTime || (item.dueTime || '--:--')}</span>
+                            </div>
+                            <div className="min-w-0 text-[11px] text-slate-500">{eventDateLabel}</div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 whitespace-pre-line text-[11px] text-slate-500">{getSearchItemSubtitle(item)}</div>
+                        )}
                       </button>
                     );
                   })}
@@ -4847,3 +4975,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

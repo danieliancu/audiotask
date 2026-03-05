@@ -20,6 +20,7 @@ export interface TodoItem {
   deletedAt?: number;
   dueDate?: string; 
   dueTime?: string; 
+  dueEndTime?: string;
   location?: string;
   sortTimestamp: number; 
   type: ItemType;

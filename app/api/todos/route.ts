@@ -18,6 +18,7 @@ type DbTodoRow = {
   created_at: number;
   due_date: string | null;
   due_time: string | null;
+  due_end_time: string | null;
   location: string | null;
   sort_timestamp: number;
   type: 'task' | 'event';
@@ -63,7 +64,7 @@ const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
 
 const mapRow = (row: DbTodoRow) => {
   const dueAt = row.type === 'event'
-    ? computeTodoDueAt({ due_time: row.due_time, sort_timestamp: row.sort_timestamp })
+    ? computeTodoDueAt({ due_time: row.due_end_time ?? row.due_time, sort_timestamp: row.sort_timestamp })
     : null;
   const isOverdue = row.type === 'event' && !Boolean(row.completed) && dueAt !== null && dueAt <= Date.now();
   return ({
@@ -75,6 +76,7 @@ const mapRow = (row: DbTodoRow) => {
   createdAt: Number(row.created_at),
   dueDate: row.due_date ?? undefined,
   dueTime: row.due_time ?? undefined,
+  dueEndTime: row.due_end_time ?? undefined,
   location: row.location ?? undefined,
   sortTimestamp: Number(row.sort_timestamp),
   type: row.type,
@@ -123,6 +125,7 @@ export async function POST(request: Request) {
     createdAt: Number(body.createdAt) || Date.now(),
     dueDate: body.dueDate ?? null,
     dueTime: body.dueTime ?? null,
+    dueEndTime: body.dueEndTime ?? null,
     location: body.location ?? null,
     sortTimestamp: Number(body.sortTimestamp) || Date.now(),
     type: body.type === 'event' ? 'event' : 'task',
@@ -150,7 +153,7 @@ export async function POST(request: Request) {
     const nextLocalId = Number(maxRows[0]?.nextLocalId || 1);
 
     const [insertResult] = await connection.query<ResultSetHeader>(
-      'INSERT INTO todos (user_id, local_id, title, text, label_id, completed, created_at, due_date, due_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO todos (user_id, local_id, title, text, label_id, completed, created_at, due_date, due_time, due_end_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         userId,
         nextLocalId,
@@ -161,6 +164,7 @@ export async function POST(request: Request) {
         payload.createdAt,
         payload.dueDate,
         payload.dueTime,
+        payload.dueEndTime,
         payload.location,
         payload.sortTimestamp,
         type,

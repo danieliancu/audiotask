@@ -15,6 +15,7 @@ type DbTodoRow = {
   created_at: number;
   due_date: string | null;
   due_time: string | null;
+  due_end_time: string | null;
   location: string | null;
   sort_timestamp: number;
   type: 'task' | 'event';
@@ -67,6 +68,7 @@ const mapRow = (row: DbTodoRow) => ({
   createdAt: Number(row.created_at),
   dueDate: row.due_date ?? undefined,
   dueTime: row.due_time ?? undefined,
+  dueEndTime: row.due_end_time ?? undefined,
   location: row.location ?? undefined,
   sortTimestamp: Number(row.sort_timestamp),
   type: row.type,
