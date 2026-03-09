@@ -526,10 +526,17 @@ const formatShortDateLabel = (dateKey: string, language: Language) => {
 };
 const formatDayMonthLabel = (timestamp: number, language: Language) => {
   const date = new Date(timestamp);
+  const locale = localeByLanguage[language];
   const day = date.toLocaleDateString(language, { day: '2-digit' });
-  const monthRaw = date.toLocaleDateString(language, { month: 'short' }).replace(/[.,]$/u, '');
-  const month = monthRaw ? `${monthRaw.charAt(0).toLocaleUpperCase(localeByLanguage[language])}${monthRaw.slice(1)}` : '';
-  return `${day} ${month}`.trim();
+  const monthRaw = date.toLocaleDateString(language, { month: 'long' });
+  const weekdayRaw = date.toLocaleDateString(language, { weekday: 'long' });
+  const month = monthRaw
+    ? `${monthRaw.charAt(0).toLocaleUpperCase(locale)}${monthRaw.slice(1)}`
+    : '';
+  const weekday = weekdayRaw
+    ? `${weekdayRaw.charAt(0).toLocaleUpperCase(locale)}${weekdayRaw.slice(1)}`
+    : '';
+  return `${day} ${month} • ${weekday}`.trim();
 };
 const dateKeyToDate = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -1001,6 +1008,7 @@ const SwipeableCard: React.FC<{
 }> = ({ enabled, onDelete, children }) => {
   const [offsetX, setOffsetX] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const swipeProgress = Math.min(1, Math.max(0, (-offsetX) / SWIPE_DELETE_MAX_OFFSET));
   const gestureRef = useRef({
     active: false,
     dragging: false,
@@ -1066,7 +1074,20 @@ const SwipeableCard: React.FC<{
   };
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden rounded-xl">
+      <div
+        className="pointer-events-none absolute inset-0 bg-red-500 md:hidden"
+        style={{ opacity: enabled ? swipeProgress : 0 }}
+        aria-hidden="true"
+      >
+<div className="pointer-events-none absolute inset-0 bg-red-500 md:hidden"
+     style={{ opacity: enabled ? swipeProgress : 0 }}
+     aria-hidden="true">
+
+  <i className="fas fa-trash-alt absolute right-5 top-1/2 -translate-y-1/2 text-white text-[24px]"></i>
+
+</div>
+      </div>
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -2593,11 +2614,11 @@ const App: React.FC = () => {
     const monthLabel = rawMonthLabel
       ? `${rawMonthLabel.charAt(0).toLocaleUpperCase(locale)}${rawMonthLabel.slice(1)}`
       : rawMonthLabel;
-    const weekdayBaseDay = isMobile ? 3 : 4; // Sunday for mobile, Monday for desktop/modal.
+    const weekdayBaseDay = 4; // Monday for all variants.
     const mobileCalendarCells = useMemo(() => {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      const firstOffset = new Date(year, month, 1).getDay();
+      const firstOffset = (new Date(year, month, 1).getDay() + 6) % 7;
       const currentMonthDays = new Date(year, month + 1, 0).getDate();
       const previousMonthDays = new Date(year, month, 0).getDate();
       const totalCells = firstOffset + currentMonthDays <= 35 ? 35 : 42;
@@ -4581,7 +4602,7 @@ const App: React.FC = () => {
                                   className={`h-7 w-7 hidden md:inline-flex items-center justify-center rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500'}`}
                                   title={item.canManageShare ? 'Share' : 'Owner only'}
                                 >
-                                  <i className="fas fa-users text-[15px]"></i>
+                                  <i className="fas fa-user-plus text-[15px]"></i>
                                 </button>
                                 {!hasShares(item) && (
                                   <button
@@ -4591,7 +4612,7 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex md:hidden items-center justify-center rounded-md text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-users text-[15px]"></i>
+                                    <i className="fas fa-user-plus text-[15px]"></i>
                                   </button>
                                 )}
                                 {(() => {
@@ -4645,7 +4666,7 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-users text-[15px]"></i>
+                                    <i className="fas fa-user-plus text-[15px]"></i>
                                   </button>
                                   {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                     <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
@@ -4889,7 +4910,7 @@ const App: React.FC = () => {
                                 disabled={!item.canManageShare}
                                 className={`h-7 w-7 hidden md:inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500 hover:text-slate-700'}`}
                               >
-                                <i className="fas fa-users text-[14px]"></i>
+                                <i className="fas fa-user-plus text-[14px]"></i>
                               </button>
                               {!hasShares(item) && (
                                 <button
@@ -4897,7 +4918,7 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex md:hidden items-center justify-center text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-users text-[14px]"></i>
+                                  <i className="fas fa-user-plus text-[14px]"></i>
                                 </button>
                               )}
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
@@ -4930,7 +4951,7 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex items-center justify-center text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-users text-[14px]"></i>
+                                  <i className="fas fa-user-plus text-[14px]"></i>
                                 </button>
                                 {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                   <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
@@ -5468,4 +5489,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
