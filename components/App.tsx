@@ -998,6 +998,23 @@ const parseStoredLabelFilters = (rawValue: unknown): string[] => {
   }
   return [];
 };
+const parseToolArgs = (rawArgs: unknown): Record<string, unknown> => {
+  if (!rawArgs) return {};
+  if (typeof rawArgs === 'object' && !Array.isArray(rawArgs)) {
+    return rawArgs as Record<string, unknown>;
+  }
+  if (typeof rawArgs === 'string') {
+    try {
+      const parsed = JSON.parse(rawArgs);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+};
 
 const SWIPE_DELETE_THRESHOLD = 88;
 const SWIPE_DELETE_MAX_OFFSET = 120;
@@ -2520,7 +2537,7 @@ const App: React.FC = () => {
             if (m.toolCall) {
               for (const fc of m.toolCall.functionCalls ?? []) {
                 const functionName = fc.name || 'unknown_tool';
-                const functionArgs = fc.args && typeof fc.args === 'object' ? fc.args : {};
+                const functionArgs = parseToolArgs(fc.args);
                 let toolResponse: Record<string, unknown>;
                 try {
                   const res = executeTool(functionName, functionArgs);
@@ -2788,7 +2805,7 @@ const App: React.FC = () => {
       [],
       language
     );
-    response.functionCalls?.forEach(c => executeTool(c.name, c.args));
+    response.functionCalls?.forEach(c => executeTool(c.name, parseToolArgs(c.args)));
     lastUserCommandRef.current = '';
     setInputValue('');
     setIsWriteMode(false);
