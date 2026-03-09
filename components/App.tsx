@@ -153,7 +153,7 @@ const translations = {
     clearFilter: "Reseteaza data",
     selectDates: "Selecteaza aceste date",
     selectPeriod: "Selecteaza o perioada",
-    location: "Loca?ie",
+    location: "Locatie",
     subtasks: "Subtask-uri",
     subevents: "Subevenimente",
     subitemsPlaceholder: "Câte unul pe linie",
@@ -2818,7 +2818,7 @@ const App: React.FC = () => {
     }, [currentDate]);
 
     return (
-      <div className={`calendar-surface w-full max-w-full overflow-hidden border border-gray-200 bg-white ${isMobile ? 'rounded-2xl p-3 shadow-sm' : 'rounded-lg p-4'} ${variant === 'desktop' ? 'h-full flex flex-col' : ''}`}>
+      <div className={`calendar-surface w-full max-w-full overflow-hidden bg-white ${isMobile ? 'rounded-2xl p-3 shadow-sm' : 'rounded-lg p-4'} ${variant === 'desktop' ? 'h-full flex flex-col' : ''}`}>
         <div className={`${isMobile ? 'mb-3' : 'mb-4'} flex items-center justify-between`}>
           <button
             type="button"
@@ -5204,7 +5204,7 @@ const App: React.FC = () => {
       {modalMode && !(isMobileViewport && ((mobileView === 'add' && modalMode === 'add') || (mobileView === 'edit' && modalMode === 'edit'))) && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeModal}></div>
-          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-2xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-2xl border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
@@ -5335,7 +5335,7 @@ const App: React.FC = () => {
       {shareModalItem && !(isMobileViewport && mobileView === 'share') && (
         <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeShareModal}></div>
-          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeShareModal}
               className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
@@ -5415,7 +5415,7 @@ const App: React.FC = () => {
       {reminderModalItem && !(isMobileViewport && mobileView === 'reminder') && (
         <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeReminderModal}></div>
-          <div className="modal-surface reminder-modal relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface reminder-modal relative bg-[#f3f4f6] w-full max-w-xl border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeReminderModal}
               className="reminder-close-btn absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
@@ -5533,7 +5533,7 @@ const App: React.FC = () => {
       {isSearchModalOpen && (
         <div className="fixed inset-0 z-[76] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeSearchPanel}></div>
-          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeSearchPanel}
               className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
@@ -5678,7 +5678,7 @@ const App: React.FC = () => {
       {isCalendarOpen && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-4 md:pt-8">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setIsCalendarOpen(false)}></div>
-          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-lg rounded-[38px] border border-slate-200 shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
+          <div className="modal-surface relative bg-white w-full max-w-lg border-slate-200 shadow-2xl p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setIsCalendarOpen(false)}
               className="absolute top-1 right-1 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
