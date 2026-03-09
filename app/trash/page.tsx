@@ -373,7 +373,7 @@ export default function TrashPage() {
                 <div className="flex flex-col gap-4">
                   <div className="space-y-2">
                     <div className="text-xs font-black tracking-wide text-slate-500">
-                      #{item.id} • {getTypeLabel(item.type)}
+                      #{item.localId || item.id} • {getTypeLabel(item.type)}
                     </div>
                     <p className="text-base font-bold text-slate-800 leading-tight">{item.title || item.text}</p>
                     {item.title && item.text && (

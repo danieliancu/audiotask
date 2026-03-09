@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import { parseUserId } from '@/lib/todoAccess';
 import type { ReminderChannel } from '@/types';
 import { computeTodoDueAt } from '@/lib/reminders';
 
@@ -29,7 +30,8 @@ const mapRow = (row: DbReminderRow) => {
   const minutesBefore = Number(row.reminder_minutes_before || 0);
   const reminderAt = dueAt - (minutesBefore * 60 * 1000);
   return {
-    id: String(row.local_id),
+    id: String(row.id),
+    localId: String(row.local_id),
     title: row.title ?? undefined,
     text: row.text,
     dueTime: row.due_time ?? undefined,
@@ -49,7 +51,7 @@ const isReminderActive = (row: DbReminderRow) => computeTodoDueAt({
 export async function GET(request: Request) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

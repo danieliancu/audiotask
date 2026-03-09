@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import { parseUserId } from '@/lib/todoAccess';
 import type { ReminderChannel, SubtaskItem } from '@/types';
 import { computeTodoDueAt } from '@/lib/reminders';
 
@@ -27,6 +28,8 @@ type DbTodoRow = {
   deleted_at: number | null;
   reminder_minutes_before: number | null;
   reminder_channel: ReminderChannel | null;
+  owner_email: string | null;
+  is_owner: number | boolean;
 };
 
 const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
@@ -63,49 +66,79 @@ const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
 };
 
 const mapRow = (row: DbTodoRow) => {
+  const isOwner = Boolean(row.is_owner);
   const dueAt = row.type === 'event'
     ? computeTodoDueAt({ due_time: row.due_end_time ?? row.due_time, sort_timestamp: row.sort_timestamp })
     : null;
   const isOverdue = row.type === 'event' && !Boolean(row.completed) && dueAt !== null && dueAt <= Date.now();
-  return ({
-  id: String(row.local_id),
-  title: row.title ?? undefined,
-  text: row.text,
-  labelId: row.label_id ? String(row.label_id) : undefined,
-  completed: Boolean(row.completed),
-  createdAt: Number(row.created_at),
-  dueDate: row.due_date ?? undefined,
-  dueTime: row.due_time ?? undefined,
-  dueEndTime: row.due_end_time ?? undefined,
-  location: row.location ?? undefined,
-  sortTimestamp: Number(row.sort_timestamp),
-  type: row.type,
-  priority: row.priority,
-  reminderMinutesBefore: !isOverdue && row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
-  reminderChannel: !isOverdue ? (row.reminder_channel ?? undefined) : undefined,
-  deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
-  subtasks: normalizeSubtasks(row.subtasks)
-  });
+
+  return {
+    id: String(row.id),
+    localId: isOwner ? String(row.local_id) : undefined,
+    title: row.title ?? undefined,
+    text: row.text,
+    labelId: row.label_id ? String(row.label_id) : undefined,
+    completed: Boolean(row.completed),
+    createdAt: Number(row.created_at),
+    dueDate: row.due_date ?? undefined,
+    dueTime: row.due_time ?? undefined,
+    dueEndTime: row.due_end_time ?? undefined,
+    location: row.location ?? undefined,
+    sortTimestamp: Number(row.sort_timestamp),
+    type: row.type,
+    priority: row.priority,
+    reminderMinutesBefore: !isOverdue && row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
+    reminderChannel: !isOverdue ? (row.reminder_channel ?? undefined) : undefined,
+    deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
+    subtasks: normalizeSubtasks(row.subtasks),
+    isShared: !isOwner,
+    ownerUserId: String(row.user_id),
+    ownerEmail: row.owner_email ?? undefined,
+    canEdit: true,
+    canDelete: isOwner,
+    canManageShare: isOwner,
+    canManageReminder: isOwner,
+    canEditLabel: isOwner
+  };
 };
 
 export async function GET() {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [rows] = await pool.query(
-    'SELECT * FROM todos WHERE user_id = ? AND deleted_at IS NULL ORDER BY sort_timestamp ASC',
-    [userId]
+    `SELECT
+       t.*, 
+       owner.email AS owner_email,
+       CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS is_owner
+     FROM todos t
+     JOIN users owner ON owner.id = t.user_id
+     LEFT JOIN todo_shares ts
+       ON ts.todo_id = t.id
+      AND ts.shared_user_id = ?
+     WHERE t.deleted_at IS NULL
+       AND (t.user_id = ? OR ts.shared_user_id = ?)
+     ORDER BY t.sort_timestamp ASC`,
+    [userId, userId, userId, userId]
   );
-  const items = (rows as DbTodoRow[]).map(mapRow);
+
+  const uniqueByTodoId = new Map<number, DbTodoRow>();
+  for (const row of rows as DbTodoRow[]) {
+    if (!uniqueByTodoId.has(row.id)) {
+      uniqueByTodoId.set(row.id, row);
+    }
+  }
+
+  const items = Array.from(uniqueByTodoId.values()).map(mapRow);
   return NextResponse.json(items);
 }
 
 export async function POST(request: Request) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
@@ -118,6 +151,7 @@ export async function POST(request: Request) {
       if ((labelRows as Array<{ id: number }>).length > 0) labelId = parsed;
     }
   }
+
   const payload = {
     title: body.title ? String(body.title).trim() : null,
     text: String(body.text || '').trim(),
@@ -174,7 +208,14 @@ export async function POST(request: Request) {
     );
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      'SELECT * FROM todos WHERE id = ? AND user_id = ? LIMIT 1',
+      `SELECT
+         t.*, 
+         owner.email AS owner_email,
+         1 AS is_owner
+       FROM todos t
+       JOIN users owner ON owner.id = t.user_id
+       WHERE t.id = ? AND t.user_id = ?
+       LIMIT 1`,
       [insertResult.insertId, userId]
     );
 

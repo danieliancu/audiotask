@@ -642,6 +642,11 @@ const mergeSubitemsWithExistingCompletion = (nextSubitems: SubtaskItem[] | undef
 };
 const normalizeTodoForState = (item: TodoItem): TodoItem => ({
   ...item,
+  canEdit: item.canEdit ?? true,
+  canDelete: item.canDelete ?? true,
+  canManageShare: item.canManageShare ?? false,
+  canManageReminder: item.canManageReminder ?? true,
+  canEditLabel: item.canEditLabel ?? true,
   subtasks: normalizeSubitems(item.subtasks, { capitalizeText: false })
 });
 const normalizeTodoListForState = (value: unknown): TodoItem[] => {
@@ -1146,6 +1151,10 @@ const App: React.FC = () => {
   const [reminderChannel, setReminderChannel] = useState<ReminderChannel>('email');
   const [reminderError, setReminderError] = useState('');
   const [isReminderSaving, setIsReminderSaving] = useState(false);
+  const [shareInputEmail, setShareInputEmail] = useState('');
+  const [shareList, setShareList] = useState<Array<{ userId: string; email: string; name: string; sharedAt: number }>>([]);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState('');
   const [formType, setFormType] = useState<ItemType>('task');
   const [formPriority, setFormPriority] = useState<Priority>('normal');
   const [formTitle, setFormTitle] = useState('');
@@ -1702,6 +1711,10 @@ const App: React.FC = () => {
     return `Available labels: ${labels.map(label => label.name).join(', ')}.`;
   }, [labels]);
 
+  const modalTodoItem = useMemo(
+    () => todos.find(item => item.id === modalItemId) || null,
+    [todos, modalItemId]
+  );
   const reminderModalItem = useMemo(
     () => todos.find(item => item.id === reminderModalItemId) || null,
     [todos, reminderModalItemId]
@@ -2048,7 +2061,15 @@ const App: React.FC = () => {
           location: isNote ? undefined : (args.location ? normalizeLocation(args.location, language) : undefined),
           subtasks: normalizedSubtasks,
           sortTimestamp: isNote ? Date.now() : ts,
-          priority: (args.priority as Priority) || 'normal'
+          priority: (args.priority as Priority) || 'normal',
+          canEdit: true,
+          canDelete: true,
+          canManageReminder: true,
+          canEditLabel: true,
+          canManageShare: false,
+          isShared: false,
+          ownerUserId: userId || undefined,
+          ownerEmail: session?.user?.email || undefined
         };
 
         if (!isLoggedIn) {
@@ -2268,6 +2289,11 @@ const App: React.FC = () => {
       }
       case ToolNames.DELETE_TODO: {
         const id = String(args.id);
+        const targetTodo = todosRef.current.find((todo) => todo.id === id);
+        if (targetTodo && !targetTodo.canDelete) {
+          showUiNotice('Only the owner can delete this task.');
+          break;
+        }
         if (id.startsWith('tmp-')) {
           canceledTempIdsRef.current.add(id);
           setTodos(prev => prev.filter(t => t.id !== id));
@@ -2303,7 +2329,7 @@ const App: React.FC = () => {
       }
     }
     return "OK";
-  }, [language, activeTab, userId]);
+  }, [activeTab, language, session?.user?.email, showUiNotice, userId]);
 
   const moveNoteCard = useCallback((id: string, direction: 'up' | 'down', visibleNotes: TodoItem[]) => {
     const currentIndex = visibleNotes.findIndex(item => item.id === id);
@@ -2870,6 +2896,9 @@ const App: React.FC = () => {
   const openEditModal = (item: TodoItem) => {
     setModalMode('edit');
     setModalItemId(item.id);
+    setShareInputEmail('');
+    setShareError('');
+    setShareList([]);
     setFormType(item.type);
     setFormPriority(item.priority);
     setFormTitle(item.title || (item.type === 'task' ? item.text : ''));
@@ -2880,6 +2909,18 @@ const App: React.FC = () => {
     setFormEndTime(item.dueEndTime || '');
     setFormLocation(item.location || '');
     setFormSubtasks((item.subtasks || []).map(subtask => subtask.text).join('\n'));
+    if (item.canManageShare) {
+      setShareBusy(true);
+      void fetch(`/api/todos/${item.id}/shares`, { credentials: 'include', cache: 'no-store' })
+        .then(res => (res.ok ? res.json() : []))
+        .then((data) => {
+          setShareList(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {
+          setShareError('Failed to load share list.');
+        })
+        .finally(() => setShareBusy(false));
+    }
     if (isMobileViewport) {
       setMobileView('edit');
     }
@@ -2887,13 +2928,73 @@ const App: React.FC = () => {
 
   const closeModal = () => {
     resetComposerState();
+    setShareInputEmail('');
+    setShareList([]);
+    setShareError('');
     if (isMobileViewport) {
       setMobileView('list');
     }
   };
 
+  const addShare = useCallback(async () => {
+    if (!modalItemId || !modalTodoItem?.canManageShare) return;
+    const email = shareInputEmail.trim().toLowerCase();
+    if (!email) return;
+    setShareBusy(true);
+    setShareError('');
+    const res = await fetch(`/api/todos/${modalItemId}/shares`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setShareError(data.error || 'Failed to share task.');
+      setShareBusy(false);
+      return;
+    }
+
+    const payload = await res.json().catch(() => null);
+    const userIdFromPayload = String(payload?.userId || '');
+    const emailFromPayload = String(payload?.email || email);
+    const nameFromPayload = String(payload?.name || '');
+
+    setShareList((prev) => {
+      const exists = prev.find((entry) => entry.userId === userIdFromPayload || entry.email.toLowerCase() === emailFromPayload.toLowerCase());
+      if (exists) return prev;
+      return [...prev, { userId: userIdFromPayload, email: emailFromPayload, name: nameFromPayload, sharedAt: Date.now() }];
+    });
+    setShareInputEmail('');
+    setShareBusy(false);
+  }, [modalItemId, modalTodoItem?.canManageShare, shareInputEmail]);
+
+  const removeShare = useCallback(async (sharedUserId: string) => {
+    if (!modalItemId || !modalTodoItem?.canManageShare) return;
+    setShareBusy(true);
+    setShareError('');
+    const res = await fetch(`/api/todos/${modalItemId}/shares`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: sharedUserId })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setShareError(data.error || 'Failed to remove share.');
+      setShareBusy(false);
+      return;
+    }
+    setShareList((prev) => prev.filter((entry) => entry.userId !== sharedUserId));
+    setShareBusy(false);
+  }, [modalItemId, modalTodoItem?.canManageShare]);
+
   const openReminderModal = useCallback((item: TodoItem) => {
     if (item.type !== 'event') return;
+    if (!item.canManageReminder) {
+      showUiNotice('Reminder can be managed only by the task owner.');
+      return;
+    }
     if (!userId) {
       showUiNotice(getReminderLoginRequiredMessage());
       return;
@@ -3910,7 +4011,7 @@ const App: React.FC = () => {
                   <i className="fas fa-chevron-left text-[12px]"></i>
                 </button>
                 <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">
-                  {formTypeLabel}{modalItemId ? ` #${modalItemId}` : ''}
+                  {formTypeLabel}{modalTodoItem ? ` #${modalTodoItem.localId || modalTodoItem.id}` : ''}
                 </span>
                 <button
                   type="button"
@@ -4013,6 +4114,52 @@ const App: React.FC = () => {
                         />
                       </div>
                     </>
+                  )}
+
+                  {modalTodoItem?.canManageShare && (
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Share with email</div>
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={shareInputEmail}
+                          onChange={(e) => setShareInputEmail(e.target.value)}
+                          placeholder="user@example.com"
+                          className="flex-1 text-xs font-semibold bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void addShare()}
+                          disabled={shareBusy || !shareInputEmail.trim()}
+                          className="rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {shareError && (
+                        <div className="text-[11px] font-semibold text-red-600">{shareError}</div>
+                      )}
+                      <div className="space-y-1.5">
+                        {shareList.length === 0 ? (
+                          <div className="text-[11px] font-semibold text-slate-500">No shared users yet.</div>
+                        ) : shareList.map((entry) => (
+                          <div key={`${entry.userId}-${entry.email}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-[11px] font-bold text-slate-800">{entry.email}</div>
+                              {entry.name && <div className="truncate text-[10px] font-semibold text-slate-500">{entry.name}</div>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void removeShare(entry.userId)}
+                              disabled={shareBusy}
+                              className="rounded-lg bg-red-600 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   <button
@@ -4231,7 +4378,7 @@ const App: React.FC = () => {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="truncate text-sm font-bold text-slate-900">{itemTitle}</div>
-                              <span className="text-[11px] font-semibold text-slate-400">#{item.id}</span>
+                              <span className="text-[11px] font-semibold text-slate-400">#{item.localId || item.id}</span>
                             </div>
                             {itemDescription && (
                               <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>
@@ -4282,7 +4429,7 @@ const App: React.FC = () => {
                 {group.items.map((item, itemIndex) => (
                   <SwipeableCard
                     key={item.id}
-                    enabled={isMobileViewport}
+                    enabled={isMobileViewport && Boolean(item.canDelete)}
                     onDelete={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })}
                   >
                   <div id={`todo-${item.id}`} className={`transition-all duration-300 ${highlightedTaskId === item.id ? 'scale-[1.02] ring-2 ring-purple-500/50 rounded-lg shadow-lg z-10 relative' : ''}`}>
@@ -4313,25 +4460,28 @@ const App: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => openReminderModal(item)}
-                                  disabled={!userId}
+                                  disabled={!userId || !item.canManageReminder}
                                   className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-400'}`}
-                                  title={userId ? t.reminderTitle : getReminderLoginRequiredMessage()}
+                                  title={!userId ? getReminderLoginRequiredMessage() : (item.canManageReminder ? t.reminderTitle : 'Owner only')}
                                 >
                                   <i className={`far fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
                                 </button>
                                 <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 transition-colors">
                                   <i className="fas fa-pen text-[13px]"></i>
                                 </button>
-                                <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-500 hover:text-red-600 transition-colors">
+                                <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} disabled={!item.canDelete} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                                   <i className="fas fa-trash-alt text-[13px]"></i>
                                 </button>
                               </div>
                             </div>
 
                             <div className={`mt-2 text-[18px] max-[767px]:text-[14px] font-semibold break-words leading-[1.15] ${item.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                              <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
+                              <span className="mr-2 text-slate-500 font-semibold">#{item.localId || item.id}</span>
                               <span>{item.text}</span>
                             </div>
+                            {item.isShared && item.ownerEmail && (
+                              <div className="mt-1 text-[11px] font-semibold text-slate-500">Shared by {item.ownerEmail}</div>
+                            )}
 
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               {isMobileViewport ? (
@@ -4347,6 +4497,7 @@ const App: React.FC = () => {
                                     <select
                                       value={item.labelId || ''}
                                       onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                      disabled={!item.canEditLabel}
                                       className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[11px] font-semibold pr-2"
                                     >
                                       <option value="">{getNoLabelText(language)}</option>
@@ -4384,6 +4535,7 @@ const App: React.FC = () => {
                                     <select
                                       value={item.labelId || ''}
                                       onChange={(e) => executeTool(ToolNames.EDIT_TODO, { id: item.id, labelId: e.target.value || null })}
+                                      disabled={!item.canEditLabel}
                                       className="bg-transparent appearance-none border-0 outline-none focus:outline-none focus:ring-0 cursor-pointer text-[14px] font-medium pr-2"
                                     >
                                       <option value="">{getNoLabelText(language)}</option>
@@ -4504,9 +4656,12 @@ const App: React.FC = () => {
                             </button>
                           </div>
                           <div className="text-lg max-[767px]:text-[15px] font-bold break-words leading-snug text-slate-900">
-                            <span className="mr-2 text-slate-500 font-semibold">#{item.id}</span>
+                            <span className="mr-2 text-slate-500 font-semibold">#{item.localId || item.id}</span>
                             <span>{item.title || item.text}</span>
                           </div>
+                          {item.isShared && item.ownerEmail && (
+                            <div className="mt-1 text-[11px] font-semibold text-slate-500">Shared by {item.ownerEmail}</div>
+                          )}
                           <div className="mt-5 flex flex-wrap items-center gap-2">
                             <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
                               <select
@@ -4524,7 +4679,7 @@ const App: React.FC = () => {
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
                                 <i className="fas fa-pen text-[12px]"></i>
                               </button>
-                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors">
+                              <button onClick={() => executeTool(ToolNames.DELETE_TODO, { id: item.id })} disabled={!item.canDelete} className="h-7 w-7 inline-flex items-center justify-center text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                                 <i className="fas fa-trash-alt text-[12px]"></i>
                               </button>
                             </div>
@@ -4587,7 +4742,7 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <div className={`modal-type-chip flex items-center gap-2 px-3 py-1 rounded-lg border border-transparent ${formType === 'task' ? 'text-purple-600 bg-purple-50' : 'text-purple-700 bg-purple-100'}`}>
-                  {modalMode === 'edit' && modalItemId && <span className="mr-1">#{modalItemId}</span>}
+                  {modalMode === 'edit' && modalTodoItem && <span className="mr-1">#{modalTodoItem.localId || modalTodoItem.id}</span>}
                   <span>{formTypeLabel}</span>
                 </div>
               )}
@@ -4649,6 +4804,51 @@ const App: React.FC = () => {
                     />
                   </div>
                 </>
+              )}
+              {modalMode === 'edit' && modalTodoItem?.canManageShare && (
+                <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Share with email</div>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="email"
+                      value={shareInputEmail}
+                      onChange={(e) => setShareInputEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="flex-1 min-w-[220px] text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-xl px-3 py-2 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void addShare()}
+                      disabled={shareBusy || !shareInputEmail.trim()}
+                      className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {shareError && (
+                    <div className="text-xs font-semibold text-red-600">{shareError}</div>
+                  )}
+                  <div className="space-y-1.5">
+                    {shareList.length === 0 ? (
+                      <div className="text-xs font-semibold text-slate-500">No shared users yet.</div>
+                    ) : shareList.map((entry) => (
+                      <div key={`${entry.userId}-${entry.email}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-bold text-slate-800">{entry.email}</div>
+                          {entry.name && <div className="truncate text-[11px] font-semibold text-slate-500">{entry.name}</div>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void removeShare(entry.userId)}
+                          disabled={shareBusy}
+                          className="rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
               <div className="flex flex-wrap gap-3">
                 {formType === 'event' && (
@@ -4893,7 +5093,7 @@ const App: React.FC = () => {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="truncate text-sm font-bold text-slate-900">{itemTitle}</div>
-                          <span className="text-[11px] font-semibold text-slate-400">#{item.id}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">#{item.localId || item.id}</span>
                         </div>
                         {itemDescription && (
                           <div className="mt-1 text-xs text-slate-600 line-clamp-2">{itemDescription}</div>

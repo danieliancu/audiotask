@@ -12,6 +12,7 @@ export interface SubtaskItem {
 
 export interface TodoItem {
   id: string;
+  localId?: string;
   title?: string;
   text: string;
   labelId?: string;
@@ -28,6 +29,14 @@ export interface TodoItem {
   subtasks?: SubtaskItem[];
   reminderMinutesBefore?: number;
   reminderChannel?: ReminderChannel;
+  isShared?: boolean;
+  ownerUserId?: string;
+  ownerEmail?: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canManageShare?: boolean;
+  canManageReminder?: boolean;
+  canEditLabel?: boolean;
 }
 
 export interface ToolCall {

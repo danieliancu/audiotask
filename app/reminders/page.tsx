@@ -8,6 +8,7 @@ import type { Language } from '@/types';
 
 type ReminderItem = {
   id: string;
+  localId?: string;
   title?: string;
   text: string;
   dueTime?: string;
@@ -235,7 +236,7 @@ export default function RemindersPage() {
               <div key={item.id} className="rounded-xl border border-gray-300/70 bg-[#f2f2f3] p-5 shadow-sm">
                 <div className="space-y-2">
                   <div className="text-xs font-black tracking-wide text-slate-500">
-                    #{item.id}
+                    #{item.localId || item.id}
                   </div>
                   <p className="text-base font-bold text-slate-800 leading-tight">{item.title || item.text}</p>
                   <p className="text-xs font-semibold text-slate-500">
@@ -263,4 +264,3 @@ export default function RemindersPage() {
     </main>
   );
 }
-

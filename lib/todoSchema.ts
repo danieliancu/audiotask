@@ -132,6 +132,26 @@ export function ensureTodoTrashSchema() {
         )`
       );
     }
+
+    const [todoSharesTableRows] = await pool.query("SHOW TABLES LIKE 'todo_shares'");
+    const hasTodoSharesTable = Array.isArray(todoSharesTableRows) && todoSharesTableRows.length > 0;
+    if (!hasTodoSharesTable) {
+      await pool.query(
+        `CREATE TABLE todo_shares (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          todo_id BIGINT NOT NULL,
+          owner_user_id BIGINT NOT NULL,
+          shared_user_id BIGINT NOT NULL,
+          created_at BIGINT NOT NULL,
+          UNIQUE KEY uniq_todo_shares_todo_user (todo_id, shared_user_id),
+          INDEX idx_todo_shares_shared_user (shared_user_id),
+          INDEX idx_todo_shares_owner_user (owner_user_id),
+          CONSTRAINT fk_todo_shares_todo FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+          CONSTRAINT fk_todo_shares_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+          CONSTRAINT fk_todo_shares_shared FOREIGN KEY (shared_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`
+      );
+    }
   })().catch((error) => {
     ensureSchemaPromise = null;
     throw error;

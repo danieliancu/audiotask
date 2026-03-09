@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import { parseUserId } from '@/lib/todoAccess';
 import type { ReminderChannel, SubtaskItem } from '@/types';
 
 type DbTodoRow = {
@@ -60,7 +61,8 @@ const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
 };
 
 const mapRow = (row: DbTodoRow) => ({
-  id: String(row.local_id),
+  id: String(row.id),
+  localId: String(row.local_id),
   title: row.title ?? undefined,
   text: row.text,
   labelId: row.label_id ? String(row.label_id) : undefined,
@@ -76,13 +78,19 @@ const mapRow = (row: DbTodoRow) => ({
   deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
   reminderMinutesBefore: row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
   reminderChannel: row.reminder_channel ?? undefined,
-  subtasks: normalizeSubtasks(row.subtasks)
+  subtasks: normalizeSubtasks(row.subtasks),
+  isShared: false,
+  canEdit: false,
+  canDelete: true,
+  canManageShare: false,
+  canManageReminder: false,
+  canEditLabel: false
 });
 
 export async function GET(request: Request) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
@@ -107,7 +115,7 @@ export async function GET(request: Request) {
 export async function DELETE() {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   await pool.query('DELETE FROM todos WHERE user_id = ? AND deleted_at IS NOT NULL', [userId]);

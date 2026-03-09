@@ -3,20 +3,25 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
+import { getTodoAccess, parseUserId } from '@/lib/todoAccess';
 import { computeTodoDueAt, parseReminderChannel, parseReminderMinutes, type TodoReminderRow } from '@/lib/reminders';
 import { enqueueDelayedReminder } from '@/lib/delayedQueue';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await context.params;
-  const localId = Number(id);
-  if (!Number.isInteger(localId) || localId <= 0) {
+  const todoId = Number(id);
+  if (!Number.isInteger(todoId) || todoId <= 0) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
+
+  const access = await getTodoAccess(userId, todoId);
+  if (!access || access.deletedAt !== null) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (access.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
   const minutesBefore = parseReminderMinutes(body.minutesBefore);
@@ -30,8 +35,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const [todoRows] = await pool.query(
-    'SELECT * FROM todos WHERE user_id = ? AND local_id = ? AND deleted_at IS NULL LIMIT 1',
-    [userId, localId]
+    'SELECT * FROM todos WHERE user_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1',
+    [userId, todoId]
   );
   const todo = (todoRows as TodoReminderRow[])[0];
   if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -117,29 +122,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  const userId = parseUserId(session?.user?.id);
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await context.params;
-  const localId = Number(id);
-  if (!Number.isInteger(localId) || localId <= 0) {
+  const todoId = Number(id);
+  if (!Number.isInteger(todoId) || todoId <= 0) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
-  const [todoRows] = await pool.query(
-    'SELECT id FROM todos WHERE user_id = ? AND local_id = ? LIMIT 1',
-    [userId, localId]
-  );
-  const todo = (todoRows as Array<{ id: number }>)[0];
-  if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const access = await getTodoAccess(userId, todoId);
+  if (!access || access.deletedAt !== null) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (access.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await pool.query(
     "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
-    [Date.now(), userId, todo.id]
+    [Date.now(), userId, todoId]
   );
   await pool.query(
     'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE user_id = ? AND id = ?',
-    [userId, todo.id]
+    [userId, todoId]
   );
 
   return NextResponse.json({ ok: true });
