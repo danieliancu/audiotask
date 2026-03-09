@@ -1015,6 +1015,40 @@ const parseToolArgs = (rawArgs: unknown): Record<string, unknown> => {
   }
   return {};
 };
+const stableSerialize = (value: unknown): string => {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`).join(',')}}`;
+};
+type ParsedFunctionCall = {
+  id?: string;
+  name: string;
+  args: Record<string, unknown>;
+};
+const toParsedFunctionCall = (call: unknown): ParsedFunctionCall | null => {
+  if (!call || typeof call !== 'object') return null;
+  const raw = call as { id?: unknown; name?: unknown; args?: unknown };
+  const name = String(raw.name || '').trim();
+  if (!name) return null;
+  return {
+    id: raw.id !== undefined ? String(raw.id) : undefined,
+    name,
+    args: parseToolArgs(raw.args)
+  };
+};
+const extractFunctionCallsFromParts = (parts: unknown): ParsedFunctionCall[] => {
+  if (!Array.isArray(parts)) return [];
+  return parts
+    .map((part) => {
+      if (!part || typeof part !== 'object') return null;
+      const p = part as { functionCall?: unknown };
+      return toParsedFunctionCall(p.functionCall);
+    })
+    .filter((entry): entry is ParsedFunctionCall => Boolean(entry));
+};
 const isTodoIdTool = (name: string) => (
   name === ToolNames.EDIT_TODO
   || name === ToolNames.DELETE_TODO
@@ -1031,6 +1065,15 @@ type ToolExecutionResult = {
   message: string;
   code?: string;
   id?: string;
+  httpStatus?: number;
+  error?: string;
+};
+
+type SyncMutationResult = {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  payload?: unknown;
 };
 
 const SWIPE_DELETE_THRESHOLD = 88;
@@ -1224,6 +1267,8 @@ const App: React.FC = () => {
   const [uiNotice, setUiNotice] = useState<{ message: string; persistent: boolean } | null>(null);
   const uiNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserCommandRef = useRef<string>('');
+  const toolCallSeenInTurnRef = useRef(false);
+  const recentAddTodoSignaturesRef = useRef<Map<string, number>>(new Map());
   const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -2004,7 +2049,7 @@ const App: React.FC = () => {
     }
   }, [pendingDateStart, pendingDateEnd, tasksByDate, activeTab]);
 
-  const executeTool = useCallback((name: string, args: any) => {
+  const executeTool = useCallback(async (name: string, args: any): Promise<ToolExecutionResult> => {
     const normalizedName = normalizeToolName(name);
     if (!args || typeof args !== 'object') args = {};
     const ok = (message: string, extra?: Partial<ToolExecutionResult>): ToolExecutionResult => ({
@@ -2042,6 +2087,11 @@ const App: React.FC = () => {
         });
 
       for (const candidate of normalizedCandidates) {
+        if (/^\d+$/.test(candidate)) {
+          const byLocalNumeric = todosRef.current.filter((todo) => String(todo.localId || '') === candidate);
+          if (byLocalNumeric.length === 1) return byLocalNumeric[0].id;
+          if (byLocalNumeric.length > 1) return '__AMBIGUOUS_LOCAL_ID__';
+        }
         const exact = todosRef.current.find((todo) => todo.id === candidate);
         if (exact) return exact.id;
       }
@@ -2110,6 +2160,16 @@ const App: React.FC = () => {
       if (args.label !== undefined && !labelFromArgs) return null;
       return undefined;
     };
+    const markRecentAddTodoSignature = (signature: string) => {
+      const now = Date.now();
+      const ttlMs = 12_000;
+      for (const [key, timestamp] of recentAddTodoSignaturesRef.current.entries()) {
+        if (now - timestamp > ttlMs) recentAddTodoSignaturesRef.current.delete(key);
+      }
+      const previous = recentAddTodoSignaturesRef.current.get(signature);
+      recentAddTodoSignaturesRef.current.set(signature, now);
+      return previous !== undefined && (now - previous) <= 4_000;
+    };
     const updateTodo = (id: string, updater: (todo: TodoItem) => TodoItem) => {
       setTodos(prev => prev.map(todo => (todo.id === id ? updater(todo) : todo)));
     };
@@ -2119,7 +2179,9 @@ const App: React.FC = () => {
       void fetch('/api/todos', { credentials: 'include', cache: 'no-store' })
         .then(res => (res.ok ? res.json() : []))
         .then(data => setTodos(normalizeTodoListForState(data)))
-        .catch(() => {});
+        .catch((error) => {
+          console.error('Failed to refresh todos:', error);
+        });
     };
     const scheduleRefreshTodos = () => {
       if (todosRefreshTimerRef.current) clearTimeout(todosRefreshTimerRef.current);
@@ -2128,74 +2190,127 @@ const App: React.FC = () => {
       }, 120);
     };
 
-    const enqueueById = (id: string, job: () => Promise<void>) => {
-      const prev = requestQueueByIdRef.current.get(id) ?? Promise.resolve();
-      const next = prev
-        .then(job)
-        .catch(() => {})
-        .finally(() => {
-          if (requestQueueByIdRef.current.get(id) === next) {
-            requestQueueByIdRef.current.delete(id);
-          }
-        });
-      requestQueueByIdRef.current.set(id, next);
+    const parseErrorFromBody = (body: unknown, fallback: string) => {
+      if (body && typeof body === 'object') {
+        const payload = body as { error?: unknown; message?: unknown };
+        if (typeof payload.error === 'string' && payload.error.trim()) return payload.error.trim();
+        if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim();
+      }
+      return fallback;
     };
 
-    const syncUpdate = (id: string, payload: Record<string, unknown>) => {
-      if (!isLoggedIn) return;
-      enqueueById(id, async () => {
-        const res = await fetch(`/api/todos/${id}`, {
-          method: 'PUT',
+    const toErrorText = (error: unknown, fallback: string) => {
+      if (error instanceof Error && error.message.trim()) return error.message;
+      return fallback;
+    };
+
+    const enqueueById = <T,>(id: string, job: () => Promise<T>) => {
+      const prev = requestQueueByIdRef.current.get(id) ?? Promise.resolve();
+      const run = prev.catch(() => undefined).then(job);
+      const queueTail: Promise<void> = run.then(() => undefined, () => undefined);
+      requestQueueByIdRef.current.set(id, queueTail);
+      queueTail.finally(() => {
+        if (requestQueueByIdRef.current.get(id) === queueTail) {
+          requestQueueByIdRef.current.delete(id);
+        }
+      });
+      return run;
+    };
+
+    const syncUpdate = async (id: string, payload: Record<string, unknown>): Promise<SyncMutationResult> => {
+      if (!isLoggedIn) return { ok: false, status: 401, error: 'Unauthorized' };
+      return enqueueById(id, async () => {
+        try {
+          const res = await fetch(`/api/todos/${id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) {
+            refreshTodos();
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorFromBody(body, 'Failed to save changes.')
+            };
+          }
+          scheduleRefreshTodos();
+          return { ok: true, status: res.status, payload: body };
+        } catch (error) {
+          refreshTodos();
+          return { ok: false, error: toErrorText(error, 'Network error while saving changes.') };
+        }
+      });
+    };
+
+    const syncDelete = async (id: string): Promise<SyncMutationResult> => {
+      if (!isLoggedIn) return { ok: false, status: 401, error: 'Unauthorized' };
+      return enqueueById(id, async () => {
+        try {
+          const res = await fetch(`/api/todos/${id}`, { method: 'DELETE', credentials: 'include' });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) {
+            refreshTodos();
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorFromBody(body, 'Failed to delete item.')
+            };
+          }
+          scheduleRefreshTodos();
+          return { ok: true, status: res.status, payload: body };
+        } catch (error) {
+          refreshTodos();
+          return { ok: false, error: toErrorText(error, 'Network error while deleting item.') };
+        }
+      });
+    };
+
+    const syncCreate = async (tempId: string, item: Omit<TodoItem, 'id'>): Promise<SyncMutationResult> => {
+      if (!isLoggedIn) return { ok: false, status: 401, error: 'Unauthorized' };
+      try {
+        const res = await fetch('/api/todos', {
+          method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(item)
         });
-        if (!res.ok) refreshTodos();
-        else scheduleRefreshTodos();
-      });
-    };
-
-    const syncDelete = (id: string) => {
-      if (!isLoggedIn) return;
-      enqueueById(id, async () => {
-        const res = await fetch(`/api/todos/${id}`, { method: 'DELETE', credentials: 'include' });
-        if (!res.ok) refreshTodos();
-        else scheduleRefreshTodos();
-      });
-    };
-
-    const syncCreate = (tempId: string, item: Omit<TodoItem, 'id'>) => {
-      if (!isLoggedIn) return;
-      void fetch('/api/todos', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item)
-      })
-        .then(async (res) => (res.ok ? res.json() : null))
-        .then(serverItem => {
-          if (!serverItem) {
-            setTodos(prev => prev.filter(todo => todo.id !== tempId));
-            scheduleRefreshTodos();
-            return;
-          }
-          if (canceledTempIdsRef.current.has(tempId)) {
-            canceledTempIdsRef.current.delete(tempId);
-            syncDelete(serverItem.id);
-            return;
-          }
-          const pending = pendingTempUpdatesRef.current.get(tempId);
-          if (pending) {
-            pendingTempUpdatesRef.current.delete(tempId);
-            syncUpdate(serverItem.id, pending);
-          }
-          const normalizedServerItem = normalizeTodoForState(serverItem as TodoItem);
-          setTodos(prev => prev.map(todo => (todo.id === tempId ? normalizedServerItem : todo)));
-          scheduleRefreshTodos();
-      })
-        .catch(() => {
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !body) {
           setTodos(prev => prev.filter(todo => todo.id !== tempId));
-        });
+          refreshTodos();
+          return {
+            ok: false,
+            status: res.status,
+            error: parseErrorFromBody(body, 'Failed to create item.')
+          };
+        }
+        const serverItem = normalizeTodoForState(body as TodoItem);
+        if (canceledTempIdsRef.current.has(tempId)) {
+          canceledTempIdsRef.current.delete(tempId);
+          const deleteResult = await syncDelete(serverItem.id);
+          if (!deleteResult.ok) return deleteResult;
+          return { ok: false, error: 'Item was canceled before persistence completed.' };
+        }
+        const pending = pendingTempUpdatesRef.current.get(tempId);
+        if (pending) {
+          pendingTempUpdatesRef.current.delete(tempId);
+          const pendingResult = await syncUpdate(serverItem.id, pending);
+          if (!pendingResult.ok) {
+            setTodos(prev => prev.filter(todo => todo.id !== tempId));
+            return pendingResult;
+          }
+        }
+        setTodos(prev => prev.map(todo => (todo.id === tempId ? serverItem : todo)));
+        scheduleRefreshTodos();
+        return { ok: true, status: res.status, payload: serverItem };
+      } catch (error) {
+        setTodos(prev => prev.filter(todo => todo.id !== tempId));
+        refreshTodos();
+        return { ok: false, error: toErrorText(error, 'Network error while creating item.') };
+      }
     };
 
     switch (normalizedName) {
@@ -2248,6 +2363,26 @@ const App: React.FC = () => {
           ownerUserId: userId || undefined,
           ownerEmail: session?.user?.email || undefined
         };
+        const addTodoSignature = stableSerialize({
+          type: baseItem.type,
+          title: String(baseItem.title || '').trim().toLocaleLowerCase(),
+          text: String(baseItem.text || '').trim().toLocaleLowerCase(),
+          sortTimestamp: baseItem.type === 'event'
+            ? Math.floor(Number(baseItem.sortTimestamp) / 60000)
+            : Math.floor(Number(baseItem.sortTimestamp) / 1000),
+          dueTime: baseItem.dueTime || null,
+          dueEndTime: baseItem.dueEndTime || null,
+          location: String(baseItem.location || '').trim().toLocaleLowerCase(),
+          priority: baseItem.priority,
+          subtasks: (baseItem.subtasks || []).map((subtask) => ({
+            text: String(subtask.text || '').trim().toLocaleLowerCase(),
+            completed: Boolean(subtask.completed)
+          })),
+          owner: String(userId || 'guest')
+        });
+        if (markRecentAddTodoSignature(addTodoSignature)) {
+          return ok('Duplicate add_todo ignored.');
+        }
 
         if (!isLoggedIn) {
           const id = String(nextIdRef.current++);
@@ -2258,7 +2393,7 @@ const App: React.FC = () => {
           if (newItem.subtasks?.length) {
             setExpandedSubitems(prev => new Set(prev).add(id));
           }
-          break;
+          return ok('Created locally (guest mode).', { id });
         }
 
         const tempId = `tmp-${Date.now()}`;
@@ -2268,8 +2403,18 @@ const App: React.FC = () => {
         if (baseItem.subtasks?.length) {
           setExpandedSubitems(prev => new Set(prev).add(tempId));
         }
-        syncCreate(tempId, baseItem);
-        break;
+        const createResult = await syncCreate(tempId, baseItem);
+        if (!createResult.ok) {
+          const message = createResult.error || 'Failed to create item.';
+          showUiNotice(message, { persistent: true });
+          return fail(message, 'SYNC_FAILED', {
+            id: tempId,
+            httpStatus: createResult.status,
+            error: message
+          });
+        }
+        const createdId = (createResult.payload as TodoItem | undefined)?.id ?? tempId;
+        return ok('Created and persisted.', { id: String(createdId) });
       }
       case ToolNames.EDIT_TODO: {
         const editId = String(args.id);
@@ -2301,6 +2446,7 @@ const App: React.FC = () => {
           : (parsedDate ? (forcedRelativeTs ?? parsedDate.timestamp) : existing.sortTimestamp);
         const newType = existing.type;
         const isNote = newType === 'task';
+        const explicitCompletedTodo = typeof args.completed === 'boolean' ? args.completed : undefined;
         if (!isNote && parsedDate?.usedFallback && args.date !== undefined) {
           showUiNotice(getInvalidDateMessage(String(args.date)));
         }
@@ -2346,7 +2492,7 @@ const App: React.FC = () => {
               : existing.text,
           labelId: isNote ? undefined : newLabelId,
           type: newType,
-          completed: isNote ? false : existing.completed,
+          completed: isNote ? false : (explicitCompletedTodo ?? existing.completed),
           dueDate: isNote ? undefined : (args.date ? new Date(newTs).toLocaleDateString(language, { day: '2-digit', month: 'long', year: 'numeric' }) : existing.dueDate),
           dueTime: isNote ? undefined : normalizedTime,
           dueEndTime: isNote ? undefined : normalizedEndTime,
@@ -2371,6 +2517,7 @@ const App: React.FC = () => {
         }
         if (args.location !== undefined) payload.location = isNote ? null : nextTodo.location ?? null;
         if (args.subtasks !== undefined) payload.subtasks = isNote ? null : nextTodo.subtasks ?? null;
+        if (!isNote && explicitCompletedTodo !== undefined) payload.completed = explicitCompletedTodo;
         if (isNote) {
           payload.completed = false;
           payload.dueDate = null;
@@ -2390,8 +2537,17 @@ const App: React.FC = () => {
           pendingTempUpdatesRef.current.set(editId, { ...existing, ...payload });
           return ok('Edit queued for temporary item.', { id: editId });
         }
-        syncUpdate(editId, payload);
-        return ok('Edit queued.', { id: editId });
+        const updateResult = await syncUpdate(editId, payload);
+        if (!updateResult.ok) {
+          const message = updateResult.error || 'Failed to persist edit.';
+          showUiNotice(message, { persistent: true });
+          return fail(message, 'SYNC_FAILED', {
+            id: editId,
+            httpStatus: updateResult.status,
+            error: message
+          });
+        }
+        return ok('Edit persisted.', { id: editId });
       }
       case ToolNames.ADD_SUBTASK: {
         if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
@@ -2402,13 +2558,24 @@ const App: React.FC = () => {
         if (parent.type !== 'event') return fail('Subtasks are allowed only for tasks/events.', 'INVALID_TYPE', { id: parentId });
         const addItems = normalizeSubitems(args.subtasks ?? args.text ?? args.subtask);
         if (!addItems?.length) return fail('Missing subtask text.', 'INVALID_ARGS', { id: parentId });
-        updateTodo(parentId, (todo) => {
-          if (todo.type !== 'event') return todo;
-          const existing = todo.subtasks || [];
-          const updated = [...existing, ...addItems];
-          if (isLoggedIn) syncUpdate(parentId, { subtasks: updated });
-          return { ...todo, subtasks: updated };
-        });
+        const updatedSubtasks = [...(parent.subtasks || []), ...addItems];
+        updateTodo(parentId, (todo) => (
+          todo.type !== 'event'
+            ? todo
+            : { ...todo, subtasks: updatedSubtasks }
+        ));
+        if (isLoggedIn) {
+          const updateResult = await syncUpdate(parentId, { subtasks: updatedSubtasks });
+          if (!updateResult.ok) {
+            const message = updateResult.error || 'Failed to persist subtasks.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id: parentId,
+              httpStatus: updateResult.status,
+              error: message
+            });
+          }
+        }
         setExpandedSubitems(prev => new Set(prev).add(parentId));
         return ok('Subtask(s) added.', { id: parentId });
       }
@@ -2427,18 +2594,29 @@ const App: React.FC = () => {
         const existingSubtasks = parent.subtasks || [];
         if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
 
-        updateTodo(parentId, (todo) => {
-          if (todo.type !== 'event') return todo;
-          const existing = [...(todo.subtasks || [])];
-          const targetIndex = oneBasedIndex - 1;
-          if (targetIndex >= existing.length) return todo;
-          existing[targetIndex] = {
-            ...existing[targetIndex],
-            text: normalized[0].text
-          };
-          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
-          return { ...todo, subtasks: existing };
-        });
+        const updatedSubtasks = [...existingSubtasks];
+        const targetIndex = oneBasedIndex - 1;
+        updatedSubtasks[targetIndex] = {
+          ...updatedSubtasks[targetIndex],
+          text: normalized[0].text
+        };
+        updateTodo(parentId, (todo) => (
+          todo.type !== 'event'
+            ? todo
+            : { ...todo, subtasks: updatedSubtasks }
+        ));
+        if (isLoggedIn) {
+          const updateResult = await syncUpdate(parentId, { subtasks: updatedSubtasks });
+          if (!updateResult.ok) {
+            const message = updateResult.error || 'Failed to persist subtask edit.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id: parentId,
+              httpStatus: updateResult.status,
+              error: message
+            });
+          }
+        }
         setExpandedSubitems(prev => new Set(prev).add(parentId));
         return ok('Subtask edited.', { id: parentId });
       }
@@ -2454,15 +2632,25 @@ const App: React.FC = () => {
         const existingSubtasks = parent.subtasks || [];
         if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
 
-        updateTodo(parentId, (todo) => {
-          if (todo.type !== 'event') return todo;
-          const existing = [...(todo.subtasks || [])];
-          const targetIndex = oneBasedIndex - 1;
-          if (targetIndex >= existing.length) return todo;
-          existing.splice(targetIndex, 1);
-          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
-          return { ...todo, subtasks: existing.length ? existing : undefined };
-        });
+        const updatedSubtasks = [...existingSubtasks];
+        updatedSubtasks.splice(oneBasedIndex - 1, 1);
+        updateTodo(parentId, (todo) => (
+          todo.type !== 'event'
+            ? todo
+            : { ...todo, subtasks: updatedSubtasks.length ? updatedSubtasks : undefined }
+        ));
+        if (isLoggedIn) {
+          const updateResult = await syncUpdate(parentId, { subtasks: updatedSubtasks });
+          if (!updateResult.ok) {
+            const message = updateResult.error || 'Failed to persist subtask delete.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id: parentId,
+              httpStatus: updateResult.status,
+              error: message
+            });
+          }
+        }
         return ok('Subtask deleted.', { id: parentId });
       }
       case ToolNames.TOGGLE_SUBTASK: {
@@ -2478,19 +2666,30 @@ const App: React.FC = () => {
         if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
         const explicitCompleted = typeof args.completed === 'boolean' ? args.completed : undefined;
 
-        updateTodo(parentId, (todo) => {
-          if (todo.type !== 'event') return todo;
-          const existing = [...(todo.subtasks || [])];
-          const targetIndex = oneBasedIndex - 1;
-          if (targetIndex >= existing.length) return todo;
-          const current = existing[targetIndex];
-          existing[targetIndex] = {
-            ...current,
-            completed: explicitCompleted ?? !current.completed
-          };
-          if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
-          return { ...todo, subtasks: existing };
-        });
+        const updatedSubtasks = [...existingSubtasks];
+        const targetIndex = oneBasedIndex - 1;
+        const current = updatedSubtasks[targetIndex];
+        updatedSubtasks[targetIndex] = {
+          ...current,
+          completed: explicitCompleted ?? !current.completed
+        };
+        updateTodo(parentId, (todo) => (
+          todo.type !== 'event'
+            ? todo
+            : { ...todo, subtasks: updatedSubtasks }
+        ));
+        if (isLoggedIn) {
+          const updateResult = await syncUpdate(parentId, { subtasks: updatedSubtasks });
+          if (!updateResult.ok) {
+            const message = updateResult.error || 'Failed to persist subtask toggle.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id: parentId,
+              httpStatus: updateResult.status,
+              error: message
+            });
+          }
+        }
         setExpandedSubitems(prev => new Set(prev).add(parentId));
         return ok('Subtask toggled.', { id: parentId });
       }
@@ -2510,11 +2709,22 @@ const App: React.FC = () => {
           return ok('Temporary item deleted locally.', { id });
         }
         setTodos(prev => prev.filter(t => t.id !== id));
-        if (isLoggedIn) syncDelete(id);
+        if (isLoggedIn) {
+          const deleteResult = await syncDelete(id);
+          if (!deleteResult.ok) {
+            const message = deleteResult.error || 'Failed to persist delete.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id,
+              httpStatus: deleteResult.status,
+              error: message
+            });
+          }
+        }
         if (typeof window !== 'undefined' && isLoggedIn) {
           window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: 1 } }));
         }
-        return ok('Delete queued.', { id });
+        return ok('Delete persisted.', { id });
       }
       case ToolNames.TOGGLE_TODO: {
         if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
@@ -2523,21 +2733,44 @@ const App: React.FC = () => {
         const targetTodo = todosRef.current.find((todo) => todo.id === id);
         if (!targetTodo) return fail('Item not found for toggle.', 'NOT_FOUND', { id });
         if (targetTodo.type !== 'event') return fail('Only tasks/events can be toggled.', 'INVALID_TYPE', { id });
-        updateTodo(id, (todo) => {
-          if (todo.type !== 'event') return todo;
-          const next = { ...todo, completed: !todo.completed };
-          if (isLoggedIn) syncUpdate(id, { completed: next.completed });
-          return next;
-        });
+        const explicitCompleted = typeof args.completed === 'boolean' ? args.completed : undefined;
+        const nextCompleted = explicitCompleted ?? !targetTodo.completed;
+        updateTodo(id, (todo) => (
+          todo.type !== 'event'
+            ? todo
+            : { ...todo, completed: nextCompleted }
+        ));
+        if (isLoggedIn) {
+          const updateResult = await syncUpdate(id, { completed: nextCompleted });
+          if (!updateResult.ok) {
+            const message = updateResult.error || 'Failed to persist completion toggle.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              id,
+              httpStatus: updateResult.status,
+              error: message
+            });
+          }
+        }
         return ok('Completion toggled.', { id });
       }
       case ToolNames.CLEAR_COMPLETED: {
-        const removedCount = todosRef.current.filter(t => t.type === 'event' && t.completed && !String(t.id).startsWith('tmp-')).length;
+        const completedItems = todosRef.current.filter(t => t.type === 'event' && t.completed && !String(t.id).startsWith('tmp-'));
+        const removedCount = completedItems.length;
         if (removedCount === 0) return fail('No completed tasks to clear.', 'NO_OP');
-        setTodos(prev => {
-          if (isLoggedIn) prev.filter(t => t.type === 'event' && t.completed).forEach(t => syncDelete(t.id));
-          return prev.filter(t => !(t.type === 'event' && t.completed));
-        });
+        setTodos(prev => prev.filter(t => !(t.type === 'event' && t.completed)));
+        if (isLoggedIn) {
+          const deleteResults = await Promise.all(completedItems.map((item) => syncDelete(item.id)));
+          const firstFailure = deleteResults.find((result) => !result.ok);
+          if (firstFailure) {
+            const message = firstFailure.error || 'Failed to clear all completed tasks.';
+            showUiNotice(message, { persistent: true });
+            return fail(message, 'SYNC_FAILED', {
+              httpStatus: firstFailure.status,
+              error: message
+            });
+          }
+        }
         if (typeof window !== 'undefined' && isLoggedIn && removedCount > 0) {
           window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: removedCount } }));
         }
@@ -2549,7 +2782,7 @@ const App: React.FC = () => {
     return ok('Done.');
   }, [activeTab, getOwnerDeleteOnlyMessage, language, session?.user?.email, showUiNotice, userId]);
 
-  const moveNoteCard = useCallback((id: string, direction: 'up' | 'down', visibleNotes: TodoItem[]) => {
+  const moveNoteCard = useCallback(async (id: string, direction: 'up' | 'down', visibleNotes: TodoItem[]) => {
     const currentIndex = visibleNotes.findIndex(item => item.id === id);
     if (currentIndex === -1) return;
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
@@ -2567,8 +2800,8 @@ const App: React.FC = () => {
       targetSortTimestamp = base;
     }
 
-    executeTool(ToolNames.EDIT_TODO, { id: currentItem.id, sortTimestamp: currentSortTimestamp });
-    executeTool(ToolNames.EDIT_TODO, { id: targetItem.id, sortTimestamp: targetSortTimestamp });
+    await executeTool(ToolNames.EDIT_TODO, { id: currentItem.id, sortTimestamp: currentSortTimestamp });
+    await executeTool(ToolNames.EDIT_TODO, { id: targetItem.id, sortTimestamp: targetSortTimestamp });
   }, [executeTool]);
 
   const stopLiveSession = useCallback(() => {
@@ -2663,6 +2896,7 @@ const App: React.FC = () => {
             if (m.serverContent?.turnComplete) {
               setTranscription('');
               setTimeout(() => setHighlightedTaskId(null), 3000);
+              toolCallSeenInTurnRef.current = false;
               lastUserCommandRef.current = '';
             }
             
@@ -2689,13 +2923,30 @@ const App: React.FC = () => {
               }
             });
 
-            if (m.toolCall) {
-              for (const fc of m.toolCall.functionCalls ?? []) {
-                const functionName = fc.name || 'unknown_tool';
-                const functionArgs = parseToolArgs(fc.args);
+            const liveToolCalls = (m.toolCall?.functionCalls ?? [])
+              .map(fc => toParsedFunctionCall(fc))
+              .filter((entry): entry is ParsedFunctionCall => Boolean(entry));
+            const partToolCalls = extractFunctionCallsFromParts(m.serverContent?.modelTurn?.parts);
+            const groupedToolCalls = new Map<string, { call: ParsedFunctionCall; ids: Array<string | undefined> }>();
+            [...liveToolCalls, ...partToolCalls].forEach((call) => {
+              const key = `${normalizeToolName(call.name)}|${stableSerialize(call.args)}`;
+              const existing = groupedToolCalls.get(key);
+              if (!existing) {
+                groupedToolCalls.set(key, { call, ids: [call.id] });
+                return;
+              }
+              if (!existing.ids.includes(call.id)) existing.ids.push(call.id);
+            });
+
+            if (groupedToolCalls.size > 0) {
+              toolCallSeenInTurnRef.current = true;
+              for (const grouped of groupedToolCalls.values()) {
+                const call = grouped.call;
+                const functionName = call.name || 'unknown_tool';
+                const functionArgs = call.args;
                 let toolResponse: Record<string, unknown>;
                 try {
-                  const res = executeTool(functionName, functionArgs);
+                  const res = await executeTool(functionName, functionArgs);
                   const execution = (res && typeof res === 'object') ? (res as Record<string, unknown>) : { ok: true, message: 'Done' };
                   toolResponse = {
                     ok: Boolean(execution.ok !== false),
@@ -2703,13 +2954,25 @@ const App: React.FC = () => {
                   };
                 } catch (error) {
                   console.error('Tool execution failed:', functionName, error);
-                  toolResponse = { ok: false, error: 'Tool execution failed' };
+                  toolResponse = {
+                    ok: false,
+                    error: error instanceof Error ? error.message : 'Tool execution failed'
+                  };
                 }
                 if (!isLiveRef.current) continue;
-                sessionPromise.then(s => {
-                  if (!isLiveRef.current || !s) return;
-                  s.sendToolResponse({ functionResponses: { id: fc.id, name: functionName, response: toolResponse } });
-                });
+                try {
+                  const s = await sessionPromise;
+                  if (!isLiveRef.current || !s) continue;
+                  for (const responseId of grouped.ids) {
+                    s.sendToolResponse({
+                      functionResponses: responseId
+                        ? { id: responseId, name: functionName, response: toolResponse }
+                        : { name: functionName, response: toolResponse }
+                    });
+                  }
+                } catch (error) {
+                  console.error('Failed to send tool response:', error);
+                }
               }
             }
             if (m.serverContent?.interrupted) {
@@ -2964,7 +3227,22 @@ const App: React.FC = () => {
       [],
       language
     );
-    response.functionCalls?.forEach(c => executeTool(c.name, parseToolArgs(c.args)));
+    const directCalls = (response.functionCalls ?? [])
+      .map((call) => toParsedFunctionCall(call))
+      .filter((entry): entry is ParsedFunctionCall => Boolean(entry));
+    const partCalls = extractFunctionCallsFromParts(response.candidates?.[0]?.content?.parts);
+    const functionCalls = directCalls.length > 0 ? directCalls : partCalls;
+    for (const call of functionCalls) {
+      await executeTool(call.name, call.args);
+    }
+    if (functionCalls.length === 0) {
+      showUiNotice(
+        language === 'ro'
+          ? 'Modelul a raspuns fara tool-call executabil.'
+          : 'Model replied without an executable tool call.',
+        { persistent: true }
+      );
+    }
     lastUserCommandRef.current = '';
     setInputValue('');
     setIsWriteMode(false);

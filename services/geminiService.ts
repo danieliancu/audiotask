@@ -45,6 +45,7 @@ export const todoTools: FunctionDeclaration[] = [
         date: { type: Type.STRING, description: "Updated date in YYYY-MM-DD format." },
         time: { type: Type.STRING },
         endTime: { type: Type.STRING, description: "Optional updated end time." },
+        completed: { type: Type.BOOLEAN, description: "Optional explicit completed state for tasks (type=event)." },
         priority: { type: Type.STRING, enum: ['low', 'normal', 'high'] },
         label: { type: Type.STRING, description: "Label name for tasks." },
         clearLabel: { type: Type.BOOLEAN, description: "Set true to remove current label from task." },
@@ -120,7 +121,10 @@ export const todoTools: FunctionDeclaration[] = [
     description: "Toggles completion state by id.",
     parameters: {
       type: Type.OBJECT,
-      properties: { id: { type: Type.STRING } },
+      properties: {
+        id: { type: Type.STRING },
+        completed: { type: Type.BOOLEAN, description: "Optional explicit completed state." }
+      },
       required: ['id']
     }
   },
