@@ -28,6 +28,9 @@ type DbTodoRow = {
   reminder_channel: 'email' | 'sms' | 'push' | null;
   owner_email: string | null;
   is_owner: number | boolean;
+  share_count: number | null;
+  shared_emails: string | null;
+  effective_label_id: number | null;
 };
 
 const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
@@ -70,7 +73,7 @@ const mapRow = (row: DbTodoRow) => {
     localId: isOwner ? String(row.local_id) : undefined,
     title: row.title ?? undefined,
     text: row.text,
-    labelId: row.label_id ? String(row.label_id) : undefined,
+    labelId: row.effective_label_id ? String(row.effective_label_id) : undefined,
     completed: Boolean(row.completed),
     createdAt: Number(row.created_at),
     dueDate: row.due_date ?? undefined,
@@ -90,7 +93,12 @@ const mapRow = (row: DbTodoRow) => {
     canDelete: isOwner,
     canManageShare: isOwner,
     canManageReminder: isOwner,
-    canEditLabel: isOwner
+    canEditLabel: true,
+    shareCount: Number(row.share_count || 0),
+    sharedWithEmails: String(row.shared_emails || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
   };
 };
 
@@ -99,9 +107,23 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
     `SELECT
        t.*, 
        owner.email AS owner_email,
-       CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS is_owner
+       CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS is_owner,
+       COALESCE(
+         tul.label_id,
+         CASE WHEN t.user_id = ? THEN t.label_id ELSE NULL END
+       ) AS effective_label_id,
+       (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
+       (
+         SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
+         FROM todo_shares ts2
+         JOIN users u2 ON u2.id = ts2.shared_user_id
+         WHERE ts2.todo_id = t.id
+       ) AS shared_emails
      FROM todos t
      JOIN users owner ON owner.id = t.user_id
+     LEFT JOIN todo_user_labels tul
+       ON tul.todo_id = t.id
+      AND tul.user_id = ?
      LEFT JOIN todo_shares ts
        ON ts.todo_id = t.id
       AND ts.shared_user_id = ?
@@ -109,7 +131,7 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
        AND t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      LIMIT 1`,
-    [viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
+    [viewerUserId, viewerUserId, viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
   );
   return (rows as DbTodoRow[])[0] ?? null;
 };
@@ -154,7 +176,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (body.location !== undefined) pushField('location', body.location ?? null);
   if (body.sortTimestamp !== undefined) pushField('sort_timestamp', Number(body.sortTimestamp));
 
-  if (body.labelId !== undefined && access.role === 'owner') {
+  let hasLabelMutation = false;
+  if (body.labelId !== undefined) {
     let labelId: number | null = null;
     if (body.labelId !== null && String(body.labelId).trim() !== '') {
       const parsed = Number(body.labelId);
@@ -163,17 +186,24 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         if ((rows as Array<{ id: number }>).length > 0) labelId = parsed;
       }
     }
-    pushField('label_id', labelId);
-  }
 
-  if (body.priority !== undefined) {
-    const priority = body.priority === 'high' ? 'high' : body.priority === 'low' ? 'low' : 'normal';
-    pushField('priority', priority);
-  }
-
-  if (body.subtasks !== undefined) {
-    const subtasks = normalizeSubtasks(body.subtasks);
-    pushField('subtasks', subtasks ? JSON.stringify(subtasks) : null);
+    if (labelId !== null) {
+      await pool.query(
+        `INSERT INTO todo_user_labels (todo_id, user_id, label_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE label_id = VALUES(label_id), updated_at = VALUES(updated_at)`,
+        [todoId, userId, labelId, Date.now(), Date.now()]
+      );
+      if (access.role === 'owner') {
+        await pool.query('UPDATE todos SET label_id = ? WHERE id = ? AND user_id = ?', [labelId, todoId, userId]);
+      }
+    } else {
+      await pool.query('DELETE FROM todo_user_labels WHERE todo_id = ? AND user_id = ?', [todoId, userId]);
+      if (access.role === 'owner') {
+        await pool.query('UPDATE todos SET label_id = NULL WHERE id = ? AND user_id = ?', [todoId, userId]);
+      }
+    }
+    hasLabelMutation = true;
   }
 
   const shouldResetReminder = (
@@ -185,15 +215,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     || body.type !== undefined
   );
 
-  if (fields.length === 0) {
+  if (fields.length === 0 && !hasLabelMutation) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  values.push(todoId);
-  await pool.query(
-    `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
-    values
-  );
+  if (fields.length > 0) {
+    values.push(todoId);
+    await pool.query(
+      `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+      values
+    );
+  }
 
   if (shouldResetReminder) {
     await pool.query(

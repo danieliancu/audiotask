@@ -30,6 +30,9 @@ type DbTodoRow = {
   reminder_channel: ReminderChannel | null;
   owner_email: string | null;
   is_owner: number | boolean;
+  share_count: number | null;
+  shared_emails: string | null;
+  effective_label_id: number | null;
 };
 
 const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
@@ -77,7 +80,7 @@ const mapRow = (row: DbTodoRow) => {
     localId: isOwner ? String(row.local_id) : undefined,
     title: row.title ?? undefined,
     text: row.text,
-    labelId: row.label_id ? String(row.label_id) : undefined,
+    labelId: row.effective_label_id ? String(row.effective_label_id) : undefined,
     completed: Boolean(row.completed),
     createdAt: Number(row.created_at),
     dueDate: row.due_date ?? undefined,
@@ -98,7 +101,12 @@ const mapRow = (row: DbTodoRow) => {
     canDelete: isOwner,
     canManageShare: isOwner,
     canManageReminder: isOwner,
-    canEditLabel: isOwner
+    canEditLabel: true,
+    shareCount: Number(row.share_count || 0),
+    sharedWithEmails: String(row.shared_emails || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
   };
 };
 
@@ -112,16 +120,30 @@ export async function GET() {
     `SELECT
        t.*, 
        owner.email AS owner_email,
-       CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS is_owner
+       CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS is_owner,
+       COALESCE(
+         tul.label_id,
+         CASE WHEN t.user_id = ? THEN t.label_id ELSE NULL END
+       ) AS effective_label_id,
+       (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
+       (
+         SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
+         FROM todo_shares ts2
+         JOIN users u2 ON u2.id = ts2.shared_user_id
+         WHERE ts2.todo_id = t.id
+       ) AS shared_emails
      FROM todos t
      JOIN users owner ON owner.id = t.user_id
+     LEFT JOIN todo_user_labels tul
+       ON tul.todo_id = t.id
+      AND tul.user_id = ?
      LEFT JOIN todo_shares ts
        ON ts.todo_id = t.id
       AND ts.shared_user_id = ?
      WHERE t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      ORDER BY t.sort_timestamp ASC`,
-    [userId, userId, userId, userId]
+    [userId, userId, userId, userId, userId, userId]
   );
 
   const uniqueByTodoId = new Map<number, DbTodoRow>();
@@ -207,13 +229,33 @@ export async function POST(request: Request) {
       ]
     );
 
+    if (payload.labelId) {
+      await connection.query(
+        `INSERT INTO todo_user_labels (todo_id, user_id, label_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE label_id = VALUES(label_id), updated_at = VALUES(updated_at)`,
+        [insertResult.insertId, userId, payload.labelId, Date.now(), Date.now()]
+      );
+    }
+
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT
          t.*, 
          owner.email AS owner_email,
-         1 AS is_owner
+         1 AS is_owner,
+         COALESCE(tul.label_id, t.label_id) AS effective_label_id,
+         (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
+         (
+           SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
+           FROM todo_shares ts2
+           JOIN users u2 ON u2.id = ts2.shared_user_id
+           WHERE ts2.todo_id = t.id
+         ) AS shared_emails
        FROM todos t
        JOIN users owner ON owner.id = t.user_id
+       LEFT JOIN todo_user_labels tul
+         ON tul.todo_id = t.id
+        AND tul.user_id = t.user_id
        WHERE t.id = ? AND t.user_id = ?
        LIMIT 1`,
       [insertResult.insertId, userId]

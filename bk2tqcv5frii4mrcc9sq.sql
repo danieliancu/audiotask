@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: bk2tqcv5frii4mrcc9sq-mysql.services.clever-cloud.com:21125
--- Generation Time: Mar 09, 2026 at 09:15 AM
+-- Generation Time: Mar 09, 2026 at 10:16 AM
 -- Server version: 8.4.7-7
 -- PHP Version: 8.2.30
 
@@ -147,7 +147,7 @@ INSERT INTO `todos` (`id`, `user_id`, `local_id`, `title`, `text`, `completed`, 
 (71, 2, 10, 'De luat Oliver', 'De luat Oliver de la Glenn acasă', 1, 1770918352321, 'February 13, 2026', '07:30', NULL, NULL, 1770940800000, 'event', 'high', NULL, NULL, 8, NULL, NULL),
 (84, 2, 23, NULL, 'Întâlnire cu Ștefan Piolet', 1, 1770970608387, '14 februarie 2026', '07:00', NULL, NULL, 1771027200000, 'event', 'normal', '[\"De rezolvat functiile javascript\",\"De dat test\"]', NULL, NULL, NULL, NULL),
 (90, 2, 29, NULL, 'Plimbare pana la mare', 1, 1770975666819, 'February 13, 2026', '18:00', NULL, NULL, 1770940800000, 'event', 'normal', NULL, NULL, 14, NULL, NULL),
-(97, 2, 33, NULL, 'Rezolvare problemă imprimantă 3D', 0, 1770993400640, '09 martie 2026', '18:00', NULL, NULL, 1773014400000, 'event', 'high', NULL, NULL, 8, NULL, NULL),
+(97, 2, 33, NULL, 'Rezolvare problemă imprimantă 3D', 0, 1770993400640, '09 martie 2026', '18:00', NULL, NULL, 1773014400000, 'event', 'high', NULL, 1773051105844, 8, NULL, NULL),
 (98, 2, 34, NULL, 'Verificare electricitate acasă', 1, 1770998202712, '13 februarie 2026', '17:30', NULL, NULL, 1770940800000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
 (102, 2, 38, NULL, 'Înot cu Harry', 1, 1771067117731, '14 februarie 2026', '13:40', NULL, 'Garon Swimming Pool', 1771027200000, 'event', 'normal', NULL, NULL, 15, NULL, NULL),
 (103, 2, 39, NULL, 'Tuns pentru Patrick la Tony and Guy', 1, 1771067176175, 'February 14, 2026', '16:00', NULL, 'Royal Mall', 1771027200000, 'event', 'normal', NULL, NULL, 15, NULL, NULL),
@@ -197,7 +197,7 @@ INSERT INTO `todos` (`id`, `user_id`, `local_id`, `title`, `text`, `completed`, 
 (156, 2, 84, NULL, 'De sunat cofe', 1, 1772552894844, '03 martie 2026', '18:15', NULL, NULL, 1772496000000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
 (157, 2, 85, 'De verificat pașapoartele băieților', 'De verificat pașapoartele băieților', 0, 1772634290699, '04 aprilie 2026', NULL, NULL, NULL, 1775257200000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
 (158, 2, 86, NULL, 'Mini League pentru Adam', 0, 1772647143578, '14 martie 2026', '14:00', NULL, 'Garons', 1773446400000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
-(159, 2, 87, NULL, 'Task pentru astăzi la 8', 0, 1772694474556, '09 martie 2026', '08:00', '17:00', NULL, 1773014400000, 'event', 'normal', '[{\"text\":\"Verificat react nativ\",\"completed\":true},{\"text\":\"De plătit amenda de parcare\",\"completed\":true},{\"text\":\"Pentru Velvet Drivers\",\"completed\":false},{\"text\":\"Bază de date pentru Ștefan\",\"completed\":true},{\"text\":\"De plătit telefonul pentru România\",\"completed\":true},{\"text\":\"De găsit bilet pentru România\",\"completed\":false},{\"text\":\"De platit Romarg\",\"completed\":true},{\"text\":\"Semnătură electronică de la Simona pentru schimbarea codului KN\",\"completed\":false},{\"text\":\"Share option pt voicetask\",\"completed\":false}]', NULL, NULL, NULL, NULL),
+(159, 2, 87, NULL, 'Taskuri pentru azi', 0, 1772694474556, '09 martie 2026', '08:00', '17:00', NULL, 1773014400000, 'event', 'normal', '[{\"text\":\"Verificat react nativ\",\"completed\":true},{\"text\":\"De plătit amenda de parcare\",\"completed\":true},{\"text\":\"Pentru Velvet Drivers\",\"completed\":false},{\"text\":\"Bază de date pentru Ștefan\",\"completed\":true},{\"text\":\"De plătit telefonul pentru România\",\"completed\":true},{\"text\":\"De găsit bilet pentru România\",\"completed\":false},{\"text\":\"De platit Romarg\",\"completed\":true},{\"text\":\"Semnătură electronică de la Simona pentru schimbarea codului KN\",\"completed\":false},{\"text\":\"Share option pt voicetask\",\"completed\":false},{\"text\":\"De trecut baza de date pentru audio task în Amazon\",\"completed\":false},{\"text\":\"Rezolvare problemă imprimantă 3D\",\"completed\":false}]', NULL, NULL, NULL, NULL),
 (160, 10, 3, NULL, 'Teatru', 0, 1772723346920, '14 mars 2026', NULL, NULL, 'Teatru Cachan', 1773442800000, 'event', 'normal', '[{\"text\":\"Audiere piesa in duo\",\"completed\":false}]', NULL, NULL, NULL, NULL),
 (161, 2, 88, 'Am inceput azi sa dau cu spray nazal', '', 0, 1772738327357, NULL, NULL, NULL, NULL, 1772738327357, 'task', 'normal', NULL, NULL, NULL, NULL, NULL),
 (162, 2, 89, NULL, 'Intalnire audio cu Matty', 1, 1772805010725, '06 martie 2026', '16:15', NULL, NULL, 1772755200000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
@@ -207,8 +207,9 @@ INSERT INTO `todos` (`id`, `user_id`, `local_id`, `title`, `text`, `completed`, 
 (166, 2, 93, 'Întâlnire cu Mati', 'Întâlnire cu Mati', 0, 1772819180631, '10 martie 2026', '18:00', NULL, NULL, 1773100800000, 'event', 'normal', NULL, NULL, NULL, NULL, NULL),
 (167, 2, 94, NULL, 'De ridicat mașina de schimb', 0, 1772820172109, '16 martie 2026', '08:00', NULL, 'Ss118yq', 1773619200000, 'event', 'normal', '[{\"text\":\"Permis de conducere\",\"completed\":false},{\"text\":\"National Insurance Number\",\"completed\":false}]', NULL, NULL, NULL, NULL),
 (168, 2, 95, 'Geografie', 'schita', 0, 1772887589059, NULL, NULL, NULL, NULL, 1772887589059, 'task', 'normal', NULL, 1772887596001, NULL, NULL, NULL),
-(169, 2, 96, NULL, 'De trecut baza de date pentru audio task în Amazon', 0, 1772991195242, '09 martie 2026', '08:00', '09:00', NULL, 1773014400000, 'event', 'high', NULL, NULL, NULL, NULL, NULL),
-(170, 2, 97, NULL, 'Ultima zi de dat cu spray nazal', 0, 1772991590110, '12 martie 2026', NULL, NULL, NULL, 1773273600000, 'event', 'high', NULL, NULL, 18, NULL, NULL);
+(169, 2, 96, NULL, 'De trecut baza de date pentru audio task în Amazon', 0, 1772991195242, '09 martie 2026', '08:00', '09:00', NULL, 1773014400000, 'event', 'high', NULL, 1773051090024, NULL, NULL, NULL),
+(170, 2, 97, NULL, 'Ultima zi de dat cu spray nazal', 0, 1772991590110, '12 martie 2026', NULL, NULL, NULL, 1773273600000, 'event', 'high', NULL, NULL, 18, NULL, NULL),
+(171, 2, 98, NULL, 'De luat Adam de la înot de la Garons oră 20:30', 0, 1773048310909, '09 martie 2026', '20:30', NULL, 'Garons', 1773014400000, 'event', 'high', NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -223,6 +224,50 @@ CREATE TABLE `todo_shares` (
   `shared_user_id` bigint NOT NULL,
   `created_at` bigint NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `todo_shares`
+--
+
+INSERT INTO `todo_shares` (`id`, `todo_id`, `owner_user_id`, `shared_user_id`, `created_at`) VALUES
+(2, 159, 2, 11, 1773047848845),
+(3, 171, 2, 3, 1773048366077),
+(4, 171, 2, 11, 1773050325237);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `todo_user_labels`
+--
+
+CREATE TABLE `todo_user_labels` (
+  `id` bigint NOT NULL,
+  `todo_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `label_id` bigint NOT NULL,
+  `created_at` bigint NOT NULL,
+  `updated_at` bigint NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `todo_user_labels`
+--
+
+INSERT INTO `todo_user_labels` (`id`, `todo_id`, `user_id`, `label_id`, `created_at`, `updated_at`) VALUES
+(1, 71, 2, 8, 1773051119303, 1773051119303),
+(2, 97, 2, 8, 1773051119303, 1773051119303),
+(3, 105, 2, 8, 1773051119303, 1773051119303),
+(4, 139, 2, 8, 1773051119303, 1773051119303),
+(5, 141, 2, 8, 1773051119303, 1773051119303),
+(6, 145, 2, 8, 1773051119303, 1773051119303),
+(7, 150, 2, 8, 1773051119303, 1773051119303),
+(8, 63, 2, 14, 1773051119303, 1773051119303),
+(9, 90, 2, 14, 1773051119303, 1773051119303),
+(10, 144, 2, 14, 1773051119303, 1773051119303),
+(11, 102, 2, 15, 1773051119303, 1773051119303),
+(12, 103, 2, 15, 1773051119303, 1773051119303),
+(13, 134, 2, 15, 1773051119303, 1773051119303),
+(14, 170, 2, 18, 1773051119303, 1773051119303);
 
 -- --------------------------------------------------------
 
@@ -250,7 +295,8 @@ INSERT INTO `users` (`id`, `email`, `name`, `image`, `password_hash`, `provider`
 (2, 'dani.iancu@yahoo.com', 'Daniel Iancu', NULL, '$2b$10$Qhu9Q.2iiTzTQEGlJPxCTOyYRbRR7KFEIqVNSifewb7CgOXFKysru', 'credentials', NULL, '2026-02-03 17:34:37', '2026-02-03 17:34:37'),
 (3, 'ioanaiancu15@gmail.com', 'Ioana', NULL, '$2b$10$xFsfgqoy1ELGzx1GNFNEEeUkwmdOFXWm4UUB1sOBjvYLiFx9THvja', 'credentials', NULL, '2026-02-05 15:40:44', '2026-02-05 15:40:44'),
 (4, 'claudiuiancu2008@gmail.com', 'Claudiu', NULL, '$2b$10$KVi5Hzw6hZeDerAA0SUWTOuqtVzBgWMmDjATp2AuR44nM.Rhzckz6', 'credentials', NULL, '2026-02-05 17:18:50', '2026-02-05 17:18:50'),
-(10, 'alexia_kin@hotmail.fr', 'Zamfir Maria', NULL, '$2b$10$wUa/EFvMfRvDlI2Bkv64AeJilpRR7/jyJCJl1IU5AXNla3GqQWvyG', 'credentials', NULL, '2026-03-01 22:46:55', '2026-03-01 22:46:55');
+(10, 'alexia_kin@hotmail.fr', 'Zamfir Maria', NULL, '$2b$10$wUa/EFvMfRvDlI2Bkv64AeJilpRR7/jyJCJl1IU5AXNla3GqQWvyG', 'credentials', NULL, '2026-03-01 22:46:55', '2026-03-01 22:46:55'),
+(11, 'daniiancu1978@gmail.com', 'Celalalt Daniel', NULL, '$2b$10$lJPlwykj1OAABDRVVbDtWewj.6FFwuucBCUwqraiZ5u.EGb8U/PDu', 'credentials', NULL, '2026-03-09 09:16:01', '2026-03-09 09:16:01');
 
 -- --------------------------------------------------------
 
@@ -278,10 +324,11 @@ CREATE TABLE `user_settings` (
 --
 
 INSERT INTO `user_settings` (`user_id`, `active_tab`, `language`, `color_scheme`, `active_date_filters`, `filter_task`, `filter_event`, `calendar_month`, `default_language`, `default_active_tab`, `default_show_subtasks`, `default_font_size`) VALUES
-(2, 'event', 'ro', 'light', '[\"2026-2-8\",\"2026-2-9\",\"2026-2-10\",\"2026-2-11\",\"2026-2-12\",\"2026-2-13\",\"2026-2-14\",\"2026-2-15\",\"2026-2-16\",\"2026-2-17\",\"2026-2-18\",\"2026-2-19\",\"2026-2-20\",\"2026-2-21\",\"2026-2-22\",\"2026-2-23\",\"2026-2-24\",\"2026-2-25\",\"2026-2-26\",\"2026-2-27\",\"2026-2-28\",\"2026-2-29\",\"2026-2-30\",\"2026-2-31\",\"2026-3-1\",\"2026-3-2\",\"2026-3-3\",\"2026-3-4\"]', 'all|all', 'open|all', '2026-03', NULL, NULL, 1, 'small'),
-(3, 'task', 'ro', 'light', '[]', 'all|all', 'all|all', '2026-02', NULL, NULL, 0, 'normal'),
+(2, 'task', 'ro', 'light', '[\"2026-2-8\",\"2026-2-9\",\"2026-2-10\",\"2026-2-11\",\"2026-2-12\",\"2026-2-13\",\"2026-2-14\",\"2026-2-15\",\"2026-2-16\",\"2026-2-17\",\"2026-2-18\",\"2026-2-19\",\"2026-2-20\",\"2026-2-21\",\"2026-2-22\",\"2026-2-23\",\"2026-2-24\",\"2026-2-25\",\"2026-2-26\",\"2026-2-27\",\"2026-2-28\",\"2026-2-29\",\"2026-2-30\",\"2026-2-31\",\"2026-3-1\",\"2026-3-2\",\"2026-3-3\",\"2026-3-4\"]', 'all|all', 'open|all', '2026-03', NULL, NULL, 1, 'small'),
+(3, 'event', 'ro', 'light', '[]', 'all|all', 'all|all', '2026-02', NULL, NULL, 0, 'normal'),
 (4, 'task', 'ro', 'light', '[]', 'all|all', 'all|all', '2026-02', 'ro', 'task', 1, 'normal'),
-(10, 'event', 'fr', 'light', '[]', 'all|all', 'all|all', '2026-03', NULL, NULL, 0, 'normal');
+(10, 'event', 'fr', 'light', '[]', 'all|all', 'all|all', '2026-03', NULL, NULL, 0, 'normal'),
+(11, 'event', 'en', 'light', '[]', 'all|all', 'all|all', '2026-03', NULL, NULL, 0, 'normal');
 
 --
 -- Indexes for dumped tables
@@ -324,6 +371,15 @@ ALTER TABLE `todo_shares`
   ADD KEY `idx_todo_shares_owner_user` (`owner_user_id`);
 
 --
+-- Indexes for table `todo_user_labels`
+--
+ALTER TABLE `todo_user_labels`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_todo_user_label` (`todo_id`,`user_id`),
+  ADD KEY `idx_todo_user_labels_user` (`user_id`),
+  ADD KEY `idx_todo_user_labels_label` (`label_id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -351,7 +407,7 @@ ALTER TABLE `labels`
 -- AUTO_INCREMENT for table `reminder_jobs`
 --
 ALTER TABLE `reminder_jobs`
-  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=89;
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=90;
 
 --
 -- AUTO_INCREMENT for table `todos`
@@ -363,13 +419,19 @@ ALTER TABLE `todos`
 -- AUTO_INCREMENT for table `todo_shares`
 --
 ALTER TABLE `todo_shares`
-  MODIFY `id` bigint NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `todo_user_labels`
+--
+ALTER TABLE `todo_user_labels`
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` bigint NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- Constraints for dumped tables
@@ -402,6 +464,14 @@ ALTER TABLE `todo_shares`
   ADD CONSTRAINT `fk_todo_shares_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_todo_shares_shared` FOREIGN KEY (`shared_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_todo_shares_todo` FOREIGN KEY (`todo_id`) REFERENCES `todos` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `todo_user_labels`
+--
+ALTER TABLE `todo_user_labels`
+  ADD CONSTRAINT `fk_todo_user_labels_label` FOREIGN KEY (`label_id`) REFERENCES `labels` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_todo_user_labels_todo` FOREIGN KEY (`todo_id`) REFERENCES `todos` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_todo_user_labels_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `user_settings`

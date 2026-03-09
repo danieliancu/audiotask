@@ -37,6 +37,8 @@ export interface TodoItem {
   canManageShare?: boolean;
   canManageReminder?: boolean;
   canEditLabel?: boolean;
+  shareCount?: number;
+  sharedWithEmails?: string[];
 }
 
 export interface ToolCall {

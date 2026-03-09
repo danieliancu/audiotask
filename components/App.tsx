@@ -9,9 +9,9 @@ import { TodoItem, ToolNames, Language, ItemType, Priority, ReminderChannel, Sub
 import { generateAssistantResponse, generateTTS, systemInstructions, todoTools } from '../services/geminiService';
 import { DEFAULT_LABEL_COLOR, LABEL_COLOR_PALETTE, normalizeLabelColor } from '@/lib/labelColors';
 
-type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time';
+type StatusFilter = 'all' | 'closed' | 'open' | 'outdated' | 'in_time' | 'shared';
 type PriorityFilterMode = 'all' | 'low' | 'normal' | 'high';
-type MobileView = 'list' | 'calendar' | 'add' | 'edit' | 'reminder' | 'search';
+type MobileView = 'list' | 'calendar' | 'add' | 'edit' | 'reminder' | 'share' | 'search';
 type CalendarVariant = 'desktop' | 'modal' | 'mobile';
 type ItemLabel = { id: string; name: string; color: string };
 const LANGUAGE_STORAGE_KEY = 'voicetask.language';
@@ -58,6 +58,7 @@ const translations = {
     filterLow: "Low priority",
     filterNormal: "Normal priority",
     filterHigh: "High priority",
+    filterShared: "Shared",
     priorityLabel: "Priority",
     labelsTitle: "Labels",
     allLabels: "All labels",
@@ -138,6 +139,7 @@ const translations = {
     filterLow: "Prioritate mica",
     filterNormal: "Prioritate normala",
     filterHigh: "Prioritate mare",
+    filterShared: "Partajate",
     priorityLabel: "Prioritate",
     labelsTitle: "Etichete",
     allLabels: "Toate etichetele",
@@ -218,6 +220,7 @@ const translations = {
     filterLow: "Basse priorité",
     filterNormal: "Priorité normale",
     filterHigh: "Haute priorité",
+    filterShared: "Partagees",
     priorityLabel: "Priorité",
     labelsTitle: "Étiquettes",
     allLabels: "Toutes les étiquettes",
@@ -298,6 +301,7 @@ const translations = {
     filterLow: "Niedrig",
     filterNormal: "Normal",
     filterHigh: "Hoch",
+    filterShared: "Geteilt",
     priorityLabel: "Priorität",
     labelsTitle: "Labels",
     allLabels: "Alle Labels",
@@ -378,6 +382,7 @@ const translations = {
     filterLow: "Baja",
     filterNormal: "Normal",
     filterHigh: "Alta",
+    filterShared: "Compartidas",
     priorityLabel: "Prioridad",
     labelsTitle: "Etiquetas",
     allLabels: "Todas las etiquetas",
@@ -968,7 +973,7 @@ function normalizeDueTime(value: unknown): string | undefined {
 }
 
 const isStatusFilter = (value: string): value is StatusFilter => (
-  ['all', 'closed', 'open', 'outdated', 'in_time'].includes(value)
+  ['all', 'closed', 'open', 'outdated', 'in_time', 'shared'].includes(value)
 );
 
 const isPriorityFilterMode = (value: string): value is PriorityFilterMode => (
@@ -985,14 +990,16 @@ const parseCombinedFilter = (
     const status = isStatusFilter(rawStatus) ? rawStatus : 'all';
     const priority = isPriorityFilterMode(rawPriority) ? rawPriority : 'all';
     return {
-      status: isEvent ? status : 'all',
+      status: isEvent ? status : (status === 'shared' ? 'shared' : 'all'),
       priority
     };
   }
 
   if (raw === 'resolved') return { status: isEvent ? 'closed' : 'all', priority: 'all' as PriorityFilterMode };
   if (raw === 'unresolved') return { status: isEvent ? 'open' : 'all', priority: 'all' as PriorityFilterMode };
-  if (isStatusFilter(raw)) return { status: isEvent ? raw : 'all', priority: 'all' as PriorityFilterMode };
+  if (isStatusFilter(raw)) {
+    return { status: isEvent ? raw : (raw === 'shared' ? 'shared' : 'all'), priority: 'all' as PriorityFilterMode };
+  }
   if (isPriorityFilterMode(raw)) return { status: 'all' as StatusFilter, priority: raw };
   return { status: 'all' as StatusFilter, priority: 'all' as PriorityFilterMode };
 };
@@ -1140,6 +1147,7 @@ const App: React.FC = () => {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [reminderModalItemId, setReminderModalItemId] = useState<string | null>(null);
+  const [shareModalItemId, setShareModalItemId] = useState<string | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<ItemType>('task');
@@ -1155,6 +1163,7 @@ const App: React.FC = () => {
   const [shareList, setShareList] = useState<Array<{ userId: string; email: string; name: string; sharedAt: number }>>([]);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState('');
+  const [shareDropdownItemId, setShareDropdownItemId] = useState<string | null>(null);
   const [formType, setFormType] = useState<ItemType>('task');
   const [formPriority, setFormPriority] = useState<Priority>('normal');
   const [formTitle, setFormTitle] = useState('');
@@ -1559,6 +1568,7 @@ const App: React.FC = () => {
         return Boolean(item.labelId && selectedLabelIds.includes(item.labelId));
       })
       .filter(item => {
+        if (statusFilter === 'shared') return Boolean(item.isShared) || Number(item.shareCount || 0) > 0;
         if (statusFilter === 'closed') return item.completed;
         if (statusFilter === 'open') return !item.completed;
         if (statusFilter === 'outdated') return isItemOverdue(item);
@@ -1635,7 +1645,9 @@ const App: React.FC = () => {
       })
       .filter(item => {
         let statusMatches = true;
-        if (activeTab === 'event') {
+        if (statusFilter === 'shared') {
+          statusMatches = Boolean(item.isShared) || Number(item.shareCount || 0) > 0;
+        } else if (activeTab === 'event') {
           if (statusFilter === 'closed') statusMatches = item.completed;
           else if (statusFilter === 'open') statusMatches = !item.completed;
           else if (statusFilter === 'outdated') statusMatches = isItemOverdue(item);
@@ -1714,6 +1726,10 @@ const App: React.FC = () => {
   const modalTodoItem = useMemo(
     () => todos.find(item => item.id === modalItemId) || null,
     [todos, modalItemId]
+  );
+  const shareModalItem = useMemo(
+    () => todos.find(item => item.id === shareModalItemId) || null,
+    [todos, shareModalItemId]
   );
   const reminderModalItem = useMemo(
     () => todos.find(item => item.id === reminderModalItemId) || null,
@@ -2896,9 +2912,6 @@ const App: React.FC = () => {
   const openEditModal = (item: TodoItem) => {
     setModalMode('edit');
     setModalItemId(item.id);
-    setShareInputEmail('');
-    setShareError('');
-    setShareList([]);
     setFormType(item.type);
     setFormPriority(item.priority);
     setFormTitle(item.title || (item.type === 'task' ? item.text : ''));
@@ -2909,18 +2922,6 @@ const App: React.FC = () => {
     setFormEndTime(item.dueEndTime || '');
     setFormLocation(item.location || '');
     setFormSubtasks((item.subtasks || []).map(subtask => subtask.text).join('\n'));
-    if (item.canManageShare) {
-      setShareBusy(true);
-      void fetch(`/api/todos/${item.id}/shares`, { credentials: 'include', cache: 'no-store' })
-        .then(res => (res.ok ? res.json() : []))
-        .then((data) => {
-          setShareList(Array.isArray(data) ? data : []);
-        })
-        .catch(() => {
-          setShareError('Failed to load share list.');
-        })
-        .finally(() => setShareBusy(false));
-    }
     if (isMobileViewport) {
       setMobileView('edit');
     }
@@ -2928,21 +2929,52 @@ const App: React.FC = () => {
 
   const closeModal = () => {
     resetComposerState();
-    setShareInputEmail('');
-    setShareList([]);
-    setShareError('');
     if (isMobileViewport) {
       setMobileView('list');
     }
   };
 
+  const openShareModal = useCallback((item: TodoItem) => {
+    if (!item.canManageShare) {
+      showUiNotice('Only owner can manage share list.');
+      return;
+    }
+    setShareModalItemId(item.id);
+    setShareInputEmail('');
+    setShareError('');
+    setShareList([]);
+    setShareBusy(true);
+    void fetch(`/api/todos/${item.id}/shares`, { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : []))
+      .then((data) => {
+        setShareList(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setShareError('Failed to load share list.');
+      })
+      .finally(() => setShareBusy(false));
+    if (isMobileViewport) {
+      setMobileView('share');
+    }
+  }, [isMobileViewport, showUiNotice]);
+
+  const closeShareModal = useCallback(() => {
+    setShareModalItemId(null);
+    setShareInputEmail('');
+    setShareError('');
+    setShareList([]);
+    if (isMobileViewport) {
+      setMobileView('list');
+    }
+  }, [isMobileViewport]);
+
   const addShare = useCallback(async () => {
-    if (!modalItemId || !modalTodoItem?.canManageShare) return;
+    if (!shareModalItemId || !shareModalItem?.canManageShare) return;
     const email = shareInputEmail.trim().toLowerCase();
     if (!email) return;
     setShareBusy(true);
     setShareError('');
-    const res = await fetch(`/api/todos/${modalItemId}/shares`, {
+    const res = await fetch(`/api/todos/${shareModalItemId}/shares`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -2965,15 +2997,22 @@ const App: React.FC = () => {
       if (exists) return prev;
       return [...prev, { userId: userIdFromPayload, email: emailFromPayload, name: nameFromPayload, sharedAt: Date.now() }];
     });
+    setTodos((prev) => prev.map((todo) => {
+      if (todo.id !== shareModalItemId) return todo;
+      const existing = todo.sharedWithEmails || [];
+      if (existing.some((entry) => entry.toLowerCase() === emailFromPayload.toLowerCase())) return todo;
+      const nextEmails = [...existing, emailFromPayload];
+      return { ...todo, sharedWithEmails: nextEmails, shareCount: nextEmails.length };
+    }));
     setShareInputEmail('');
     setShareBusy(false);
-  }, [modalItemId, modalTodoItem?.canManageShare, shareInputEmail]);
+  }, [shareInputEmail, shareModalItem?.canManageShare, shareModalItemId]);
 
   const removeShare = useCallback(async (sharedUserId: string) => {
-    if (!modalItemId || !modalTodoItem?.canManageShare) return;
+    if (!shareModalItemId || !shareModalItem?.canManageShare) return;
     setShareBusy(true);
     setShareError('');
-    const res = await fetch(`/api/todos/${modalItemId}/shares`, {
+    const res = await fetch(`/api/todos/${shareModalItemId}/shares`, {
       method: 'DELETE',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -2985,9 +3024,17 @@ const App: React.FC = () => {
       setShareBusy(false);
       return;
     }
+    const removed = shareList.find((entry) => entry.userId === sharedUserId);
     setShareList((prev) => prev.filter((entry) => entry.userId !== sharedUserId));
+    if (removed) {
+      setTodos((prev) => prev.map((todo) => {
+        if (todo.id !== shareModalItemId) return todo;
+        const nextEmails = (todo.sharedWithEmails || []).filter((entry) => entry.toLowerCase() !== removed.email.toLowerCase());
+        return { ...todo, sharedWithEmails: nextEmails, shareCount: nextEmails.length };
+      }));
+    }
     setShareBusy(false);
-  }, [modalItemId, modalTodoItem?.canManageShare]);
+  }, [shareList, shareModalItem?.canManageShare, shareModalItemId]);
 
   const openReminderModal = useCallback((item: TodoItem) => {
     if (item.type !== 'event') return;
@@ -3150,6 +3197,7 @@ const App: React.FC = () => {
     const statusMode = statusFilterByType[activeTab];
     const priorityMode = priorityFilterByType[activeTab];
     if (activeTab === 'task') {
+      if (statusMode === 'shared') return t.filterShared;
       if (priorityMode === 'low') return t.prioLow;
       if (priorityMode === 'normal') return t.prioNormal;
       if (priorityMode === 'high') return t.prioHigh;
@@ -3161,6 +3209,8 @@ const App: React.FC = () => {
         ? t.filterUnresolved
         : statusMode === 'outdated'
           ? t.filterOverdue
+          : statusMode === 'shared'
+            ? t.filterShared
           : statusMode === 'in_time'
             ? t.filterUnresolved
             : t.filterAll;
@@ -3185,6 +3235,7 @@ const App: React.FC = () => {
     if (statusMode === 'open') return t.filterUnresolved;
     if (statusMode === 'outdated') return t.filterOverdue;
     if (statusMode === 'in_time') return t.filterInTime;
+    if (statusMode === 'shared') return t.filterShared;
     return t.filterAll;
   })();
   const mobilePriorityMenuLabel = (() => {
@@ -3200,6 +3251,11 @@ const App: React.FC = () => {
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
   const isSearchActionDisabled = !searchQuery.trim();
   const searchTypeLabel = searchType === 'task' ? t.tasks : t.events;
+  const getSharedEmails = useCallback((item: TodoItem) => item.sharedWithEmails || [], []);
+  const hasShares = useCallback((item: TodoItem) => {
+    const emails = getSharedEmails(item);
+    return emails.length > 0 || Number(item.shareCount || 0) > 0;
+  }, [getSharedEmails]);
   const handleHomeLogoClick = useCallback(() => {
     if (!isMobileViewport) return;
     if (mobileView === 'add' || mobileView === 'edit') {
@@ -3210,6 +3266,10 @@ const App: React.FC = () => {
       closeReminderModal();
       return;
     }
+    if (mobileView === 'share') {
+      closeShareModal();
+      return;
+    }
     if (mobileView === 'search') {
       closeSearchPanel();
       return;
@@ -3218,7 +3278,7 @@ const App: React.FC = () => {
       setMobileView('list');
       setIsCalendarOpen(false);
     }
-  }, [isMobileViewport, mobileView, closeModal, closeReminderModal, closeSearchPanel]);
+  }, [isMobileViewport, mobileView, closeModal, closeReminderModal, closeSearchPanel, closeShareModal]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900 selection:bg-purple-100 pb-28 md:pb-20">
@@ -3379,19 +3439,18 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-            {activeTab === 'event' && (
-              <select
-                value={statusFilterByType[activeTab]}
-                onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
-                className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-              >
-                <option value="all">Status: {t.filterAll}</option>
-                <option value="open">Status: {t.filterUnresolved}</option>
-                <option value="closed">Status: {t.filterResolved}</option>
-                <option value="outdated">Status: {t.filterOverdue}</option>
-                <option value="in_time">Status: {t.filterInTime}</option>
-              </select>
-            )}
+            <select
+              value={statusFilterByType[activeTab]}
+              onChange={(e) => setStatusFilterByType(prev => ({ ...prev, [activeTab]: e.target.value as StatusFilter }))}
+              className="cursor-pointer px-3 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            >
+              <option value="all">Status: {t.filterAll}</option>
+              <option value="shared">Status: {t.filterShared}</option>
+              {activeTab === 'event' && <option value="open">Status: {t.filterUnresolved}</option>}
+              {activeTab === 'event' && <option value="closed">Status: {t.filterResolved}</option>}
+              {activeTab === 'event' && <option value="outdated">Status: {t.filterOverdue}</option>}
+              {activeTab === 'event' && <option value="in_time">Status: {t.filterInTime}</option>}
+            </select>
 
             <select
               value={priorityFilterByType[activeTab]}
@@ -3619,30 +3678,34 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {activeTab === 'event' && (
-                    <div>
-                      <div className="text-[11px] font-black text-slate-400 mb-2">{t.statusLabel}</div>
-                      <div className="space-y-2">
-                        {[
-                          { value: 'all', label: t.filterAll },
-                          { value: 'closed', label: t.filterResolved },
-                          { value: 'open', label: t.filterUnresolved },
-                          { value: 'outdated', label: t.filterOverdue }
-                        ].map(opt => (
-                          <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            <input
-                              type="radio"
-                              name="mobile-status-filter"
-                              checked={statusFilterByType[activeTab] === (opt.value as StatusFilter)}
-                              onChange={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: opt.value as StatusFilter }))}
-                              className="h-4 w-4"
-                            />
-                            <span>{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
+                  <div>
+                    <div className="text-[11px] font-black text-slate-400 mb-2">{t.statusLabel}</div>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'all', label: t.filterAll },
+                        { value: 'shared', label: t.filterShared },
+                        ...(activeTab === 'event'
+                          ? [
+                              { value: 'closed', label: t.filterResolved },
+                              { value: 'open', label: t.filterUnresolved },
+                              { value: 'outdated', label: t.filterOverdue },
+                              { value: 'in_time', label: t.filterInTime }
+                            ]
+                          : [])
+                      ].map(opt => (
+                        <label key={opt.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="radio"
+                            name="mobile-status-filter"
+                            checked={statusFilterByType[activeTab] === (opt.value as StatusFilter)}
+                            onChange={() => setStatusFilterByType(prev => ({ ...prev, [activeTab]: opt.value as StatusFilter }))}
+                            className="h-4 w-4"
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      ))}
                     </div>
-                  )}
+                  </div>
 
                   <div>
                     <div className="text-[11px] font-black text-slate-400 mb-2">{t.priorityLabel}</div>
@@ -4116,52 +4179,6 @@ const App: React.FC = () => {
                     </>
                   )}
 
-                  {modalTodoItem?.canManageShare && (
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Share with email</div>
-                      <div className="flex gap-2">
-                        <input
-                          type="email"
-                          value={shareInputEmail}
-                          onChange={(e) => setShareInputEmail(e.target.value)}
-                          placeholder="user@example.com"
-                          className="flex-1 text-xs font-semibold bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void addShare()}
-                          disabled={shareBusy || !shareInputEmail.trim()}
-                          className="rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                        >
-                          Add
-                        </button>
-                      </div>
-                      {shareError && (
-                        <div className="text-[11px] font-semibold text-red-600">{shareError}</div>
-                      )}
-                      <div className="space-y-1.5">
-                        {shareList.length === 0 ? (
-                          <div className="text-[11px] font-semibold text-slate-500">No shared users yet.</div>
-                        ) : shareList.map((entry) => (
-                          <div key={`${entry.userId}-${entry.email}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2">
-                            <div className="min-w-0">
-                              <div className="truncate text-[11px] font-bold text-slate-800">{entry.email}</div>
-                              {entry.name && <div className="truncate text-[10px] font-semibold text-slate-500">{entry.name}</div>}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => void removeShare(entry.userId)}
-                              disabled={shareBusy}
-                              className="rounded-lg bg-red-600 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   <button
                     type="button"
                     onClick={saveModal}
@@ -4288,6 +4305,77 @@ const App: React.FC = () => {
                         {t.reminderRemove}
                       </button>
                     )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileView === 'share' && shareModalItem && (
+            <div className="md:hidden pb-6">
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={closeShareModal}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                  aria-label="Back to list"
+                >
+                  <i className="fas fa-chevron-left text-[12px]"></i>
+                </button>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">Share</span>
+                <button
+                  type="button"
+                  onClick={closeShareModal}
+                  className="h-8 px-3 inline-flex items-center justify-center rounded-xl bg-purple-600 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
+                >
+                  Salveaza
+                </button>
+              </div>
+
+              <div className="min-h-[calc(100vh-270px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="space-y-3">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Share with email</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={shareInputEmail}
+                      onChange={(e) => setShareInputEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="flex-1 text-xs font-semibold bg-[#f8f9fb] border border-slate-300 rounded-xl px-3 py-2 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void addShare()}
+                      disabled={shareBusy || !shareInputEmail.trim()}
+                      className="rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {shareError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                      {shareError}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {shareList.length === 0 ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                        No shared users yet.
+                      </div>
+                    ) : shareList.map((entry) => (
+                      <div key={`${entry.userId}-${entry.email}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="text-xs font-bold text-slate-800">{entry.email}</div>
+                        {entry.name && <div className="text-[11px] font-semibold text-slate-500">{entry.name}</div>}
+                        <button
+                          type="button"
+                          onClick={() => void removeShare(entry.userId)}
+                          disabled={shareBusy}
+                          className="mt-2 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -4457,6 +4545,40 @@ const App: React.FC = () => {
                                     ~ {formatRemainingDuration(getItemDateTime(item) - Date.now(), language)}
                                   </span>
                                 )}
+                                {hasShares(item) && (
+                                  <div className="relative mr-1">
+                                    {getSharedEmails(item).length <= 1 ? (
+                                      <span className="text-[11px] font-bold text-red-600 whitespace-nowrap">
+                                        {getSharedEmails(item)[0] || `${item.shareCount || 1} users`}
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setShareDropdownItemId((prev) => (prev === item.id ? null : item.id))}
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 whitespace-nowrap"
+                                      >
+                                        <span>{getSharedEmails(item)[0]}</span>
+                                        <i className={`fas fa-chevron-${shareDropdownItemId === item.id ? 'up' : 'down'}`} style={{ fontSize:"6px" }}></i>
+                                      </button>
+                                    )}
+                                    {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
+                                      <div className="absolute right-0 mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
+                                        {getSharedEmails(item).map((email) => (
+                                          <div key={`${item.id}-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openShareModal(item)}
+                                  disabled={!item.canManageShare}
+                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500'}`}
+                                  title={item.canManageShare ? 'Share' : 'Owner only'}
+                                >
+                                  <i className="fas fa-user-friends text-[15px]"></i>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => openReminderModal(item)}
@@ -4675,7 +4797,35 @@ const App: React.FC = () => {
                               </select>
                               <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
                             </div>
-                            <div className="inline-flex items-center gap-2 ml-1">
+                            <div className="inline-flex items-center gap-2 ml-1 relative">
+                              {hasShares(item) && (
+                                <div className="relative">
+                                  {getSharedEmails(item).length <= 1 ? (
+                                    <span className="text-[11px] font-bold text-red-600 whitespace-nowrap">
+                                      {getSharedEmails(item)[0] || `${item.shareCount || 1} users`}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setShareDropdownItemId((prev) => (prev === item.id ? null : item.id))}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 whitespace-nowrap"
+                                    >
+                                      <span>{getSharedEmails(item)[0]}</span>
+                                      <i className={`fas fa-chevron-${shareDropdownItemId === item.id ? 'up' : 'down'} text-[9px]`}></i>
+                                    </button>
+                                  )}
+                                  {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
+                                    <div className="absolute right-0 mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
+                                      {getSharedEmails(item).map((email) => (
+                                        <div key={`${item.id}-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <button onClick={() => openShareModal(item)} disabled={!item.canManageShare} className={`h-7 w-7 inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <i className="fas fa-user-friends text-[14px]"></i>
+                              </button>
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
                                 <i className="fas fa-pen text-[12px]"></i>
                               </button>
@@ -4805,51 +4955,6 @@ const App: React.FC = () => {
                   </div>
                 </>
               )}
-              {modalMode === 'edit' && modalTodoItem?.canManageShare && (
-                <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Share with email</div>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      type="email"
-                      value={shareInputEmail}
-                      onChange={(e) => setShareInputEmail(e.target.value)}
-                      placeholder="user@example.com"
-                      className="flex-1 min-w-[220px] text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-xl px-3 py-2 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void addShare()}
-                      disabled={shareBusy || !shareInputEmail.trim()}
-                      className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {shareError && (
-                    <div className="text-xs font-semibold text-red-600">{shareError}</div>
-                  )}
-                  <div className="space-y-1.5">
-                    {shareList.length === 0 ? (
-                      <div className="text-xs font-semibold text-slate-500">No shared users yet.</div>
-                    ) : shareList.map((entry) => (
-                      <div key={`${entry.userId}-${entry.email}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-bold text-slate-800">{entry.email}</div>
-                          {entry.name && <div className="truncate text-[11px] font-semibold text-slate-500">{entry.name}</div>}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void removeShare(entry.userId)}
-                          disabled={shareBusy}
-                          className="rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div className="flex flex-wrap gap-3">
                 {formType === 'event' && (
                   <>
@@ -4885,6 +4990,86 @@ const App: React.FC = () => {
                   className="bg-purple-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md active:scale-95 transition-all"
                 >
                   {t.save}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareModalItem && !(isMobileViewport && mobileView === 'share') && (
+        <div className="fixed inset-0 z-[75] flex items-start justify-center p-4 pt-4 md:pt-8">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={closeShareModal}></div>
+          <div className="modal-surface relative bg-[#f3f4f6] w-full max-w-xl rounded-[38px] border border-slate-200 shadow-2xl p-6 md:p-8 animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeShareModal}
+              className="absolute top-4 right-4 w-10 h-10 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/80 transition-colors"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+
+            <div className="mb-6">
+              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Share</div>
+              <p className="text-sm font-semibold text-slate-600">
+                Share with email
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={shareInputEmail}
+                  onChange={(e) => setShareInputEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="flex-1 text-sm font-semibold bg-[#f8f9fb] border border-slate-300 rounded-2xl outline-none px-4 py-3 text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => void addShare()}
+                  disabled={shareBusy || !shareInputEmail.trim()}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60"
+                >
+                  Add
+                </button>
+              </div>
+
+              {shareError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  {shareError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {shareList.length === 0 ? (
+                  <div className="rounded-xl border border-gray-300/70 bg-white p-4 text-sm font-semibold text-slate-500 shadow-sm">
+                    No shared users yet.
+                  </div>
+                ) : (
+                  shareList.map((entry) => (
+                    <div key={`${entry.userId}-${entry.email}`} className="rounded-xl border border-gray-300/70 bg-white p-4 shadow-sm">
+                      <div className="text-sm font-bold text-slate-800">{entry.email}</div>
+                      {entry.name && <div className="text-xs font-semibold text-slate-500 mt-1">{entry.name}</div>}
+                      <button
+                        type="button"
+                        onClick={() => void removeShare(entry.userId)}
+                        disabled={shareBusy}
+                        className="mt-3 rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={closeShareModal}
+                  className="bg-purple-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md"
+                >
+                  Salveaza
                 </button>
               </div>
             </div>
@@ -5175,4 +5360,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

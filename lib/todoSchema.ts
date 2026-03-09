@@ -152,6 +152,39 @@ export function ensureTodoTrashSchema() {
         )`
       );
     }
+
+    const [todoUserLabelsTableRows] = await pool.query("SHOW TABLES LIKE 'todo_user_labels'");
+    const hasTodoUserLabelsTable = Array.isArray(todoUserLabelsTableRows) && todoUserLabelsTableRows.length > 0;
+    if (!hasTodoUserLabelsTable) {
+      await pool.query(
+        `CREATE TABLE todo_user_labels (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          todo_id BIGINT NOT NULL,
+          user_id BIGINT NOT NULL,
+          label_id BIGINT NOT NULL,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL,
+          UNIQUE KEY uniq_todo_user_label (todo_id, user_id),
+          INDEX idx_todo_user_labels_user (user_id),
+          INDEX idx_todo_user_labels_label (label_id),
+          CONSTRAINT fk_todo_user_labels_todo FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+          CONSTRAINT fk_todo_user_labels_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          CONSTRAINT fk_todo_user_labels_label FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE CASCADE
+        )`
+      );
+    }
+
+    await pool.query(
+      `INSERT INTO todo_user_labels (todo_id, user_id, label_id, created_at, updated_at)
+       SELECT t.id, t.user_id, t.label_id, ?, ?
+       FROM todos t
+       LEFT JOIN todo_user_labels tul
+         ON tul.todo_id = t.id
+        AND tul.user_id = t.user_id
+       WHERE t.label_id IS NOT NULL
+         AND tul.id IS NULL`,
+      [Date.now(), Date.now()]
+    );
   })().catch((error) => {
     ensureSchemaPromise = null;
     throw error;
