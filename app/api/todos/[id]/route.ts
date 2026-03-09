@@ -116,11 +116,11 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
        ) AS effective_label_id,
        COALESCE(
          tur.reminder_minutes_before,
-         CASE WHEN t.user_id = ? THEN t.reminder_minutes_before ELSE NULL END
+         NULL
        ) AS effective_reminder_minutes_before,
        COALESCE(
          tur.reminder_channel,
-         CASE WHEN t.user_id = ? THEN t.reminder_channel ELSE NULL END
+         NULL
        ) AS effective_reminder_channel,
        (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
        (
@@ -144,7 +144,7 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
        AND t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      LIMIT 1`,
-    [viewerUserId, viewerUserId, viewerUserId, viewerUserId, viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
+    [viewerUserId, viewerUserId, viewerUserId, viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
   );
   return (rows as DbTodoRow[])[0] ?? null;
 };

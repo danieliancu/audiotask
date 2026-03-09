@@ -129,11 +129,11 @@ export async function GET() {
        ) AS effective_label_id,
        COALESCE(
          tur.reminder_minutes_before,
-         CASE WHEN t.user_id = ? THEN t.reminder_minutes_before ELSE NULL END
+         NULL
        ) AS effective_reminder_minutes_before,
        COALESCE(
          tur.reminder_channel,
-         CASE WHEN t.user_id = ? THEN t.reminder_channel ELSE NULL END
+         NULL
        ) AS effective_reminder_channel,
        (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
        (
@@ -156,7 +156,7 @@ export async function GET() {
      WHERE t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      ORDER BY t.sort_timestamp ASC`,
-    [userId, userId, userId, userId, userId, userId, userId, userId, userId]
+    [userId, userId, userId, userId, userId, userId, userId]
   );
 
   const uniqueByTodoId = new Map<number, DbTodoRow>();
@@ -257,8 +257,8 @@ export async function POST(request: Request) {
          owner.email AS owner_email,
          1 AS is_owner,
          COALESCE(tul.label_id, t.label_id) AS effective_label_id,
-         COALESCE(tur.reminder_minutes_before, t.reminder_minutes_before) AS effective_reminder_minutes_before,
-         COALESCE(tur.reminder_channel, t.reminder_channel) AS effective_reminder_channel,
+         tur.reminder_minutes_before AS effective_reminder_minutes_before,
+         tur.reminder_channel AS effective_reminder_channel,
          (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
          (
            SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')

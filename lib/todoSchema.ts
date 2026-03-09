@@ -205,20 +205,19 @@ export function ensureTodoTrashSchema() {
           CONSTRAINT fk_todo_user_reminders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )`
       );
+      await pool.query(
+        `INSERT INTO todo_user_reminders (todo_id, user_id, reminder_minutes_before, reminder_channel, created_at, updated_at)
+         SELECT t.id, t.user_id, t.reminder_minutes_before, t.reminder_channel, ?, ?
+         FROM todos t
+         LEFT JOIN todo_user_reminders tur
+           ON tur.todo_id = t.id
+          AND tur.user_id = t.user_id
+         WHERE t.reminder_minutes_before IS NOT NULL
+           AND t.reminder_channel IS NOT NULL
+           AND tur.id IS NULL`,
+        [Date.now(), Date.now()]
+      );
     }
-
-    await pool.query(
-      `INSERT INTO todo_user_reminders (todo_id, user_id, reminder_minutes_before, reminder_channel, created_at, updated_at)
-       SELECT t.id, t.user_id, t.reminder_minutes_before, t.reminder_channel, ?, ?
-       FROM todos t
-       LEFT JOIN todo_user_reminders tur
-         ON tur.todo_id = t.id
-        AND tur.user_id = t.user_id
-       WHERE t.reminder_minutes_before IS NOT NULL
-         AND t.reminder_channel IS NOT NULL
-         AND tur.id IS NULL`,
-      [Date.now(), Date.now()]
-    );
   })().catch((error) => {
     ensureSchemaPromise = null;
     throw error;
