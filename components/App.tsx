@@ -3457,13 +3457,25 @@ const App: React.FC = () => {
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
   const isSearchActionDisabled = !searchQuery.trim();
   const searchTypeLabel = searchType === 'task' ? t.tasks : t.events;
+  const currentUserEmail = String(session?.user?.email || '').trim().toLowerCase();
   const getSharedEmails = useCallback((item: TodoItem) => {
+    const normalized = (item.sharedWithEmails || [])
+      .map((email) => String(email || '').trim())
+      .filter(Boolean);
+
     if (item.isShared) {
-      if (!item.ownerEmail) return [];
-      return [`${item.ownerEmail} (host)`];
+      const all: string[] = [];
+      if (item.ownerEmail) all.push(`${item.ownerEmail} (host)`);
+      for (const email of normalized) {
+        if (currentUserEmail && email.toLowerCase() === currentUserEmail) continue;
+        const exists = all.some((value) => value.toLowerCase() === email.toLowerCase() || value.toLowerCase() === `${email.toLowerCase()} (host)`);
+        if (!exists) all.push(email);
+      }
+      return all;
     }
-    return item.sharedWithEmails || [];
-  }, []);
+
+    return normalized;
+  }, [currentUserEmail]);
   const hasShares = useCallback((item: TodoItem) => {
     const emails = getSharedEmails(item);
     return emails.length > 0 || (!item.isShared && Number(item.shareCount || 0) > 0);
@@ -4109,6 +4121,8 @@ const App: React.FC = () => {
                     <div className="space-y-3">
                       {selectedDateTasks.map((item) => {
                         const statusPill = item.completed ? 'Realizat' : (isItemOverdue(item) ? 'Depasit' : null);
+                        const sharedEmails = getSharedEmails(item);
+                        const sharedInfo = sharedEmails[0] || (Number(item.shareCount || 0) > 0 ? `${item.shareCount} users` : '');
                         return (
                           <button
                             key={`selected-${item.id}`}
@@ -4128,6 +4142,12 @@ const App: React.FC = () => {
                                 <div className="mt-1 text-[13px] text-slate-500">
                                   {formatDayMonthLabel(item.sortTimestamp, language)}
                                 </div>
+                                {hasShares(item) && sharedInfo && (
+                                  <div className="mt-1 inline-flex max-w-full items-center gap-1 text-[12px] font-semibold text-red-600">
+                                    <i className="fas fa-share-alt text-[11px]"></i>
+                                    <span className="truncate">{sharedInfo}</span>
+                                  </div>
+                                )}
                                 {statusPill && (
                                   <div className="mt-1.5">
                                     <span
@@ -4780,7 +4800,7 @@ const App: React.FC = () => {
                                     )}
                                     {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                       <div className="absolute right-0 mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
-                                        {getSharedEmails(item).map((email) => (
+                                        {getSharedEmails(item).slice(1).map((email) => (
                                           <div key={`${item.id}-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
                                         ))}
                                       </div>
@@ -4794,7 +4814,7 @@ const App: React.FC = () => {
                                   className={`h-7 w-7 hidden md:inline-flex items-center justify-center rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500'}`}
                                   title={item.canManageShare ? 'Share' : 'Owner only'}
                                 >
-                                  <i className="fas fa-user-plus text-[15px]"></i>
+                                  <i className="fas fa-share-alt text-[15px]"></i>
                                 </button>
                                 {!hasShares(item) && (
                                   <button
@@ -4804,7 +4824,7 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex md:hidden items-center justify-center rounded-md text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-user-plus text-[15px]"></i>
+                                    <i className="fas fa-share-alt text-[15px]"></i>
                                   </button>
                                 )}
                                 {(() => {
@@ -4858,11 +4878,11 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-user-plus text-[15px]"></i>
+                                    <i className="fas fa-share-alt text-[15px]"></i>
                                   </button>
                                   {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                     <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
-                                      {getSharedEmails(item).map((email) => (
+                                      {getSharedEmails(item).slice(1).map((email) => (
                                         <div key={`${item.id}-mobile-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
                                       ))}
                                     </div>
@@ -5084,7 +5104,7 @@ const App: React.FC = () => {
                                   )}
                                   {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                     <div className="absolute right-0 mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
-                                      {getSharedEmails(item).map((email) => (
+                                      {getSharedEmails(item).slice(1).map((email) => (
                                         <div key={`${item.id}-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
                                       ))}
                                     </div>
@@ -5096,7 +5116,7 @@ const App: React.FC = () => {
                                 disabled={!item.canManageShare}
                                 className={`h-7 w-7 hidden md:inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500 hover:text-slate-700'}`}
                               >
-                                <i className="fas fa-user-plus text-[14px]"></i>
+                                <i className="fas fa-share-alt text-[14px]"></i>
                               </button>
                               {!hasShares(item) && (
                                 <button
@@ -5104,7 +5124,7 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex md:hidden items-center justify-center text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-user-plus text-[14px]"></i>
+                                  <i className="fas fa-share-alt text-[14px]"></i>
                                 </button>
                               )}
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
@@ -5137,11 +5157,11 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex items-center justify-center text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-user-plus text-[14px]"></i>
+                                  <i className="fas fa-share-alt text-[14px]"></i>
                                 </button>
                                 {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                   <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
-                                    {getSharedEmails(item).map((email) => (
+                                    {getSharedEmails(item).slice(1).map((email) => (
                                       <div key={`${item.id}-mobile-note-${email}`} className="text-[11px] font-semibold text-red-700">{email}</div>
                                     ))}
                                   </div>
