@@ -188,6 +188,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (body.dueEndTime !== undefined) pushField('due_end_time', body.dueEndTime ?? null);
   if (body.location !== undefined) pushField('location', body.location ?? null);
   if (body.sortTimestamp !== undefined) pushField('sort_timestamp', Number(body.sortTimestamp));
+  if (body.priority !== undefined) {
+    const priority = body.priority === 'high' ? 'high' : body.priority === 'low' ? 'low' : 'normal';
+    pushField('priority', priority);
+  }
+  if (body.subtasks !== undefined) {
+    const normalizedSubtasks = normalizeSubtasks(body.subtasks);
+    pushField('subtasks', normalizedSubtasks ? JSON.stringify(normalizedSubtasks) : null);
+  }
 
   let hasLabelMutation = false;
   if (body.labelId !== undefined) {
