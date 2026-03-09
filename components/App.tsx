@@ -1015,6 +1015,23 @@ const parseToolArgs = (rawArgs: unknown): Record<string, unknown> => {
   }
   return {};
 };
+const isTodoIdTool = (name: string) => (
+  name === ToolNames.EDIT_TODO
+  || name === ToolNames.DELETE_TODO
+  || name === ToolNames.TOGGLE_TODO
+  || name === ToolNames.ADD_SUBTASK
+  || name === ToolNames.EDIT_SUBTASK
+  || name === ToolNames.DELETE_SUBTASK
+  || name === ToolNames.TOGGLE_SUBTASK
+);
+const normalizeToolName = (value: unknown) => String(value || '').trim().toLowerCase();
+type ToolExecutionResult = {
+  ok: boolean;
+  tool: string;
+  message: string;
+  code?: string;
+  id?: string;
+};
 
 const SWIPE_DELETE_THRESHOLD = 88;
 const SWIPE_DELETE_MAX_OFFSET = 120;
@@ -1204,7 +1221,7 @@ const App: React.FC = () => {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMobileMicModalOpen, setIsMobileMicModalOpen] = useState(false);
   const [nowLabel, setNowLabel] = useState<string>('');
-  const [uiNotice, setUiNotice] = useState<string | null>(null);
+  const [uiNotice, setUiNotice] = useState<{ message: string; persistent: boolean } | null>(null);
   const uiNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserCommandRef = useRef<string>('');
   const [expandedSubitems, setExpandedSubitems] = useState<Set<string>>(new Set());
@@ -1239,13 +1256,23 @@ const App: React.FC = () => {
     if (language === 'es') return `La fecha "${value}" no se entendio. Se configuro hoy.`;
     return `Date "${value}" was not understood. I set it to today.`;
   }, [language]);
-  const showUiNotice = useCallback((message: string) => {
-    setUiNotice(message);
+  const showUiNotice = useCallback((message: string, options?: { persistent?: boolean }) => {
+    const persistent = Boolean(options?.persistent);
+    setUiNotice({ message, persistent });
     if (uiNoticeTimerRef.current) clearTimeout(uiNoticeTimerRef.current);
-    uiNoticeTimerRef.current = setTimeout(() => {
-      setUiNotice(null);
+    if (!persistent) {
+      uiNoticeTimerRef.current = setTimeout(() => {
+        setUiNotice(null);
+        uiNoticeTimerRef.current = null;
+      }, 5000);
+    }
+  }, []);
+  const closeUiNotice = useCallback(() => {
+    if (uiNoticeTimerRef.current) {
+      clearTimeout(uiNoticeTimerRef.current);
       uiNoticeTimerRef.current = null;
-    }, 5000);
+    }
+    setUiNotice(null);
   }, []);
   const getReminderLoginRequiredMessage = useCallback(() => {
     if (language === 'ro') return 'Reminder-ele sunt disponibile doar dupa autentificare.';
@@ -1253,6 +1280,13 @@ const App: React.FC = () => {
     if (language === 'de') return 'Erinnerungen sind nur nach dem Login verfuegbar.';
     if (language === 'es') return 'Los recordatorios solo estan disponibles al iniciar sesion.';
     return 'Reminders are available only after login.';
+  }, [language]);
+  const getOwnerDeleteOnlyMessage = useCallback(() => {
+    if (language === 'ro') return 'Doar hostul poate sterge acest task.';
+    if (language === 'fr') return 'Seul le proprietaire peut supprimer cette tache.';
+    if (language === 'de') return 'Nur der Besitzer kann diese Aufgabe loeschen.';
+    if (language === 'es') return 'Solo el propietario puede eliminar esta tarea.';
+    return 'Only the owner can delete this task.';
   }, [language]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1971,7 +2005,87 @@ const App: React.FC = () => {
   }, [pendingDateStart, pendingDateEnd, tasksByDate, activeTab]);
 
   const executeTool = useCallback((name: string, args: any) => {
+    const normalizedName = normalizeToolName(name);
     if (!args || typeof args !== 'object') args = {};
+    const ok = (message: string, extra?: Partial<ToolExecutionResult>): ToolExecutionResult => ({
+      ok: true,
+      tool: normalizedName,
+      message,
+      ...extra
+    });
+    const fail = (message: string, code?: string, extra?: Partial<ToolExecutionResult>): ToolExecutionResult => ({
+      ok: false,
+      tool: normalizedName,
+      message,
+      code,
+      ...extra
+    });
+
+    const resolveTodoIdFromArgs = (rawArgs: Record<string, unknown>) => {
+      const idCandidates = [
+        rawArgs.id,
+        rawArgs.todoId,
+        rawArgs.taskId,
+        rawArgs.itemId,
+        rawArgs.noteId,
+        rawArgs.eventId,
+        rawArgs.localId
+      ];
+      const normalizedCandidates = idCandidates
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean)
+        .map((value) => {
+          const cleaned = value.replace(/^#/, '').trim();
+          const numericMatch = cleaned.match(/\d+/);
+          if (numericMatch && /^#?\d+$/.test(value.trim())) return numericMatch[0];
+          return cleaned;
+        });
+
+      for (const candidate of normalizedCandidates) {
+        const exact = todosRef.current.find((todo) => todo.id === candidate);
+        if (exact) return exact.id;
+      }
+      for (const candidate of normalizedCandidates) {
+        const byLocal = todosRef.current.filter((todo) => String(todo.localId || '') === candidate);
+        if (byLocal.length === 1) return byLocal[0].id;
+        if (byLocal.length > 1) return '__AMBIGUOUS_LOCAL_ID__';
+      }
+      return undefined;
+    };
+
+    const normalizeArgsForTool = (toolName: string, rawArgs: Record<string, unknown>) => {
+      const nextArgs: Record<string, unknown> = { ...rawArgs };
+      if (isTodoIdTool(toolName)) {
+        const resolvedId = resolveTodoIdFromArgs(nextArgs);
+        if (resolvedId === '__AMBIGUOUS_LOCAL_ID__') {
+          nextArgs.__idResolutionError = 'Ambiguous local id. Please provide the full item id.';
+        } else if (resolvedId) {
+          nextArgs.id = resolvedId;
+        }
+      }
+      if (
+        toolName === ToolNames.EDIT_SUBTASK
+        || toolName === ToolNames.DELETE_SUBTASK
+        || toolName === ToolNames.TOGGLE_SUBTASK
+      ) {
+        if (nextArgs.subtaskIndex === undefined) {
+          const candidate = nextArgs.index ?? nextArgs.position ?? nextArgs.subtask;
+          if (candidate !== undefined) nextArgs.subtaskIndex = candidate;
+        }
+        const parsed = Number(nextArgs.subtaskIndex);
+        if (Number.isInteger(parsed) && parsed === 0) {
+          nextArgs.subtaskIndex = 1;
+        }
+      }
+      if (toolName === ToolNames.ADD_SUBTASK) {
+        if (nextArgs.text === undefined && typeof nextArgs.subtaskText === 'string') {
+          nextArgs.text = nextArgs.subtaskText;
+        }
+      }
+      return nextArgs;
+    };
+
+    args = normalizeArgsForTool(normalizedName, args as Record<string, unknown>);
     const isLoggedIn = Boolean(userId);
     const resolveLabelIdFromArgs = () => {
       const normalizeLoose = (value: string) => value
@@ -2084,7 +2198,7 @@ const App: React.FC = () => {
         });
     };
 
-    switch (name) {
+    switch (normalizedName) {
       case ToolNames.ADD_TODO: {
         const normalizedTime = normalizeDueTime(args.time);
         const normalizedEndTime = normalizedTime ? normalizeDueTime(args.endTime) : undefined;
@@ -2159,6 +2273,8 @@ const App: React.FC = () => {
       }
       case ToolNames.EDIT_TODO: {
         const editId = String(args.id);
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
+        if (!editId) return fail('Missing id for edit.', 'MISSING_ID');
         setHighlightedTaskId(editId);
         if (typeof args.showSubtasks === 'boolean') {
           setExpandedSubitems(prev => {
@@ -2172,7 +2288,7 @@ const App: React.FC = () => {
         const existing = todosRef.current.find(todo => todo.id === editId);
         if (!existing) {
           refreshTodos();
-          break;
+          return fail('Item not found for edit.', 'NOT_FOUND', { id: editId });
         }
         const parsedDate = args.date !== undefined ? parseTaskDate(args.date) : null;
         const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
@@ -2267,20 +2383,25 @@ const App: React.FC = () => {
         if (args.priority !== undefined) payload.priority = nextTodo.priority;
         setTodos(prev => prev.map(todo => (todo.id === editId ? nextTodo : todo)));
         if (!isLoggedIn) {
-          break;
+          return ok('Edited locally (guest mode).', { id: editId });
         }
         if (editId.startsWith('tmp-')) {
           const existing = pendingTempUpdatesRef.current.get(editId) || {};
           pendingTempUpdatesRef.current.set(editId, { ...existing, ...payload });
-          break;
+          return ok('Edit queued for temporary item.', { id: editId });
         }
         syncUpdate(editId, payload);
-        break;
+        return ok('Edit queued.', { id: editId });
       }
       case ToolNames.ADD_SUBTASK: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const parentId = String(args.id);
+        if (!parentId) return fail('Missing id for add_subtask.', 'MISSING_ID');
+        const parent = todosRef.current.find((todo) => todo.id === parentId);
+        if (!parent) return fail('Parent item not found.', 'NOT_FOUND', { id: parentId });
+        if (parent.type !== 'event') return fail('Subtasks are allowed only for tasks/events.', 'INVALID_TYPE', { id: parentId });
         const addItems = normalizeSubitems(args.subtasks ?? args.text ?? args.subtask);
-        if (!addItems?.length) break;
+        if (!addItems?.length) return fail('Missing subtask text.', 'INVALID_ARGS', { id: parentId });
         updateTodo(parentId, (todo) => {
           if (todo.type !== 'event') return todo;
           const existing = todo.subtasks || [];
@@ -2289,13 +2410,22 @@ const App: React.FC = () => {
           return { ...todo, subtasks: updated };
         });
         setExpandedSubitems(prev => new Set(prev).add(parentId));
-        break;
+        return ok('Subtask(s) added.', { id: parentId });
       }
       case ToolNames.EDIT_SUBTASK: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const parentId = String(args.id);
+        if (!parentId) return fail('Missing id for edit_subtask.', 'MISSING_ID');
+        const parent = todosRef.current.find((todo) => todo.id === parentId);
+        if (!parent) return fail('Parent item not found.', 'NOT_FOUND', { id: parentId });
+        if (parent.type !== 'event') return fail('Subtasks are allowed only for tasks/events.', 'INVALID_TYPE', { id: parentId });
         const oneBasedIndex = Number(args.subtaskIndex);
         const normalized = normalizeSubitems([args.text]);
-        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1 || !normalized?.length) break;
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1 || !normalized?.length) {
+          return fail('Invalid subtask index or text.', 'INVALID_ARGS', { id: parentId });
+        }
+        const existingSubtasks = parent.subtasks || [];
+        if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
 
         updateTodo(parentId, (todo) => {
           if (todo.type !== 'event') return todo;
@@ -2310,12 +2440,19 @@ const App: React.FC = () => {
           return { ...todo, subtasks: existing };
         });
         setExpandedSubitems(prev => new Set(prev).add(parentId));
-        break;
+        return ok('Subtask edited.', { id: parentId });
       }
       case ToolNames.DELETE_SUBTASK: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const parentId = String(args.id);
+        if (!parentId) return fail('Missing id for delete_subtask.', 'MISSING_ID');
+        const parent = todosRef.current.find((todo) => todo.id === parentId);
+        if (!parent) return fail('Parent item not found.', 'NOT_FOUND', { id: parentId });
+        if (parent.type !== 'event') return fail('Subtasks are allowed only for tasks/events.', 'INVALID_TYPE', { id: parentId });
         const oneBasedIndex = Number(args.subtaskIndex);
-        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) break;
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) return fail('Invalid subtask index.', 'INVALID_ARGS', { id: parentId });
+        const existingSubtasks = parent.subtasks || [];
+        if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
 
         updateTodo(parentId, (todo) => {
           if (todo.type !== 'event') return todo;
@@ -2326,12 +2463,19 @@ const App: React.FC = () => {
           if (isLoggedIn) syncUpdate(parentId, { subtasks: existing });
           return { ...todo, subtasks: existing.length ? existing : undefined };
         });
-        break;
+        return ok('Subtask deleted.', { id: parentId });
       }
       case ToolNames.TOGGLE_SUBTASK: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const parentId = String(args.id);
+        if (!parentId) return fail('Missing id for toggle_subtask.', 'MISSING_ID');
+        const parent = todosRef.current.find((todo) => todo.id === parentId);
+        if (!parent) return fail('Parent item not found.', 'NOT_FOUND', { id: parentId });
+        if (parent.type !== 'event') return fail('Subtasks are allowed only for tasks/events.', 'INVALID_TYPE', { id: parentId });
         const oneBasedIndex = Number(args.subtaskIndex);
-        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) break;
+        if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) return fail('Invalid subtask index.', 'INVALID_ARGS', { id: parentId });
+        const existingSubtasks = parent.subtasks || [];
+        if (oneBasedIndex > existingSubtasks.length) return fail('Subtask index out of range.', 'INDEX_OUT_OF_RANGE', { id: parentId });
         const explicitCompleted = typeof args.completed === 'boolean' ? args.completed : undefined;
 
         updateTodo(parentId, (todo) => {
@@ -2348,39 +2492,48 @@ const App: React.FC = () => {
           return { ...todo, subtasks: existing };
         });
         setExpandedSubitems(prev => new Set(prev).add(parentId));
-        break;
+        return ok('Subtask toggled.', { id: parentId });
       }
       case ToolNames.DELETE_TODO: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const id = String(args.id);
+        if (!id) return fail('Missing id for delete.', 'MISSING_ID');
         const targetTodo = todosRef.current.find((todo) => todo.id === id);
+        if (!targetTodo) return fail('Item not found for delete.', 'NOT_FOUND', { id });
         if (targetTodo && !targetTodo.canDelete) {
-          showUiNotice('Only the owner can delete this task.');
-          break;
+          showUiNotice(getOwnerDeleteOnlyMessage(), { persistent: true });
+          return fail('Delete forbidden for shared item.', 'FORBIDDEN', { id });
         }
         if (id.startsWith('tmp-')) {
           canceledTempIdsRef.current.add(id);
           setTodos(prev => prev.filter(t => t.id !== id));
-          break;
+          return ok('Temporary item deleted locally.', { id });
         }
         setTodos(prev => prev.filter(t => t.id !== id));
         if (isLoggedIn) syncDelete(id);
         if (typeof window !== 'undefined' && isLoggedIn) {
           window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: 1 } }));
         }
-        break;
+        return ok('Delete queued.', { id });
       }
       case ToolNames.TOGGLE_TODO: {
+        if (args.__idResolutionError) return fail(String(args.__idResolutionError), 'AMBIGUOUS_ID');
         const id = String(args.id);
+        if (!id) return fail('Missing id for toggle.', 'MISSING_ID');
+        const targetTodo = todosRef.current.find((todo) => todo.id === id);
+        if (!targetTodo) return fail('Item not found for toggle.', 'NOT_FOUND', { id });
+        if (targetTodo.type !== 'event') return fail('Only tasks/events can be toggled.', 'INVALID_TYPE', { id });
         updateTodo(id, (todo) => {
           if (todo.type !== 'event') return todo;
           const next = { ...todo, completed: !todo.completed };
           if (isLoggedIn) syncUpdate(id, { completed: next.completed });
           return next;
         });
-        break;
+        return ok('Completion toggled.', { id });
       }
       case ToolNames.CLEAR_COMPLETED: {
         const removedCount = todosRef.current.filter(t => t.type === 'event' && t.completed && !String(t.id).startsWith('tmp-')).length;
+        if (removedCount === 0) return fail('No completed tasks to clear.', 'NO_OP');
         setTodos(prev => {
           if (isLoggedIn) prev.filter(t => t.type === 'event' && t.completed).forEach(t => syncDelete(t.id));
           return prev.filter(t => !(t.type === 'event' && t.completed));
@@ -2388,11 +2541,13 @@ const App: React.FC = () => {
         if (typeof window !== 'undefined' && isLoggedIn && removedCount > 0) {
           window.dispatchEvent(new CustomEvent('trash-count-refresh', { detail: { delta: removedCount } }));
         }
-        break;
+        return ok(`Cleared ${removedCount} completed task(s).`);
       }
+      default:
+        return fail(`Unknown tool: ${name}`, 'UNKNOWN_TOOL');
     }
-    return "OK";
-  }, [activeTab, language, session?.user?.email, showUiNotice, userId]);
+    return ok('Done.');
+  }, [activeTab, getOwnerDeleteOnlyMessage, language, session?.user?.email, showUiNotice, userId]);
 
   const moveNoteCard = useCallback((id: string, direction: 'up' | 'down', visibleNotes: TodoItem[]) => {
     const currentIndex = visibleNotes.findIndex(item => item.id === id);
@@ -2541,7 +2696,11 @@ const App: React.FC = () => {
                 let toolResponse: Record<string, unknown>;
                 try {
                   const res = executeTool(functionName, functionArgs);
-                  toolResponse = { ok: true, result: res };
+                  const execution = (res && typeof res === 'object') ? (res as Record<string, unknown>) : { ok: true, message: 'Done' };
+                  toolResponse = {
+                    ok: Boolean(execution.ok !== false),
+                    result: execution
+                  };
                 } catch (error) {
                   console.error('Tool execution failed:', functionName, error);
                   toolResponse = { ok: false, error: 'Tool execution failed' };
@@ -3298,10 +3457,16 @@ const App: React.FC = () => {
   const mobilePriorityShortLabel = extractMeaningfulFilterWord(mobilePriorityMenuLabel, language);
   const isSearchActionDisabled = !searchQuery.trim();
   const searchTypeLabel = searchType === 'task' ? t.tasks : t.events;
-  const getSharedEmails = useCallback((item: TodoItem) => item.sharedWithEmails || [], []);
+  const getSharedEmails = useCallback((item: TodoItem) => {
+    if (item.isShared) {
+      if (!item.ownerEmail) return [];
+      return [`${item.ownerEmail} (host)`];
+    }
+    return item.sharedWithEmails || [];
+  }, []);
   const hasShares = useCallback((item: TodoItem) => {
     const emails = getSharedEmails(item);
-    return emails.length > 0 || Number(item.shareCount || 0) > 0;
+    return emails.length > 0 || (!item.isShared && Number(item.shareCount || 0) > 0);
   }, [getSharedEmails]);
   const handleHomeLogoClick = useCallback(() => {
     if (!isMobileViewport) return;
@@ -3353,9 +3518,19 @@ const App: React.FC = () => {
       />
 
       {uiNotice && (
-        <div className="max-w-7xl mx-auto px-6 mt-3">
+        <div className="max-w-7xl mx-auto px-3 mt-3 mb-4">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 shadow-sm">
-            {uiNotice}
+            <div className="flex items-start justify-between gap-2">
+              <span>{uiNotice.message}</span>
+              <button
+                type="button"
+                onClick={closeUiNotice}
+                className="h-4 w-4 inline-flex items-center justify-center rounded-sm text-amber-700 hover:text-amber-900"
+                aria-label="Close notice"
+              >
+                <i className="fas fa-times text-[10px]"></i>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -4700,9 +4875,6 @@ const App: React.FC = () => {
                               <span className="mr-2 text-slate-500 font-semibold">#{item.localId || item.id}</span>
                               <span>{item.text}</span>
                             </div>
-                            {item.isShared && item.ownerEmail && (
-                              <div className="mt-1 text-[11px] font-semibold text-slate-500">Shared by {item.ownerEmail}</div>
-                            )}
 
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               {isMobileViewport ? (
@@ -4880,9 +5052,6 @@ const App: React.FC = () => {
                             <span className="mr-2 text-slate-500 font-semibold">#{item.localId || item.id}</span>
                             <span>{item.title || item.text}</span>
                           </div>
-                          {item.isShared && item.ownerEmail && (
-                            <div className="mt-1 text-[11px] font-semibold text-slate-500">Shared by {item.ownerEmail}</div>
-                          )}
                           <div className="mt-5 flex flex-wrap items-center gap-2">
                             <div className={`event-priority-chip event-priority-${item.priority} inline-flex items-center rounded-full border px-2 py-0.5 ${priorityBadgeClasses[item.priority]}`}>
                               <select
