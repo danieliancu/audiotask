@@ -689,59 +689,31 @@ const splitMinutesToDhm = (value: number) => {
   const minutes = remainingAfterDays % 60;
   return { days, hours, minutes };
 };
-const formatRemainingDuration = (totalMs: number, language: Language) => {
+const formatRemainingDuration = (totalMs: number) => {
   const minutesTotal = Math.max(0, Math.floor(totalMs / 60000));
   const days = Math.floor(minutesTotal / (24 * 60));
   const hours = Math.floor((minutesTotal % (24 * 60)) / 60);
   const minutes = minutesTotal % 60;
-  const useDaysAndHours = minutesTotal >= 24 * 60;
-  const shouldUseRomanianDeForHourMinute = (value: number) => {
-    const abs = Math.abs(value);
-    if (abs < 20) return false;
-    const lastTwo = abs % 100;
-    return !(lastTwo > 0 && lastTwo < 20);
-  };
-  const formatUnit = (value: number, unit: 'day' | 'hour' | 'minute') => {
-    switch (language) {
-      case 'ro': {
-        if (unit === 'day') return value === 1 ? 'o zi' : `${value} zile`;
-        if (unit === 'hour') return value === 1 ? 'o ora' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de ore` : `${value} ore`);
-        return value === 1 ? 'un minut' : (shouldUseRomanianDeForHourMinute(value) ? `${value} de minute` : `${value} minute`);
-      }
-      case 'fr': {
-        if (unit === 'day') return value === 1 ? '1 jour' : `${value} jours`;
-        if (unit === 'hour') return value === 1 ? '1 heure' : `${value} heures`;
-        return value === 1 ? '1 minute' : `${value} minutes`;
-      }
-      case 'de': {
-        if (unit === 'day') return value === 1 ? '1 Tag' : `${value} Tage`;
-        if (unit === 'hour') return value === 1 ? '1 Stunde' : `${value} Stunden`;
-        return value === 1 ? '1 Minute' : `${value} Minuten`;
-      }
-      case 'es': {
-        if (unit === 'day') return value === 1 ? '1 dia' : `${value} dias`;
-        if (unit === 'hour') return value === 1 ? '1 hora' : `${value} horas`;
-        return value === 1 ? '1 minuto' : `${value} minutos`;
-      }
-      default: {
-        if (unit === 'day') return value === 1 ? '1 day' : `${value} days`;
-        if (unit === 'hour') return value === 1 ? '1 hour' : `${value} hours`;
-        return value === 1 ? '1 minute' : `${value} minutes`;
-      }
-    }
-  };
-  if (useDaysAndHours) {
-    const parts = [
-      days > 0 ? formatUnit(days, 'day') : '',
-      hours > 0 ? formatUnit(hours, 'hour') : ''
-    ].filter(Boolean);
-    return parts.length ? parts.join(', ') : formatUnit(0, 'hour');
+
+  if (days > 0) {
+    return `${days}d ${hours}h`;
   }
-  const parts = [
-    hours > 0 ? formatUnit(hours, 'hour') : '',
-    minutes > 0 ? formatUnit(minutes, 'minute') : ''
-  ].filter(Boolean);
-  return parts.length ? parts.join(', ') : formatUnit(0, 'minute');
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes} min`;
+};
+const formatRemainingDurationForUi = (totalMs: number) => {
+  if (totalMs < 60_000) return null;
+  return formatRemainingDuration(totalMs);
+};
+const hasActiveReminderCountdownForUi = (item: TodoItem) => {
+  if (item.reminderMinutesBefore === undefined) return false;
+  return (getItemDateTime(item) - Date.now()) >= 60_000;
+};
+const isReminderExpiredForUi = (item: TodoItem) => {
+  if (item.reminderMinutesBefore === undefined) return false;
+  return (getItemDateTime(item) - Date.now()) < 60_000;
 };
 const formatSubtaskCountLabel = (count: number, language: Language) => {
   if (count === 1) {
@@ -1120,6 +1092,7 @@ const App: React.FC = () => {
   const canceledTempIdsRef = useRef<Set<string>>(new Set());
   const pendingTempUpdatesRef = useRef<Map<string, Record<string, unknown>>>(new Map());
   const requestQueueByIdRef = useRef<Map<string, Promise<void>>>(new Map());
+  const reminderCleanupInFlightRef = useRef<Set<string>>(new Set());
   const todosRef = useRef<TodoItem[]>([]);
   const [language, setLanguage] = useState<Language>('en');
   const [activeTab, setActiveTab] = useState<ItemType>('task');
@@ -1314,6 +1287,42 @@ const App: React.FC = () => {
     }, 60000);
     return () => clearInterval(timer);
   }, [language]);
+
+  useEffect(() => {
+    const cleanupExpiredReminders = () => {
+      const snapshot = todosRef.current;
+      const expiredItems = snapshot.filter((item) => isReminderExpiredForUi(item));
+      if (expiredItems.length === 0) return;
+
+      const expiredIds = new Set(expiredItems.map((item) => item.id));
+      setTodos((prev) => prev.map((item) => (
+        expiredIds.has(item.id)
+          ? { ...item, reminderMinutesBefore: undefined, reminderChannel: undefined }
+          : item
+      )));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('reminder-count-refresh'));
+      }
+
+      if (!userId) return;
+      for (const item of expiredItems) {
+        if (!item.canManageReminder) continue;
+        if (reminderCleanupInFlightRef.current.has(item.id)) continue;
+        reminderCleanupInFlightRef.current.add(item.id);
+        void fetch(`/api/todos/${item.id}/reminder`, {
+          method: 'DELETE',
+          credentials: 'include'
+        }).catch(() => {}).finally(() => {
+          reminderCleanupInFlightRef.current.delete(item.id);
+        });
+      }
+    };
+
+    cleanupExpiredReminders();
+    const timer = setInterval(cleanupExpiredReminders, 15_000);
+    return () => clearInterval(timer);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -4572,7 +4581,7 @@ const App: React.FC = () => {
                                   className={`h-7 w-7 hidden md:inline-flex items-center justify-center rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500'}`}
                                   title={item.canManageShare ? 'Share' : 'Owner only'}
                                 >
-                                  <i className="fas fa-user-group text-[15px]"></i>
+                                  <i className="fas fa-users text-[15px]"></i>
                                 </button>
                                 {!hasShares(item) && (
                                   <button
@@ -4582,22 +4591,27 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex md:hidden items-center justify-center rounded-md text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-user-group text-[15px]"></i>
+                                    <i className="fas fa-users text-[15px]"></i>
                                   </button>
                                 )}
-                                {item.reminderMinutesBefore !== undefined && (
-                                  <span className="ml-1 mr-1 text-[11px] font-bold text-amber-600 whitespace-nowrap">
-                                    ~ {formatRemainingDuration(getItemDateTime(item) - Date.now(), language)}
-                                  </span>
-                                )}
+                                {(() => {
+                                  if (!hasActiveReminderCountdownForUi(item)) return null;
+                                  const reminderText = formatRemainingDurationForUi(getItemDateTime(item) - Date.now());
+                                  if (!reminderText) return null;
+                                  return (
+                                    <span className="ml-1 mr-1 text-[11px] font-bold text-amber-600 whitespace-nowrap">
+                                      ~ {reminderText}
+                                    </span>
+                                  );
+                                })()}
                                 <button
                                   type="button"
                                   onClick={() => openReminderModal(item)}
                                   disabled={!userId || !item.canManageReminder}
-                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${item.reminderMinutesBefore !== undefined ? 'text-amber-600' : 'text-slate-400'}`}
+                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${hasActiveReminderCountdownForUi(item) ? 'text-amber-600' : 'text-slate-400'}`}
                                   title={!userId ? getReminderLoginRequiredMessage() : (item.canManageReminder ? t.reminderTitle : 'Owner only')}
                                 >
-                                  <i className={`far fa-bell ${item.reminderMinutesBefore !== undefined ? 'reminder-bell-ring' : ''}`}></i>
+                                  <i className={`far fa-bell ${hasActiveReminderCountdownForUi(item) ? 'reminder-bell-ring' : ''}`}></i>
                                 </button>
                                 <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 transition-colors">
                                   <i className="fas fa-pen text-[13px]"></i>
@@ -4608,7 +4622,7 @@ const App: React.FC = () => {
                               </div>
                             </div>
                             {hasShares(item) && (
-                              <div className="flex w-full md:hidden mt-1 items-center justify-end">
+                              <div className="flex w-full md:hidden mt-0 items-center justify-end">
                                 <div className="relative inline-flex items-center gap-1 ml-auto">
                                   {getSharedEmails(item).length <= 1 ? (
                                     <span className="text-[11px] font-bold text-red-600 whitespace-nowrap">
@@ -4631,7 +4645,7 @@ const App: React.FC = () => {
                                     className="h-7 w-7 inline-flex items-center justify-center rounded-md text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={item.canManageShare ? 'Share' : 'Owner only'}
                                   >
-                                    <i className="fas fa-user-group text-[15px]"></i>
+                                    <i className="fas fa-users text-[15px]"></i>
                                   </button>
                                   {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                     <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">
@@ -4875,7 +4889,7 @@ const App: React.FC = () => {
                                 disabled={!item.canManageShare}
                                 className={`h-7 w-7 hidden md:inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${hasShares(item) ? 'text-red-600' : 'text-slate-500 hover:text-slate-700'}`}
                               >
-                                <i className="fas fa-user-group text-[14px]"></i>
+                                <i className="fas fa-users text-[14px]"></i>
                               </button>
                               {!hasShares(item) && (
                                 <button
@@ -4883,7 +4897,7 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex md:hidden items-center justify-center text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-user-group text-[14px]"></i>
+                                  <i className="fas fa-users text-[14px]"></i>
                                 </button>
                               )}
                               <button onClick={() => openEditModal(item)} className="h-7 w-7 inline-flex items-center justify-center text-slate-500 hover:text-purple-600 transition-colors">
@@ -4916,7 +4930,7 @@ const App: React.FC = () => {
                                   disabled={!item.canManageShare}
                                   className="h-7 w-7 inline-flex items-center justify-center text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <i className="fas fa-user-group text-[14px]"></i>
+                                  <i className="fas fa-users text-[14px]"></i>
                                 </button>
                                 {shareDropdownItemId === item.id && getSharedEmails(item).length > 1 && (
                                   <div className="absolute right-0 top-full mt-1 z-20 min-w-[220px] rounded-xl border border-red-200 bg-white shadow-lg p-2 space-y-1">

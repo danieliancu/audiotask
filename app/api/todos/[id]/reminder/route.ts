@@ -4,8 +4,17 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import pool from '@/lib/db';
 import { ensureTodoTrashSchema } from '@/lib/todoSchema';
 import { getTodoAccess, parseUserId } from '@/lib/todoAccess';
-import { computeTodoDueAt, parseReminderChannel, parseReminderMinutes, type TodoReminderRow } from '@/lib/reminders';
+import { computeTodoDueAt, parseReminderChannel, parseReminderMinutes } from '@/lib/reminders';
 import { enqueueDelayedReminder } from '@/lib/delayedQueue';
+
+type DbTodoRow = {
+  id: number;
+  due_time: string | null;
+  sort_timestamp: number;
+  type: 'task' | 'event';
+  completed: number | boolean;
+  deleted_at: number | null;
+};
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   await ensureTodoTrashSchema();
@@ -21,7 +30,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const access = await getTodoAccess(userId, todoId);
   if (!access || access.deletedAt !== null) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (access.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
   const minutesBefore = parseReminderMinutes(body.minutesBefore);
@@ -35,12 +43,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const [todoRows] = await pool.query(
-    'SELECT * FROM todos WHERE user_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1',
-    [userId, todoId]
+    'SELECT id, due_time, sort_timestamp, type, completed, deleted_at FROM todos WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+    [todoId]
   );
-  const todo = (todoRows as TodoReminderRow[])[0];
+  const todo = (todoRows as DbTodoRow[])[0];
   if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (todo.type !== 'event') return NextResponse.json({ error: 'Reminders only for tasks' }, { status: 400 });
+  if (todo.type !== 'event') return NextResponse.json({ error: 'Reminders only for events' }, { status: 400 });
 
   const dueAt = computeTodoDueAt(todo);
   const scheduledFor = dueAt - (minutesBefore * 60 * 1000);
@@ -58,8 +66,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     );
 
     await connection.query(
-      'UPDATE todos SET reminder_minutes_before = ?, reminder_channel = ? WHERE id = ? AND user_id = ?',
-      [minutesBefore, channel, todo.id, userId]
+      `INSERT INTO todo_user_reminders (todo_id, user_id, reminder_minutes_before, reminder_channel, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         reminder_minutes_before = VALUES(reminder_minutes_before),
+         reminder_channel = VALUES(reminder_channel),
+         updated_at = VALUES(updated_at)`,
+      [todo.id, userId, minutesBefore, channel, Date.now(), Date.now()]
     );
 
     const [insertResult] = await connection.query(
@@ -133,14 +146,13 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
 
   const access = await getTodoAccess(userId, todoId);
   if (!access || access.deletedAt !== null) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (access.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await pool.query(
     "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
     [Date.now(), userId, todoId]
   );
   await pool.query(
-    'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE user_id = ? AND id = ?',
+    'DELETE FROM todo_user_reminders WHERE user_id = ? AND todo_id = ?',
     [userId, todoId]
   );
 

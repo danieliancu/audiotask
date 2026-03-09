@@ -31,6 +31,8 @@ type DbTodoRow = {
   share_count: number | null;
   shared_emails: string | null;
   effective_label_id: number | null;
+  effective_reminder_minutes_before: number | null;
+  effective_reminder_channel: 'email' | 'sms' | 'push' | null;
 };
 
 const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
@@ -83,8 +85,8 @@ const mapRow = (row: DbTodoRow) => {
     sortTimestamp: Number(row.sort_timestamp),
     type: row.type,
     priority: row.priority,
-    reminderMinutesBefore: row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
-    reminderChannel: row.reminder_channel ?? undefined,
+    reminderMinutesBefore: row.effective_reminder_minutes_before !== null ? Number(row.effective_reminder_minutes_before) : undefined,
+    reminderChannel: row.effective_reminder_channel ?? undefined,
     subtasks: normalizeSubtasks(row.subtasks),
     isShared: !isOwner,
     ownerUserId: String(row.user_id),
@@ -92,7 +94,7 @@ const mapRow = (row: DbTodoRow) => {
     canEdit: true,
     canDelete: isOwner,
     canManageShare: isOwner,
-    canManageReminder: isOwner,
+    canManageReminder: true,
     canEditLabel: true,
     shareCount: Number(row.share_count || 0),
     sharedWithEmails: String(row.shared_emails || '')
@@ -112,6 +114,14 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
          tul.label_id,
          CASE WHEN t.user_id = ? THEN t.label_id ELSE NULL END
        ) AS effective_label_id,
+       COALESCE(
+         tur.reminder_minutes_before,
+         CASE WHEN t.user_id = ? THEN t.reminder_minutes_before ELSE NULL END
+       ) AS effective_reminder_minutes_before,
+       COALESCE(
+         tur.reminder_channel,
+         CASE WHEN t.user_id = ? THEN t.reminder_channel ELSE NULL END
+       ) AS effective_reminder_channel,
        (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
        (
          SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
@@ -124,6 +134,9 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
      LEFT JOIN todo_user_labels tul
        ON tul.todo_id = t.id
       AND tul.user_id = ?
+     LEFT JOIN todo_user_reminders tur
+       ON tur.todo_id = t.id
+      AND tur.user_id = ?
      LEFT JOIN todo_shares ts
        ON ts.todo_id = t.id
       AND ts.shared_user_id = ?
@@ -131,7 +144,7 @@ const fetchTodoForViewer = async (todoId: number, viewerUserId: number) => {
        AND t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      LIMIT 1`,
-    [viewerUserId, viewerUserId, viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
+    [viewerUserId, viewerUserId, viewerUserId, viewerUserId, viewerUserId, viewerUserId, todoId, viewerUserId, viewerUserId]
   );
   return (rows as DbTodoRow[])[0] ?? null;
 };
@@ -229,12 +242,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
   if (shouldResetReminder) {
     await pool.query(
-      "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
-      [Date.now(), access.ownerUserId, todoId]
-    );
-    await pool.query(
-      'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE id = ? AND user_id = ?',
-      [todoId, access.ownerUserId]
+      "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE todo_id = ? AND status = 'scheduled'",
+      [Date.now(), todoId]
     );
   }
 
@@ -271,12 +280,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   );
 
   await pool.query(
-    "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE user_id = ? AND todo_id = ? AND status = 'scheduled'",
-    [Date.now(), userId, todoId]
-  );
-  await pool.query(
-    'UPDATE todos SET reminder_minutes_before = NULL, reminder_channel = NULL WHERE id = ? AND user_id = ?',
-    [todoId, userId]
+    "UPDATE reminder_jobs SET status = 'canceled', canceled_at = ? WHERE todo_id = ? AND status = 'scheduled'",
+    [Date.now(), todoId]
   );
 
   return NextResponse.json({ ok: true });

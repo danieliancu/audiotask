@@ -15,8 +15,8 @@ type DbReminderRow = {
   text: string;
   due_time: string | null;
   sort_timestamp: number;
-  reminder_minutes_before: number | null;
-  reminder_channel: ReminderChannel | null;
+  reminder_minutes_before: number;
+  reminder_channel: ReminderChannel;
   completed: number | boolean;
   deleted_at: number | null;
   type: 'task' | 'event';
@@ -59,31 +59,61 @@ export async function GET(request: Request) {
 
   if (countOnly) {
     const [rows] = await pool.query(
-      `SELECT *
-       FROM todos
-       WHERE user_id = ?
-         AND type = 'event'
-         AND deleted_at IS NULL
-         AND completed = 0
-         AND reminder_minutes_before IS NOT NULL
-         AND reminder_channel IS NOT NULL`,
-      [userId]
+      `SELECT
+         t.id,
+         t.local_id,
+         t.user_id,
+         t.title,
+         t.text,
+         t.due_time,
+         t.sort_timestamp,
+         tur.reminder_minutes_before,
+         tur.reminder_channel,
+         t.completed,
+         t.deleted_at,
+         t.type
+       FROM todo_user_reminders tur
+       JOIN todos t ON t.id = tur.todo_id
+       LEFT JOIN todo_shares ts
+         ON ts.todo_id = t.id
+        AND ts.shared_user_id = ?
+       WHERE tur.user_id = ?
+         AND t.type = 'event'
+         AND t.deleted_at IS NULL
+         AND t.completed = 0
+         AND (t.user_id = ? OR ts.shared_user_id = ?)`,
+      [userId, userId, userId, userId]
     );
     const count = (rows as DbReminderRow[]).filter(isReminderActive).length;
     return NextResponse.json({ count });
   }
 
   const [rows] = await pool.query(
-    `SELECT *
-     FROM todos
-     WHERE user_id = ?
-       AND type = 'event'
-       AND deleted_at IS NULL
-       AND completed = 0
-       AND reminder_minutes_before IS NOT NULL
-       AND reminder_channel IS NOT NULL
-     ORDER BY sort_timestamp ASC`,
-    [userId]
+    `SELECT
+       t.id,
+       t.local_id,
+       t.user_id,
+       t.title,
+       t.text,
+       t.due_time,
+       t.sort_timestamp,
+       tur.reminder_minutes_before,
+       tur.reminder_channel,
+       t.completed,
+       t.deleted_at,
+       t.type
+     FROM todo_user_reminders tur
+     JOIN todos t ON t.id = tur.todo_id
+     LEFT JOIN todo_shares ts
+       ON ts.todo_id = t.id
+      AND ts.shared_user_id = ?
+     WHERE tur.user_id = ?
+       AND t.type = 'event'
+       AND t.deleted_at IS NULL
+       AND t.completed = 0
+       AND (t.user_id = ? OR ts.shared_user_id = ?)
+     ORDER BY t.sort_timestamp ASC`,
+    [userId, userId, userId, userId]
   );
 
   const activeRows = (rows as DbReminderRow[]).filter(isReminderActive);

@@ -33,6 +33,8 @@ type DbTodoRow = {
   share_count: number | null;
   shared_emails: string | null;
   effective_label_id: number | null;
+  effective_reminder_minutes_before: number | null;
+  effective_reminder_channel: ReminderChannel | null;
 };
 
 const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
@@ -90,8 +92,8 @@ const mapRow = (row: DbTodoRow) => {
     sortTimestamp: Number(row.sort_timestamp),
     type: row.type,
     priority: row.priority,
-    reminderMinutesBefore: !isOverdue && row.reminder_minutes_before !== null ? Number(row.reminder_minutes_before) : undefined,
-    reminderChannel: !isOverdue ? (row.reminder_channel ?? undefined) : undefined,
+    reminderMinutesBefore: !isOverdue && row.effective_reminder_minutes_before !== null ? Number(row.effective_reminder_minutes_before) : undefined,
+    reminderChannel: !isOverdue ? (row.effective_reminder_channel ?? undefined) : undefined,
     deletedAt: row.deleted_at ? Number(row.deleted_at) : undefined,
     subtasks: normalizeSubtasks(row.subtasks),
     isShared: !isOwner,
@@ -100,7 +102,7 @@ const mapRow = (row: DbTodoRow) => {
     canEdit: true,
     canDelete: isOwner,
     canManageShare: isOwner,
-    canManageReminder: isOwner,
+    canManageReminder: true,
     canEditLabel: true,
     shareCount: Number(row.share_count || 0),
     sharedWithEmails: String(row.shared_emails || '')
@@ -125,6 +127,14 @@ export async function GET() {
          tul.label_id,
          CASE WHEN t.user_id = ? THEN t.label_id ELSE NULL END
        ) AS effective_label_id,
+       COALESCE(
+         tur.reminder_minutes_before,
+         CASE WHEN t.user_id = ? THEN t.reminder_minutes_before ELSE NULL END
+       ) AS effective_reminder_minutes_before,
+       COALESCE(
+         tur.reminder_channel,
+         CASE WHEN t.user_id = ? THEN t.reminder_channel ELSE NULL END
+       ) AS effective_reminder_channel,
        (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
        (
          SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
@@ -137,13 +147,16 @@ export async function GET() {
      LEFT JOIN todo_user_labels tul
        ON tul.todo_id = t.id
       AND tul.user_id = ?
+     LEFT JOIN todo_user_reminders tur
+       ON tur.todo_id = t.id
+      AND tur.user_id = ?
      LEFT JOIN todo_shares ts
        ON ts.todo_id = t.id
       AND ts.shared_user_id = ?
      WHERE t.deleted_at IS NULL
        AND (t.user_id = ? OR ts.shared_user_id = ?)
      ORDER BY t.sort_timestamp ASC`,
-    [userId, userId, userId, userId, userId, userId]
+    [userId, userId, userId, userId, userId, userId, userId, userId, userId]
   );
 
   const uniqueByTodoId = new Map<number, DbTodoRow>();
@@ -244,6 +257,8 @@ export async function POST(request: Request) {
          owner.email AS owner_email,
          1 AS is_owner,
          COALESCE(tul.label_id, t.label_id) AS effective_label_id,
+         COALESCE(tur.reminder_minutes_before, t.reminder_minutes_before) AS effective_reminder_minutes_before,
+         COALESCE(tur.reminder_channel, t.reminder_channel) AS effective_reminder_channel,
          (SELECT COUNT(*) FROM todo_shares ts2 WHERE ts2.todo_id = t.id) AS share_count,
          (
            SELECT GROUP_CONCAT(u2.email ORDER BY ts2.created_at ASC SEPARATOR ',')
@@ -256,6 +271,9 @@ export async function POST(request: Request) {
        LEFT JOIN todo_user_labels tul
          ON tul.todo_id = t.id
         AND tul.user_id = t.user_id
+       LEFT JOIN todo_user_reminders tur
+         ON tur.todo_id = t.id
+        AND tur.user_id = t.user_id
        WHERE t.id = ? AND t.user_id = ?
        LIMIT 1`,
       [insertResult.insertId, userId]

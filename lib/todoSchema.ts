@@ -185,6 +185,40 @@ export function ensureTodoTrashSchema() {
          AND tul.id IS NULL`,
       [Date.now(), Date.now()]
     );
+
+    const [todoUserRemindersTableRows] = await pool.query("SHOW TABLES LIKE 'todo_user_reminders'");
+    const hasTodoUserRemindersTable = Array.isArray(todoUserRemindersTableRows) && todoUserRemindersTableRows.length > 0;
+    if (!hasTodoUserRemindersTable) {
+      await pool.query(
+        `CREATE TABLE todo_user_reminders (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          todo_id BIGINT NOT NULL,
+          user_id BIGINT NOT NULL,
+          reminder_minutes_before INT NOT NULL,
+          reminder_channel ENUM('email','sms','push') NOT NULL,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL,
+          UNIQUE KEY uniq_todo_user_reminder (todo_id, user_id),
+          INDEX idx_todo_user_reminders_user (user_id),
+          INDEX idx_todo_user_reminders_todo (todo_id),
+          CONSTRAINT fk_todo_user_reminders_todo FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+          CONSTRAINT fk_todo_user_reminders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`
+      );
+    }
+
+    await pool.query(
+      `INSERT INTO todo_user_reminders (todo_id, user_id, reminder_minutes_before, reminder_channel, created_at, updated_at)
+       SELECT t.id, t.user_id, t.reminder_minutes_before, t.reminder_channel, ?, ?
+       FROM todos t
+       LEFT JOIN todo_user_reminders tur
+         ON tur.todo_id = t.id
+        AND tur.user_id = t.user_id
+       WHERE t.reminder_minutes_before IS NOT NULL
+         AND t.reminder_channel IS NOT NULL
+         AND tur.id IS NULL`,
+      [Date.now(), Date.now()]
+    );
   })().catch((error) => {
     ensureSchemaPromise = null;
     throw error;
