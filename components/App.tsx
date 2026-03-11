@@ -696,24 +696,6 @@ const splitMinutesToDhm = (value: number) => {
   const minutes = remainingAfterDays % 60;
   return { days, hours, minutes };
 };
-const formatRemainingDuration = (totalMs: number) => {
-  const minutesTotal = Math.max(0, Math.floor(totalMs / 60000));
-  const days = Math.floor(minutesTotal / (24 * 60));
-  const hours = Math.floor((minutesTotal % (24 * 60)) / 60);
-  const minutes = minutesTotal % 60;
-
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes} min`;
-};
-const formatRemainingDurationForUi = (totalMs: number) => {
-  if (totalMs < 60_000) return null;
-  return formatRemainingDuration(totalMs);
-};
 const hasActiveReminderCountdownForUi = (item: TodoItem) => {
   if (item.reminderMinutesBefore === undefined) return false;
   return (getItemDateTime(item) - Date.now()) >= 60_000;
@@ -1207,6 +1189,7 @@ const App: React.FC = () => {
   const isLiveRef = useRef(false);
   const [isWriteMode, setIsWriteMode] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [isSendingPrompt, setIsSendingPrompt] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   
@@ -3219,33 +3202,42 @@ const App: React.FC = () => {
   };
 
   const handleSendPrompt = async () => {
-    if (!inputValue.trim()) return;
-    lastUserCommandRef.current = inputValue;
-    const todayIso = new Date().toISOString().split('T')[0];
-    const response = await generateAssistantResponse(
-      `${inputValue}\n${labelsPromptContext}\nCurrent date: ${todayIso}. For relative dates (today/tomorrow/day after tomorrow), convert to this context.`,
-      [],
-      language
-    );
-    const directCalls = (response.functionCalls ?? [])
-      .map((call) => toParsedFunctionCall(call))
-      .filter((entry): entry is ParsedFunctionCall => Boolean(entry));
-    const partCalls = extractFunctionCallsFromParts(response.candidates?.[0]?.content?.parts);
-    const functionCalls = directCalls.length > 0 ? directCalls : partCalls;
-    for (const call of functionCalls) {
-      await executeTool(call.name, call.args);
-    }
-    if (functionCalls.length === 0) {
-      showUiNotice(
-        language === 'ro'
-          ? 'Modelul a raspuns fara tool-call executabil.'
-          : 'Model replied without an executable tool call.',
-        { persistent: true }
-      );
-    }
-    lastUserCommandRef.current = '';
+    if (isSendingPrompt) return;
+    const promptText = inputValue.trim();
+    if (!promptText) return;
+
+    lastUserCommandRef.current = promptText;
     setInputValue('');
     setIsWriteMode(false);
+    setIsSendingPrompt(true);
+
+    try {
+      const todayIso = new Date().toISOString().split('T')[0];
+      const response = await generateAssistantResponse(
+        `${promptText}\n${labelsPromptContext}\nCurrent date: ${todayIso}. For relative dates (today/tomorrow/day after tomorrow), convert to this context.`,
+        [],
+        language
+      );
+      const directCalls = (response.functionCalls ?? [])
+        .map((call) => toParsedFunctionCall(call))
+        .filter((entry): entry is ParsedFunctionCall => Boolean(entry));
+      const partCalls = extractFunctionCallsFromParts(response.candidates?.[0]?.content?.parts);
+      const functionCalls = directCalls.length > 0 ? directCalls : partCalls;
+      for (const call of functionCalls) {
+        await executeTool(call.name, call.args);
+      }
+      if (functionCalls.length === 0) {
+        showUiNotice(
+          language === 'ro'
+            ? 'Modelul a raspuns fara tool-call executabil.'
+            : 'Model replied without an executable tool call.',
+          { persistent: true }
+        );
+      }
+    } finally {
+      lastUserCommandRef.current = '';
+      setIsSendingPrompt(false);
+    }
   };
 
   const resetComposerState = () => {
@@ -3850,13 +3842,13 @@ const App: React.FC = () => {
           <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-lg pl-4 pr-2 py-1">
             <input
               type="text"
-              readOnly={isLive}
+              readOnly={isLive || isSendingPrompt}
               value={isLive ? transcription : inputValue}
               onChange={e => {
                 if (!isLive) setInputValue(e.target.value);
               }}
               onKeyDown={e => {
-                if (!isLive && e.key === 'Enter') handleSendPrompt();
+                if (!isLive && !isSendingPrompt && e.key === 'Enter') handleSendPrompt();
               }}
               placeholder={isLive ? t.listening : t.placeholder}
               className="flex-1 text-sm bg-transparent border-none outline-none focus:outline-none text-gray-700"
@@ -3864,7 +3856,8 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={handleSendPrompt}
-              className={`p-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors ${isLive ? 'invisible pointer-events-none' : ''}`}
+              disabled={isSendingPrompt}
+              className={`p-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isLive ? 'invisible pointer-events-none' : ''}`}
               aria-label="Send"
             >
               <i className="fas fa-paper-plane text-sm text-white"></i>
@@ -5105,22 +5098,18 @@ const App: React.FC = () => {
                                     <i className="fas fa-share-alt text-[15px]"></i>
                                   </button>
                                 )}
-                                {(() => {
-                                  if (!hasActiveReminderCountdownForUi(item)) return null;
-                                  const reminderText = formatRemainingDurationForUi(getItemDateTime(item) - Date.now());
-                                  if (!reminderText) return null;
-                                  return (
-                                    <span className="ml-1 mr-1 text-[11px] font-bold text-amber-600 whitespace-nowrap">
-                                      ~ {reminderText}
-                                    </span>
-                                  );
-                                })()}
                                 <button
                                   type="button"
-                                  onClick={() => openReminderModal(item)}
-                                  disabled={!userId || !item.canManageReminder}
-                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${hasActiveReminderCountdownForUi(item) ? 'text-amber-600' : 'text-slate-400'}`}
-                                  title={!userId ? getReminderLoginRequiredMessage() : (item.canManageReminder ? t.reminderTitle : 'Owner only')}
+                                  onClick={() => {
+                                    if (hasActiveReminderCountdownForUi(item)) {
+                                      window.location.href = '/reminders';
+                                      return;
+                                    }
+                                    openReminderModal(item);
+                                  }}
+                                  disabled={!hasActiveReminderCountdownForUi(item) && (!userId || !item.canManageReminder)}
+                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${hasActiveReminderCountdownForUi(item) ? 'bg-violet-500 text-white hover:bg-violet-600' : 'text-slate-400'}`}
+                                  title={hasActiveReminderCountdownForUi(item) ? 'Open reminders list' : (!userId ? getReminderLoginRequiredMessage() : (item.canManageReminder ? t.reminderTitle : 'Owner only'))}
                                 >
                                   <i className={`far fa-bell ${hasActiveReminderCountdownForUi(item) ? 'reminder-bell-ring' : ''}`}></i>
                                 </button>
@@ -5251,6 +5240,15 @@ const App: React.FC = () => {
                                     <i className="card-caret-icon fas fa-chevron-down text-[9px] opacity-60"></i>
                                   </div>
                                 </>
+                              )}
+                              {hasActiveReminderCountdownForUi(item) && (
+                                <a
+                                  href="/reminders"
+                                  className={`inline-flex items-center gap-1 border border-blue-200 bg-violet-500 px-2 py-0.5 font-semibold text-white transition-colors hover:bg-blue-100 ${isMobileViewport ? 'rounded-lg text-[11px]' : 'rounded-full text-[14px]'}`}
+                                >
+                                  <i className={`far fa-envelope ${isMobileViewport ? 'text-[9px]' : 'text-[11px]'}`}></i>
+                                  <span>Reminder</span>
+                                </a>
                               )}
 
                               {isItemOverdue(item) && (

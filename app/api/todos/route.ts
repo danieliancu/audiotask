@@ -70,6 +70,20 @@ const normalizeSubtasks = (value: unknown): SubtaskItem[] | undefined => {
   return items.length ? items : undefined;
 };
 
+const findSmallestAvailableLocalId = (localIds: number[]) => {
+  const used = new Set<number>(
+    localIds
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  );
+
+  let candidate = 1;
+  while (used.has(candidate)) {
+    candidate += 1;
+  }
+  return candidate;
+};
+
 const mapRow = (row: DbTodoRow) => {
   const isOwner = Boolean(row.is_owner);
   const dueAt = row.type === 'event'
@@ -215,11 +229,13 @@ export async function POST(request: Request) {
   try {
     await connection.beginTransaction();
 
-    const [maxRows] = await connection.query<RowDataPacket[]>(
-      'SELECT COALESCE(MAX(local_id), 0) + 1 AS nextLocalId FROM todos WHERE user_id = ? FOR UPDATE',
+    const [localIdRows] = await connection.query<RowDataPacket[]>(
+      'SELECT local_id FROM todos WHERE user_id = ? FOR UPDATE',
       [userId]
     );
-    const nextLocalId = Number(maxRows[0]?.nextLocalId || 1);
+    const nextLocalId = findSmallestAvailableLocalId(
+      localIdRows.map((row) => Number(row.local_id))
+    );
 
     const [insertResult] = await connection.query<ResultSetHeader>(
       'INSERT INTO todos (user_id, local_id, title, text, label_id, completed, created_at, due_date, due_time, due_end_time, location, sort_timestamp, type, priority, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
